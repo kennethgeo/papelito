@@ -82,3 +82,11 @@ Las solicitudes de baja requieren procesamiento administrativo; no son borrado i
 - Instalación y uso en teléfonos físicos Android/iPhone: no probados por esta sesión; comprobar un viewport no sustituye esa prueba.
 
 El acceso real de Google con las credenciales propias se completó desde el sitio publicado y regresó al panel. La publicación final de código y la invocación de la Scheduled Function se verifican tras el despliegue de este cambio.
+
+## Verificaciones posteriores
+
+La compilación final volvió a arrancar correctamente. GET `/`, `/?mode=demo` y la invitación revocada devolvieron HTTP 200, esta última con el aviso de invitación no disponible. El proceso no registró avisos de prerender en estas consultas después de la corrección. A 320 y 390 píxeles no hubo desbordamiento horizontal.
+
+Se eliminó la rama temporal al terminar: la CLI lista únicamente `production`. Se borraron los archivos privados de credenciales de prueba y conexión temporal. La configuración de producción conserva `Require Verification: true`, método `otp`, envío al registrar y sin envío al iniciar sesión.
+
+El primer intento de Netlify del commit `2a908e4` compiló Next y empaquetó las dos funciones, pero su escáner detuvo la publicación al encontrar en README la URL de Auth marcada como secreta en el entorno. Se sustituyó por `<NEON_AUTH_BASE_URL>/callback/google`, manteniendo activo el escaneo; no se expuso un Client Secret, una contraseña ni una conexión de base de datos.

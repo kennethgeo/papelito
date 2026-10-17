@@ -118,7 +118,7 @@ El repositorio incluye `neon.ts` (`auth: true`). El vínculo `.neon` es local y 
 El proyecto independiente de Google Cloud es `papelito-costa-rica`, con audiencia externa en producción y cliente web «Papelito Web». El ID y el secreto están guardados en Neon Auth, fuera del repositorio. El callback autorizado es exactamente:
 
 ```text
-https://ep-frosty-hall-b42n8gmw.neonauth.c-6.us-east-2.aws.neon.tech/neondb/auth/callback/google
+<NEON_AUTH_BASE_URL>/callback/google
 ```
 
 Este flujo usa redirección de servidor; no necesita agregar orígenes JavaScript del navegador. Los destinos de regreso de la app se autorizan por separado en Neon Auth: `http://127.0.0.1:3040`, `http://localhost:3040` y `https://papelitocr.netlify.app`. Al añadir un dominio propio, actualizar sus destinos exactos y la marca de Google; no usar comodines. Google puede mostrar `neon.tech` por el host del callback: publicar la audiencia no equivale a verificar una marca con dominio propio.
