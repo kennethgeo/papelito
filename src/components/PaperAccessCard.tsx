@@ -508,7 +508,7 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
                 autoComplete="current-password"
                 required
                 minLength={MIN_PASSWORD_LENGTH}
-                placeholder="Mínimo 8 caracteres"
+                placeholder="Tu contraseña"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -769,9 +769,9 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
 
       {/* Non-blocking legal links footer (consent is requested only once after authentication if missing) */}
       <p className="paper-auth-legal-note">
-        Consulta nuestros <Link href="/terminos">Términos</Link>,{' '}
+        Podés consultar nuestros <Link href="/terminos">Términos</Link>,{' '}
         <Link href="/privacidad">Privacidad</Link> y{' '}
-        <Link href="/consentimiento">Consentimiento Informado</Link>. Las cuentas nuevas confirman su consentimiento una sola vez después de identificarse.
+        <Link href="/consentimiento">Consentimiento Informado</Link>. Tu aceptación queda guardada en tu cuenta.
       </p>
     </div>
   );

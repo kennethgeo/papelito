@@ -308,7 +308,27 @@ export function mapAuthErrorToSpanish(
     };
   }
 
-  // 8. Network / fetch errors
+  // 9. Unauthorized origin / callback URL (e.g. non-canonical deploy preview alias)
+  if (
+    upperCode === 'INVALID_CALLBACK_URL' ||
+    upperCode === 'INVALID_ORIGIN' ||
+    upperCode === 'INVALID_REDIRECT_URL' ||
+    lowerMessage.includes('invalid callbackurl') ||
+    lowerMessage.includes('invalid callback url') ||
+    lowerMessage.includes('invalid origin') ||
+    lowerMessage.includes('trusted origins')
+  ) {
+    return {
+      code: code || 'INVALID_ORIGIN',
+      message:
+        'Este dominio o enlace temporal no está autorizado para iniciar sesión. Abre Papelito desde su dirección principal e inténtalo de nuevo.',
+      requiresEmailVerification: false,
+      isInvalidToken: false,
+      suggestGoogleOrReset: false,
+    };
+  }
+
+  // 10. Network / fetch errors
   if (
     lowerMessage.includes('failed to fetch') ||
     lowerMessage.includes('networkerror') ||

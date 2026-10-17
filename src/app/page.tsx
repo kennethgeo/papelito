@@ -1,4 +1,5 @@
 import React, { Suspense } from 'react';
+import { unstable_rethrow } from 'next/navigation';
 import { isNeonAuthConfigured } from '@/lib/auth/config';
 import { getServerSession } from '@/lib/auth/server';
 import { isDatabaseConfigured } from '@/lib/db/client';
@@ -52,7 +53,8 @@ async function HomeContent({ searchParams }: PageProps) {
             const consentStatus = await getLatestConsentStatus(session.user.id);
             hasConsented = consentStatus.hasCurrentConsent;
             consentVersion = consentStatus.latestVersion;
-          } catch {
+          } catch (dbErr) {
+            unstable_rethrow(dbErr);
             // Fall back to session metadata if DB is momentarily unreachable
           }
         }
@@ -67,7 +69,8 @@ async function HomeContent({ searchParams }: PageProps) {
           consentVersion,
         };
       }
-    } catch {
+    } catch (err) {
+      unstable_rethrow(err);
       // In case of network / session error, treat as guest
     }
   }

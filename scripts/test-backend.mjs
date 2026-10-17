@@ -936,7 +936,7 @@ async function runTests() {
     'validatePasswordInput debe rechazar contraseñas mayores a 128 caracteres indicando el máximo'
   );
 
-  // 14.2 Mapeo de errores en español (PASSWORD_TOO_LONG, prioridad 429, OTP, credenciales e INVALID_TOKEN)
+  // 14.2 Mapeo de errores en español (PASSWORD_TOO_LONG, prioridad 429, OTP, credenciales, origen no autorizado e INVALID_TOKEN)
   const errTooLong = mapAuthErrorToSpanish({ code: 'PASSWORD_TOO_LONG', message: 'Password too long' }, 'signup');
   assert(
     errTooLong.code === 'PASSWORD_TOO_LONG' && errTooLong.message.includes('128'),
@@ -972,6 +972,13 @@ async function runTests() {
       errInvalidCreds.message.includes('Continuar con Google') &&
       errInvalidCreds.message.includes('¿Olvidaste tu contraseña?'),
     'Credenciales inválidas deben orientar en español sobre cuentas Google o recuperación de contraseña'
+  );
+
+  const errInvalidOrigin = mapAuthErrorToSpanish({ code: 'INVALID_CALLBACK_URL', status: 403 }, 'signin');
+  assert(
+    errInvalidOrigin.code === 'INVALID_CALLBACK_URL' &&
+      errInvalidOrigin.message.includes('dirección principal'),
+    'INVALID_CALLBACK_URL / INVALID_ORIGIN debe indicar abrir Papelito desde su dirección principal'
   );
 
   const errInvalidToken = mapAuthErrorToSpanish({ code: 'INVALID_TOKEN', status: 401 }, 'reset');

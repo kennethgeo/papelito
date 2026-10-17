@@ -31,18 +31,26 @@ npm run lint           → exit 0
 npm run test:draw      → 8/8 pruebas, exit 0
 npm run test:backend   → 12/12 suites, exit 0
 npm run build         → Compiled successfully; 16/16 rutas generadas, exit 0
+next start            → invitado 200, login real 200, SSR autenticado 200,
+                        logout 303, invitado 200; sin HANGING_PROMISE_REJECTION
 ```
 
 La suite nueva prueba validaciones, normalización de errores, destinos internos, recuperación y persistencia/revocación del consentimiento usando los módulos reales y PostgreSQL en memoria (PGlite). La prueba de navegador anterior usa el servicio Neon remoto, sin simular sus respuestas.
 
 ## Netlify
 
-Proyecto existente `papelitocr`, conectado a `kennethgeo/papelito`, rama `main`. Se guardaron `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` e `INVITATION_TOKEN_SECRET` como secretos exclusivamente del contexto de producción, con autorización del titular. No se copiaron al repositorio ni se habilitaron para previews, otras ramas o agentes de Netlify.
+Proyecto existente `papelitocr`, conectado a `kennethgeo/papelito`, rama `main`. Se guardaron `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET` e `INVITATION_TOKEN_SECRET` como secretos exclusivamente del contexto de producción, con autorización del titular. No se copiaron al repositorio ni se habilitaron para previews, otras ramas o agentes de Netlify. La visibilidad observada pasó de producción privada a pública durante la verificación; los previews continúan privados. Codex no modificó esos controles.
 
 Neon Auth autoriza los orígenes exactos `http://127.0.0.1:3040`, `http://localhost:3040` y `https://papelitocr.netlify.app`. La comprobación del despliegue remoto se realiza por separado; la compilación local y las pruebas anteriores no la sustituyen.
+
+El commit `3d827c4` superó CI y Netlify lo publicó en 49 segundos. Desde el dominio principal se comprobó con otra cuenta sintética el acceso, un deseo guardado por la interfaz y confirmado directamente en PostgreSQL, la persistencia tras recargar y dos ciclos de entrada/salida sin casillas repetidas.
+
+Durante la prueba el navegador terminó en el permalink temporal `6ad37c470d8aaecb76a882aa--papelitocr.netlify.app`, que no es un origen autorizado. Neon rechazó ese callback con HTTP 403 `INVALID_CALLBACK_URL`; el dominio principal pasó la misma prueba. No se autorizaron comodines ni todos los previews para sortear esta restricción.
+
+También se detectó que el SDK iniciaba `get-session` durante el prerender y registraba `HANGING_PROMISE_REJECTION`, aunque las sesiones funcionaban. La lectura de sesión ahora espera una petición real mediante `connection()` fuera del `try`; los bloques que la envuelven propagan los errores internos de control de flujo de Next con `unstable_rethrow`. Se conserva la generación parcial de páginas y no se cachea la identidad. La solución inicial con `await cookies()` no eliminó el aviso en `next start` y fue sustituida. El diagnóstico temporal de errores se retiró antes de publicar para evitar registrar datos de autenticación.
 
 ## Pendientes
 
 - Entrega y uso completo de un enlace de recuperación en un buzón de prueba autorizado; OTP real si se activa la verificación obligatoria de correo.
 - Google OAuth propio para operar públicamente, en lugar de las credenciales compartidas de desarrollo.
-- Completar y revisar responsable/contacto de los borradores legales antes de abrir el servicio al público. No se modificó la visibilidad privada de Netlify.
+- Completar y revisar responsable/contacto de los borradores legales para la operación pública.

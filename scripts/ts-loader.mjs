@@ -8,6 +8,9 @@ export async function resolve(specifier, context, nextResolve) {
   if (specifier === 'server-only') {
     return nextResolve(specifier, context);
   }
+  if (specifier === 'next/navigation') {
+    return nextResolve('next/dist/client/components/navigation.react-server.js', context);
+  }
   if (specifier.startsWith('next/') && !specifier.endsWith('.js')) {
     return nextResolve(`${specifier}.js`, context);
   }

@@ -4,7 +4,7 @@ Aplicación web progresiva en español diseñada para organizar intercambios de 
 
 [![CI](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml/badge.svg)](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml)
 
-**Estado: integración local con Neon verificada.** Se comprobaron las 12 tablas en PostgreSQL 18, el acceso real con Google y correo/contraseña, la sesión al recargar, deseos, invitaciones y cierre de sesión. Los informes de [Neon](NEON_VERIFICACION.md) y [acceso por correo](ACCESO_VERIFICACION.md) detallan las pruebas y sus límites. El sitio Netlify `papelitocr` está vinculado a este repositorio, con las cuatro variables del backend guardadas como secretos de producción y su dominio autorizado en Neon Auth; conserva visibilidad privada. Las credenciales propias de Google para producción, la prueba de entrega de correos y la identidad/contacto de los borradores legales siguen pendientes.
+**Estado: integración con Neon y despliegue en Netlify.** Se comprobaron las 12 tablas en PostgreSQL 18, el acceso real con Google y correo/contraseña, la sesión al recargar, deseos, invitaciones y cierre de sesión. Los informes de [Neon](NEON_VERIFICACION.md) y [acceso por correo](ACCESO_VERIFICACION.md) detallan las pruebas y sus límites. [papelitocr.netlify.app](https://papelitocr.netlify.app) está vinculado a este repositorio, con las cuatro variables del backend guardadas como secretos de producción y su dominio autorizado en Neon Auth. La configuración actual del titular indica producción pública y previews privados. Las credenciales propias de Google para producción, la prueba de entrega de correos y la identidad/contacto de los borradores legales siguen pendientes.
 
 Para probar la demo con **Node.js 24**:
 
@@ -124,7 +124,7 @@ En desarrollo local (`http://127.0.0.1:3040` / `localhost` en Trusted Origins), 
 4. En **Neon Console -> Auth -> OAuth Providers -> Google**, pega el **Client ID** y **Client Secret** obtenidos de Google Cloud.
 5. En **Neon Console -> Auth -> Configuration (Trusted Origins / Redirect URLs)**, agrega los orígenes de la aplicación (`http://127.0.0.1:3040`, `http://localhost:3000` y `https://<tu-sitio>.netlify.app`), que son los destinos válidos para `callbackURL`.
 
-### Paso 3: Despliegue en Netlify (pendiente)
+### Paso 3: Configuración del despliegue en Netlify
 El proyecto incluye `netlify.toml` preconfigurado con Node 24, servidor Next.js (SSR/App Router, sin export estático), cabeceras de seguridad y `Cache-Control: no-store` para `/api/*`, `/auth/*` y `/unirse/*`.
 1. Conecta el repositorio en **Netlify** (`Add new site -> Import an existing project`).
 2. En **Site configuration -> Environment variables**, define:

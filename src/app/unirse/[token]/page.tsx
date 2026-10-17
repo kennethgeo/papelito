@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import Link from 'next/link';
+import { unstable_rethrow } from 'next/navigation';
 import { RibbonLogo } from '@/components/RibbonLogo';
 import { RibbonDivider } from '@/components/RibbonDivider';
 import { isDatabaseConfigured } from '@/lib/db/client';
@@ -51,7 +52,8 @@ async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: 
           reason: res.data?.reason || res.error || 'Enlace de invitación no válido o inexistente.',
         };
       }
-    } catch {
+    } catch (err) {
+      unstable_rethrow(err);
       preview = {
         valid: false,
         reason: 'Error al consultar la invitación en el servidor.',
@@ -73,7 +75,8 @@ async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: 
       );
       const consentStatus = await getLatestConsentStatus(currentUser.id);
       initialHasConsented = consentStatus.hasCurrentConsent;
-    } catch {
+    } catch (err) {
+      unstable_rethrow(err);
       initialHasConsented = false;
     }
   }

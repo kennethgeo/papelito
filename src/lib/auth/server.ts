@@ -1,4 +1,6 @@
 import 'server-only';
+import { connection } from 'next/server';
+import { unstable_rethrow } from 'next/navigation';
 import { isNeonAuthConfigured } from './config';
 import { createNeonAuth } from '@neondatabase/auth/next/server';
 
@@ -40,6 +42,11 @@ export async function getServerSession(): Promise<{ user: AuthUser } | null> {
     return null;
   }
 
+  // Wait for an actual incoming user request outside try/catch before invoking Neon Auth SDK
+  // so Partial Prerendering / runtime prefetch suspends cleanly without triggering
+  // HANGING_PROMISE_REJECTION inside the SDK's upstream fetch wrapper.
+  await connection();
+
   try {
     const { data: session } = await auth.getSession();
     if (!session || !session.user) {
@@ -53,7 +60,8 @@ export async function getServerSession(): Promise<{ user: AuthUser } | null> {
         avatarColor: '#46245D',
       },
     };
-  } catch {
+  } catch (err) {
+    unstable_rethrow(err);
     return null;
   }
 }
