@@ -136,18 +136,20 @@ export function RealDataProvider({
     }
   };
 
-  const reloadConsent = useCallback(async () => {
+  const reloadConsent = useCallback(async (): Promise<boolean> => {
     try {
       const res = await getConsentStatusAction();
       clearClientPendingConsentCookie();
       if (res.success && res.data) {
         setHasConsented(res.data.hasCurrentConsent);
         setConsentVersion(res.data.latestVersion);
+        return res.data.hasCurrentConsent;
       }
     } catch {
       // Non-fatal
     }
-  }, []);
+    return initialUser.hasConsented ?? false;
+  }, [initialUser.hasConsented]);
 
   // 1. Load user's exchange list
   const reloadExchanges = useCallback(async () => {
@@ -279,25 +281,35 @@ export function RealDataProvider({
     }
   }, []);
 
-  // Initial load: consume any one-time pending consent intent via POST Server Action before clearing isLoading
+  // Initial load: check consent first; only load exchanges and wishes if active consent exists
   useEffect(() => {
     queueMicrotask(async () => {
-      await reloadConsent();
-      await Promise.all([reloadExchanges(), reloadWishes()]);
+      setIsLoading(true);
+      const consented = await reloadConsent();
+      if (consented) {
+        await Promise.all([reloadExchanges(), reloadWishes()]);
+      } else {
+        setExchanges([]);
+        setMyWishes([]);
+        setCurrentExchange(null);
+        setCurrentAssignment(null);
+        setSelectedExchangeId(null);
+        setIsLoading(false);
+      }
     });
   }, [reloadConsent, reloadExchanges, reloadWishes]);
 
-  // When selected exchange changes
+  // When selected exchange changes (only load if consented)
   useEffect(() => {
     queueMicrotask(() => {
-      if (selectedExchangeId) {
+      if (hasConsented && selectedExchangeId) {
         void loadExchangeDetails(selectedExchangeId);
       } else {
         setCurrentExchange(null);
         setCurrentAssignment(null);
       }
     });
-  }, [selectedExchangeId, loadExchangeDetails]);
+  }, [hasConsented, selectedExchangeId, loadExchangeDetails]);
 
   const switchTab = (tab: NavigationTab) => {
     setErrorMessage(null);
@@ -532,6 +544,7 @@ export function RealDataProvider({
     if (res.success) {
       setHasConsented(true);
       setConsentVersion(LEGAL_CONSTANTS.VERSION);
+      await Promise.all([reloadExchanges(), reloadWishes()]);
       return true;
     }
     setErrorMessage(res.error || 'No se pudo registrar el consentimiento.');
@@ -545,6 +558,11 @@ export function RealDataProvider({
     if (res.success) {
       setHasConsented(false);
       setConsentVersion(null);
+      setExchanges([]);
+      setMyWishes([]);
+      setCurrentExchange(null);
+      setCurrentAssignment(null);
+      setSelectedExchangeId(null);
       return true;
     }
     setErrorMessage(res.error || 'No se pudo revocar el consentimiento.');

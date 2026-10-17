@@ -893,9 +893,196 @@ async function runTests() {
   } finally {
     await pgliteMigrationTest.close();
     await pglitePartialTest.close();
-    await pg.close();
   }
   console.log('✓ 11. Guardas de migración Neon (.neon, host/base autorizados exclusivos, rechazo de esquemas ajenos/parciales y no-op validado) verificadas');
+
+  // 14. Suite 12: Acceso con correo/contraseña, normalización de errores, destinos seguros y consentimiento post-autenticación por cuenta
+  const {
+    MIN_PASSWORD_LENGTH,
+    MAX_PASSWORD_LENGTH,
+    OTP_RESEND_COOLDOWN_SECONDS,
+    normalizeEmailInput,
+    validateEmailInput,
+    validatePasswordInput,
+    validateNameOrAliasInput,
+    buildSafeAuthDestination,
+    buildAbsoluteCallbackUrl,
+    buildPasswordResetRedirectTo,
+    isInvalidRecoveryTokenState,
+    mapAuthErrorToSpanish,
+  } = await import('../src/lib/auth/auth-helpers.ts');
+
+  assert(MIN_PASSWORD_LENGTH === 8, 'El mínimo de contraseña del SDK debe ser 8 caracteres');
+  assert(MAX_PASSWORD_LENGTH === 128, 'El máximo de contraseña del SDK debe ser 128 caracteres');
+  assert(OTP_RESEND_COOLDOWN_SECONDS === 60, 'El enfriamiento de reenvío OTP debe ser de 60 segundos');
+
+  // 14.1 Validación de entradas (sin recortar contraseñas)
+  assert(normalizeEmailInput('  UsuarIO@Papelito.CR ') === 'usuario@papelito.cr', 'normalizeEmailInput debe limpiar y pasar a minúsculas');
+  assert(validateEmailInput('invalido') !== null, 'validateEmailInput debe rechazar correos sin formato válido');
+  assert(validateEmailInput('ana@papelito.cr') === null, 'validateEmailInput debe aceptar un correo válido');
+  assert(validateNameOrAliasInput('A') !== null, 'validateNameOrAliasInput debe rechazar alias de 1 carácter');
+  assert(validateNameOrAliasInput('Camila') === null, 'validateNameOrAliasInput debe aceptar nombre/alias válido');
+
+  assert(
+    validatePasswordInput('1234567', 'signup') !== null,
+    'validatePasswordInput debe rechazar contraseñas menores a 8 caracteres'
+  );
+  assert(
+    validatePasswordInput('       a', 'signup') === null,
+    'validatePasswordInput NO debe hacer trim de espacios en la contraseña (8 caracteres con espacios iniciales son válidos)'
+  );
+  assert(
+    validatePasswordInput('x'.repeat(129), 'signup')?.includes('128') === true,
+    'validatePasswordInput debe rechazar contraseñas mayores a 128 caracteres indicando el máximo'
+  );
+
+  // 14.2 Mapeo de errores en español (PASSWORD_TOO_LONG, prioridad 429, OTP, credenciales e INVALID_TOKEN)
+  const errTooLong = mapAuthErrorToSpanish({ code: 'PASSWORD_TOO_LONG', message: 'Password too long' }, 'signup');
+  assert(
+    errTooLong.code === 'PASSWORD_TOO_LONG' && errTooLong.message.includes('128'),
+    'PASSWORD_TOO_LONG debe indicar el máximo (128), no el mínimo'
+  );
+
+  const errTooShort = mapAuthErrorToSpanish({ code: 'PASSWORD_TOO_SHORT', message: 'Password too short' }, 'signup');
+  assert(
+    errTooShort.message.includes('8 caracteres'),
+    'PASSWORD_TOO_SHORT debe indicar el mínimo de 8 caracteres'
+  );
+
+  const err429Otp = mapAuthErrorToSpanish(
+    { code: 'INVALID_OTP', status: 429, message: 'Too many requests for verification code' },
+    'otp'
+  );
+  assert(
+    err429Otp.code === 'INVALID_OTP' &&
+      err429Otp.requiresEmailVerification === false &&
+      err429Otp.message.includes('demasiados intentos'),
+    'El estado HTTP 429 debe priorizarse como límite de intentos sobre errores de OTP'
+  );
+
+  const errUnverified = mapAuthErrorToSpanish({ code: 'EMAIL_NOT_VERIFIED', status: 403 }, 'signin');
+  assert(
+    errUnverified.requiresEmailVerification === true,
+    'EMAIL_NOT_VERIFIED debe activar requiresEmailVerification'
+  );
+
+  const errInvalidCreds = mapAuthErrorToSpanish({ code: 'INVALID_EMAIL_OR_PASSWORD', status: 401 }, 'signin');
+  assert(
+    errInvalidCreds.suggestGoogleOrReset === true &&
+      errInvalidCreds.message.includes('Continuar con Google') &&
+      errInvalidCreds.message.includes('¿Olvidaste tu contraseña?'),
+    'Credenciales inválidas deben orientar en español sobre cuentas Google o recuperación de contraseña'
+  );
+
+  const errInvalidToken = mapAuthErrorToSpanish({ code: 'INVALID_TOKEN', status: 401 }, 'reset');
+  assert(
+    errInvalidToken.isInvalidToken === true,
+    'INVALID_TOKEN debe marcar isInvalidToken=true'
+  );
+
+  // 14.3 Destinos internos seguros y URLs de recuperación/callback sin open redirects
+  assert(
+    buildSafeAuthDestination('/unirse/token_valido_123') === '/unirse/token_valido_123',
+    'buildSafeAuthDestination debe preservar rutas internas /unirse/...'
+  );
+  assert(
+    buildSafeAuthDestination('https://sitio-externo.malicioso/phishing') === '/' &&
+      buildSafeAuthDestination('//sitio-externo.malicioso') === '/' &&
+      buildSafeAuthDestination('/\\sitio-externo.malicioso') === '/',
+    'buildSafeAuthDestination debe bloquear open redirects hacia orígenes externos'
+  );
+  assert(
+    buildAbsoluteCallbackUrl('http://127.0.0.1:3040/', '/unirse/abc12345') ===
+      'http://127.0.0.1:3040/unirse/abc12345',
+    'buildAbsoluteCallbackUrl debe construir callbackURL absoluto preservando /unirse/...'
+  );
+  assert(
+    buildPasswordResetRedirectTo('http://127.0.0.1:3040', '/unirse/abc12345') ===
+      'http://127.0.0.1:3040/auth/recuperar?next=%2Funirse%2Fabc12345',
+    'buildPasswordResetRedirectTo debe preservar destino seguro next en recuperación'
+  );
+  assert(
+    buildPasswordResetRedirectTo('http://127.0.0.1:3040', '//evil.com') ===
+      'http://127.0.0.1:3040/auth/recuperar',
+    'buildPasswordResetRedirectTo debe descartar destinos externos maliciosos'
+  );
+  assert(
+    isInvalidRecoveryTokenState({ token: null, error: null }) === true &&
+      isInvalidRecoveryTokenState({ token: 'abc', error: 'INVALID_TOKEN' }) === true &&
+      isInvalidRecoveryTokenState({ token: 'INVALID_TOKEN', error: null }) === true &&
+      isInvalidRecoveryTokenState({ token: 'token_real_123', error: null }) === false,
+    'isInvalidRecoveryTokenState debe detectar tokens faltantes o INVALID_TOKEN'
+  );
+
+  // 14.4 Ciclo de consentimiento en DB: el login/alta nunca autoacepta, persiste entre sesiones y exige confirmar nueva versión una sola vez
+  const emailAuthUser = 'correo-user-01';
+  await getOrCreateProfile(emailAuthUser, 'correo@papelito.cr', 'Usuario Correo', '#7043A2');
+
+  const statusAfterAuthOnly = await getLatestConsentStatus(emailAuthUser);
+  assert(
+    statusAfterAuthOnly.hasCurrentConsent === false && statusAfterAuthOnly.latestVersion === null,
+    'Autenticarse o crear perfil nunca debe registrar ni dar por aceptado el consentimiento automáticamente'
+  );
+
+  const emptyCookies = createMemoryCookieStore();
+  const statusWithoutCookie = await consumePendingConsentIntent(emailAuthUser, emptyCookies);
+  assert(
+    statusWithoutCookie.hasCurrentConsent === false && statusWithoutCookie.latestVersion === null,
+    'Sin cookie pre-auth ni registro en DB, la cuenta autenticada permanece sin consentimiento hasta confirmar explícitamente'
+  );
+
+  // Simular cuenta con versión anterior (2026-10-16.1): recordConsent rechaza grabar versiones viejas y getLatestConsentStatus exige confirmar la nueva versión vigente (2026-10-16.2)
+  await assertThrows(
+    () => recordConsent(emailAuthUser, '2026-10-16.1', '2026-10-16.1'),
+    LEGAL_CONSTANTS.VERSION,
+    'recordConsent debe rechazar versiones anteriores a la vigente'
+  );
+  await pg.query(
+    `INSERT INTO public.consent_records (user_id, terms_version, privacy_version, accepted_at)
+     VALUES ($1, '2026-10-16.1', '2026-10-16.1', now() - interval '2 days')`,
+    [emailAuthUser]
+  );
+  const statusOldVersion = await getLatestConsentStatus(emailAuthUser);
+  assert(
+    statusOldVersion.hasCurrentConsent === false && statusOldVersion.latestVersion === '2026-10-16.1',
+    `Un registro de versión anterior (2026-10-16.1) debe requerir confirmar la versión vigente (${LEGAL_CONSTANTS.VERSION})`
+  );
+
+  // Confirmar versión vigente una sola vez
+  await recordConsent(emailAuthUser, LEGAL_CONSTANTS.VERSION, LEGAL_CONSTANTS.VERSION);
+  const statusCurrent = await getLatestConsentStatus(emailAuthUser);
+  assert(
+    statusCurrent.hasCurrentConsent === true && statusCurrent.latestVersion === LEGAL_CONSTANTS.VERSION,
+    'Tras confirmar explícitamente la versión vigente, el consentimiento queda activo en la base de datos'
+  );
+
+  // Simular cierre de sesión y nuevo ingreso en otro navegador (sin cookies previas): persiste sin crear registros nuevos
+  const countBeforeRelogin = await pg.query(
+    'SELECT COUNT(*)::int AS total FROM public.consent_records WHERE user_id = $1',
+    [emailAuthUser]
+  );
+  await getOrCreateProfile(emailAuthUser, 'correo@papelito.cr', 'Usuario Correo', '#7043A2');
+  const statusOnRelogin = await consumePendingConsentIntent(emailAuthUser, createMemoryCookieStore());
+  const countAfterRelogin = await pg.query(
+    'SELECT COUNT(*)::int AS total FROM public.consent_records WHERE user_id = $1',
+    [emailAuthUser]
+  );
+  assert(
+    statusOnRelogin.hasCurrentConsent === true &&
+      countBeforeRelogin.rows[0].total === countAfterRelogin.rows[0].total,
+    'Los siguientes ingresos deben reconocer el consentimiento vigente en DB sin pedir casillas ni crear registros nuevos'
+  );
+
+  // Revocar consentimiento invalida el estado inmediatamente
+  await revokeConsentAndClearCookie(emailAuthUser, createMemoryCookieStore());
+  const statusAfterRevoke = await getLatestConsentStatus(emailAuthUser);
+  assert(
+    statusAfterRevoke.hasCurrentConsent === false,
+    'Tras revocar el consentimiento, la cuenta debe volver a requerir aceptación explícita'
+  );
+
+  await pg.close();
+  console.log('✓ 12. Acceso con correo/contraseña, errores en español, destinos seguros y consentimiento por cuenta (v' + LEGAL_CONSTANTS.VERSION + ') verificados');
 
   console.log('=== Todas las pruebas de integración de backend pasaron con éxito ===');
 }

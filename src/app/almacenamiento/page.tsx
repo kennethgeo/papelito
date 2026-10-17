@@ -50,10 +50,14 @@ export default function AlmacenamientoPage() {
             Papelito utiliza cookies técnicas para:
           </p>
           <ul>
-            <li>Mantener activa y renovar la sesión autenticada con Google.</li>
+            <li>Mantener activa y renovar la sesión, tanto al acceder con Google como con correo y contraseña.</li>
             <li>Proteger el inicio de sesión frente a solicitudes no autorizadas.</li>
-            <li>Recordar durante un máximo de diez minutos tu intención de consentimiento antes de entrar con Google. Esta cookie temporal se consume al volver y se elimina al revocar el consentimiento.</li>
           </ul>
+          <p>
+            La aceptación de los términos y el consentimiento informado se guardan en tu cuenta, en el
+            servidor. No necesitas repetirlos al cambiar de navegador o volver a iniciar sesión, mientras
+            la versión aceptada siga vigente y no hayas revocado el consentimiento.
+          </p>
 
           <h3>2. Almacenamiento local (localStorage / Service Worker)</h3>
           <p>

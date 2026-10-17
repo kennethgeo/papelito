@@ -457,7 +457,7 @@ export const AccountView: React.FC = () => {
             }}
           >
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Estado de consentimiento ({realData.consentVersion}):{' '}
+              Estado de consentimiento{realData.consentVersion ? ` (${realData.consentVersion})` : ''}:{' '}
               <strong style={{ color: realData.hasConsented ? '#276749' : '#9B1C1C' }}>
                 {realData.hasConsented ? 'Vigente' : 'Pendiente / Revocado'}
               </strong>

@@ -4,7 +4,7 @@ Aplicación web progresiva en español diseñada para organizar intercambios de 
 
 [![CI](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml/badge.svg)](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml)
 
-**Estado: integración local con Neon verificada.** Se comprobaron las 12 tablas en PostgreSQL 18, el acceso real con Google, la sesión al recargar, el guardado de deseos y el cierre de sesión. El [informe de verificación](NEON_VERIFICACION.md) incluye comandos, resultados y límites. El despliegue en Netlify y las credenciales propias de Google para producción siguen pendientes. Los documentos legales son borradores con responsable y contacto pendientes.
+**Estado: integración local con Neon verificada.** Se comprobaron las 12 tablas en PostgreSQL 18, el acceso real con Google y correo/contraseña, la sesión al recargar, deseos, invitaciones y cierre de sesión. Los informes de [Neon](NEON_VERIFICACION.md) y [acceso por correo](ACCESO_VERIFICACION.md) detallan las pruebas y sus límites. El sitio Netlify `papelitocr` está vinculado a este repositorio, con las cuatro variables del backend guardadas como secretos de producción y su dominio autorizado en Neon Auth; conserva visibilidad privada. Las credenciales propias de Google para producción, la prueba de entrega de correos y la identidad/contacto de los borradores legales siguen pendientes.
 
 Para probar la demo con **Node.js 24**:
 
@@ -24,7 +24,7 @@ Abrí [la demo local](http://127.0.0.1:3040/?mode=demo). Funciona con datos de e
 - **Firma visual:** Papelito, con ilustraciones vectoriales propias de sobres y notas, paleta ciruela `#46245D`, violeta `#7043A2`, amarillo `#F7D85B`, lila `#EDE5F5`, blanco `#FFFEFC` y verde `#D8E5C5`. Ver `DIRECCION_VISUAL.md`.
 - **Autenticación & Persistencia:**
   - **Neon PostgreSQL** (`@neondatabase/serverless`) exclusivo en servidor (`server-only`) con transacciones SQL explícitas (`BEGIN` / `COMMIT` / `ROLLBACK`) y bloqueos por fila (`FOR UPDATE`).
-  - **Neon Auth — Managed Better Auth** (`@neondatabase/auth`) para autenticación SSR con Google OAuth mediante petición `POST` segura (`authClient.signIn.social`).
+  - **Neon Auth — Managed Better Auth** (`@neondatabase/auth`) para autenticación SSR con correo y contraseña (`signIn.email`, `signUp.email`, recuperación de contraseña y verificación OTP condicional) y Google OAuth mediante petición `POST` segura (`authClient.signIn.social`). La aceptación de Términos y Consentimiento Informado se registra en base de datos una sola vez por cuenta y versión legal después de autenticarse.
   - **Autorización por fila en repositorios de servidor:** cada participante aprobado solo puede consultar su propio papelito asignado en la versión activa del sorteo y los deseos que su destinatario haya vinculado explícitamente al intercambio.
   - **Protección de tokens de invitación:** la base de datos almacena únicamente el hash SHA-256 (`token_hash`) para validación pública y el texto cifrado AES-256-GCM (`encrypted_token`) con clave derivada en servidor (`INVITATION_TOKEN_SECRET` o `NEON_AUTH_COOKIE_SECRET` de al menos 32 caracteres) para que el organizador recupere su enlace activo. Si se rota el secreto de servidor, los tokens anteriores no se descifran y el organizador puede generar un enlace nuevo desde la interfaz («Renovar enlace»).
   - No se simulan credenciales ni resultados de red: cuando las variables externas no están configuradas, la aplicación informa con honestidad y mantiene disponible el modo demostración (`/?mode=demo`).

@@ -4,9 +4,10 @@ import { RibbonLogo } from '@/components/RibbonLogo';
 import { RibbonDivider } from '@/components/RibbonDivider';
 import { isDatabaseConfigured } from '@/lib/db/client';
 import { getServerSession } from '@/lib/auth/server';
-import { acceptInvitationAction, getInvitationPreviewAction } from '@/lib/data/server-actions';
-import { redirect } from 'next/navigation';
+import { getInvitationPreviewAction } from '@/lib/data/server-actions';
+import { getLatestConsentStatus, getOrCreateProfile } from '@/lib/repositories/profiles';
 import { GoogleJoinButton } from '@/components/GoogleJoinButton';
+import { JoinExchangeClientAction } from '@/components/JoinExchangeClientAction';
 
 interface PreviewState {
   valid: boolean;
@@ -60,12 +61,20 @@ async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: 
 
   const session = await getServerSession();
   const currentUser = session?.user || null;
+  let initialHasConsented = false;
 
-  async function handleAccept() {
-    'use server';
-    const res = await acceptInvitationAction(token);
-    if (res.success && res.data?.exchangeId) {
-      redirect(`/`);
+  if (currentUser && isDatabaseConfigured()) {
+    try {
+      await getOrCreateProfile(
+        currentUser.id,
+        currentUser.email,
+        currentUser.name,
+        currentUser.avatarColor || '#46245D'
+      );
+      const consentStatus = await getLatestConsentStatus(currentUser.id);
+      initialHasConsented = consentStatus.hasCurrentConsent;
+    } catch {
+      initialHasConsented = false;
     }
   }
 
@@ -196,24 +205,11 @@ async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: 
           </div>
 
           {currentUser ? (
-            <form action={handleAccept}>
-              <button
-                type="submit"
-                style={{
-                  width: '100%',
-                  minHeight: '48px',
-                  backgroundColor: 'var(--color-frambuesa)',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '14px',
-                  fontSize: '1rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Unirme ahora como {currentUser.email}
-              </button>
-            </form>
+            <JoinExchangeClientAction
+              token={token}
+              userEmail={currentUser.email || currentUser.name || 'tu cuenta'}
+              initialHasConsented={initialHasConsented}
+            />
           ) : (
             <GoogleJoinButton nextUrl={`/unirse/${token}`} />
           )}

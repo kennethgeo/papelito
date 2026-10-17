@@ -72,7 +72,9 @@ export default function PrivacidadPage() {
 
           <h3>2. Tratamiento internacional y proveedores de infraestructura</h3>
           <p>
-            La infraestructura prevista utiliza Neon PostgreSQL, Neon Auth, Netlify y Google para el acceso.
+            La infraestructura prevista utiliza Neon PostgreSQL, Neon Auth y Netlify. Google participa
+            cuando eliges acceder mediante ese proveedor. El acceso con correo y contraseña lo administra
+            Neon Auth; las contraseñas no se guardan en texto plano en los perfiles de Papelito.
             Antes del lanzamiento se identificarán los proveedores efectivamente contratados, la ubicación
             del tratamiento y las condiciones aplicables a transferencias fuera de Costa Rica.
           </p>
@@ -82,6 +84,7 @@ export default function PrivacidadPage() {
             Los datos se tratan exclusivamente para el funcionamiento del intercambio:
           </p>
           <ul>
+            <li>Tu cuenta conserva el registro de aceptación de los documentos legales con su versión y fecha.</li>
             <li>Los demás miembros solo ven tu alias y avatar en la lista del evento.</li>
             <li>Tu asignación secreta solo la ves tú.</li>
             <li>

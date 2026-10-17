@@ -212,7 +212,7 @@ export async function regenerateInvitationAction(
 
 export async function getMyExchangesAction(): Promise<ActionResult<Awaited<ReturnType<typeof getMyExchanges>>>> {
   try {
-    const user = await requireAuth();
+    const user = await requireConsentedUser();
     const exchanges = await getMyExchanges(user.id);
     return { success: true, data: exchanges };
   } catch (err: unknown) {
@@ -227,7 +227,7 @@ export async function getExchangeDetailsAction(
     if (!exchangeId || typeof exchangeId !== 'string') {
       return { success: false, error: 'Identificador de intercambio inválido.' };
     }
-    const user = await requireAuth();
+    const user = await requireConsentedUser();
     const details = await getExchangeDetails(exchangeId, user.id);
     return { success: true, data: details };
   } catch (err: unknown) {
@@ -317,7 +317,7 @@ export async function getMyAssignmentAction(
   exchangeId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof getMyAssignment>>>> {
   try {
-    const user = await requireAuth();
+    const user = await requireConsentedUser();
     const assignment = await getMyAssignment(exchangeId, user.id);
     return { success: true, data: assignment };
   } catch (err: unknown) {
@@ -356,7 +356,7 @@ export async function toggleWishPurchaseAction(
 
 export async function getMyWishesAction(): Promise<ActionResult<Awaited<ReturnType<typeof getMyWishes>>>> {
   try {
-    const user = await requireAuth();
+    const user = await requireConsentedUser();
     const wishes = await getMyWishes(user.id);
     return { success: true, data: wishes };
   } catch (err: unknown) {

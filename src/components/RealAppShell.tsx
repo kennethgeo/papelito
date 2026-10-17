@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
-import Link from 'next/link';
+import React from 'react';
 import { useRealData } from '@/context/RealDataContext';
 import { NavigationBottom } from '@/components/NavigationBottom';
 import { RibbonLogo } from '@/components/RibbonLogo';
@@ -11,7 +10,7 @@ import { WishesListView } from '@/views/WishesListView';
 import { ExchangesListView } from '@/views/ExchangesListView';
 import { ExchangeDetailView } from '@/views/ExchangeDetailView';
 import { AccountView } from '@/views/AccountView';
-import { LEGAL_CONSTANTS } from '@/lib/legal/constants';
+import { ConsentGateCard } from '@/components/ConsentGateCard';
 
 export function RealAppShell() {
   const {
@@ -29,26 +28,6 @@ export function RealAppShell() {
     isLoading,
     errorMessage,
   } = useRealData();
-
-  const [termsBox, setTermsBox] = useState(false);
-  const [privacyBox, setPrivacyBox] = useState(false);
-  const [consentError, setConsentError] = useState('');
-  const [submittingConsent, setSubmittingConsent] = useState(false);
-
-  const handleConfirmConsent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!termsBox || !privacyBox) {
-      setConsentError('Debes marcar ambas casillas para registrar tu consentimiento informado.');
-      return;
-    }
-    setConsentError('');
-    setSubmittingConsent(true);
-    const ok = await confirmConsent(termsBox, privacyBox);
-    setSubmittingConsent(false);
-    if (!ok) {
-      setConsentError('No se pudo guardar el consentimiento en el servidor.');
-    }
-  };
 
   return (
     <div
@@ -160,115 +139,15 @@ export function RealAppShell() {
       <main style={{ flex: 1, paddingBottom: '5rem' }}>
         {activeView === 'cuenta_perfil' ? (
           <AccountView />
-        ) : !hasConsented && !isLoading ? (
-          <div
-            style={{
-              maxWidth: '520px',
-              margin: '2.5rem auto',
-              padding: '1.75rem 1.5rem',
-              backgroundColor: '#FFFFFF',
-              borderRadius: '24px',
-              border: '2px solid var(--color-celeste)',
-              boxShadow: '0 8px 30px rgba(70, 36, 93, 0.08)',
-            }}
-          >
-            <h2
-              style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: '1.35rem',
-                fontWeight: 800,
-                color: 'var(--color-tinta)',
-                margin: '0 0 0.5rem 0',
-              }}
-            >
-              Confirmación de consentimiento informado (v{LEGAL_CONSTANTS.VERSION})
-            </h2>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 1rem 0' }}>
-              Para organizar o participar en intercambios de Papelito se requiere tu aceptación explícita de la versión vigente de nuestros documentos legales. Siempre puedes acceder a <strong>Mi cuenta</strong> para exportar tus datos, solicitar la supresión o cerrar sesión.
-            </p>
-            <form onSubmit={handleConfirmConsent}>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.6rem',
-                  padding: '0.85rem',
-                  backgroundColor: 'var(--surface-subtle)',
-                  borderRadius: '14px',
-                  marginBottom: '1rem',
-                  fontSize: '0.84rem',
-                  color: 'var(--color-tinta)',
-                }}
-              >
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={termsBox}
-                    onChange={(e) => setTermsBox(e.target.checked)}
-                    style={{ marginTop: '0.2rem' }}
-                  />
-                  <span>
-                    Acepto los <Link href="/terminos" target="_blank">Términos y Condiciones</Link> (versión {LEGAL_CONSTANTS.VERSION}).
-                  </span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={privacyBox}
-                    onChange={(e) => setPrivacyBox(e.target.checked)}
-                    style={{ marginTop: '0.2rem' }}
-                  />
-                  <span>
-                    He leído el <Link href="/consentimiento" target="_blank">Consentimiento Informado</Link> y autorizo el tratamiento de mis datos personales para los sorteos y listas de deseos.
-                  </span>
-                </label>
-              </div>
-
-              {consentError && (
-                <div role="alert" style={{ color: '#C53030', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.75rem' }}>
-                  {consentError}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
-                <button
-                  type="submit"
-                  disabled={submittingConsent}
-                  style={{
-                    flex: 1,
-                    minHeight: '46px',
-                    backgroundColor: 'var(--color-frambuesa)',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    borderRadius: '14px',
-                    fontSize: '0.94rem',
-                    fontWeight: 700,
-                    fontFamily: 'var(--font-heading)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {submittingConsent ? 'Registrando...' : 'Confirmar y continuar'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchTab('cuenta')}
-                  style={{
-                    minHeight: '46px',
-                    padding: '0 1rem',
-                    backgroundColor: 'var(--surface-subtle)',
-                    color: 'var(--color-tinta)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: '14px',
-                    fontSize: '0.88rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Ir a Mi cuenta / Salir
-                </button>
-              </div>
-            </form>
-          </div>
+        ) : !hasConsented ? (
+          !isLoading ? (
+            <div style={{ padding: '0 1rem' }}>
+              <ConsentGateCard
+                onConfirm={confirmConsent}
+                onSecondaryAction={() => switchTab('cuenta')}
+              />
+            </div>
+          ) : null
         ) : (
           <>
             {activeView === 'intercambios_lista' && (

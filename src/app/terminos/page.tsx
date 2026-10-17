@@ -72,7 +72,13 @@ export default function TerminosPage() {
           <h3>2. Elegibilidad y participación</h3>
           <p>
             El servicio está propuesto para personas de al menos {LEGAL_CONSTANTS.MINIMUM_RECOMMENDED_AGE} años.
-            El acceso se efectúa mediante cuentas delegadas de Google sin intermediación de contraseñas locales.
+            Puedes acceder con Google o con correo electrónico y una contraseña de Papelito.
+            Neon Auth administra la autenticación y las credenciales de acceso.
+          </p>
+          <p>
+            La aceptación de la versión vigente de los términos y el consentimiento informado se registra
+            en tu cuenta al completar el alta. No se exige nuevamente en cada inicio de sesión. Se solicita
+            otra confirmación cuando cambia la versión de los documentos o cuando has revocado tu consentimiento.
           </p>
 
           <h3>3. Sorteos, versionado y cambios de miembros</h3>
