@@ -1,0 +1,148 @@
+/* ==========================================================================
+   Papelito — Intercambios de regalos
+   Diseño de identidad visual propia:
+   - Ciruela: #46245D
+   - Fondo lila: #F8F5FB
+   - Papel lila: #D6C3EA
+   - Violeta: #7043A2
+   - Papel amarillo: #F7D85B
+   - Fuentes autoalojadas: Bricolage Grotesque y Source Sans 3 (SIL OFL 1.1)
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/source-sans-3-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/source-sans-3-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* Brand Palette */
+  --color-tinta: #46245D;
+  --color-nieve: #F8F5FB;
+  --color-celeste: #D6C3EA;
+  --color-frambuesa: #7043A2;
+  --color-amarillo: #F7D85B;
+
+  /* Surfaces & Text with verified high contrast */
+  --bg-app: #F8F5FB;
+  --surface-card: #FFFFFF;
+  --surface-subtle: #EDE5F5;
+  --text-primary: #46245D;
+  --text-secondary: #6C5978;
+  --text-muted: #64748B;
+  --border-subtle: #DED3E5;
+  --border-focus: #46245D;
+
+  /* Typography tokens */
+  --font-heading: 'Bricolage Grotesque', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Touch & Safe Areas */
+  --touch-target-min: 44px;
+}
+
+/* Base reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Accessibility: Visible focus outline for keyboard users */
+:focus-visible {
+  outline: 3px solid var(--color-frambuesa);
+  outline-offset: 2px;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--color-tinta);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* Form Controls standard */
+input, textarea, select, button {
+  font-family: inherit;
+  font-size: 1rem;
+  color: inherit;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--color-frambuesa) !important;
+  box-shadow: 0 0 0 3px rgba(112, 67, 162, 0.15);
+}
+
+/* Tactile buttons */
+button:active {
+  transform: scale(0.98);
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseKnot {
+  0% {
+    transform: scale(0.95) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1.08) rotate(3deg);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.22s ease-out forwards;
+}
+
+/* Respect user's motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
