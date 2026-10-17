@@ -9,10 +9,14 @@
     "start": "next start",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
+    "db:migrate": "node scripts/db-migrate.mjs",
     "test:draw": "node --experimental-strip-types scripts/test-draw.mjs",
-    "test:backend": "node --conditions=react-server --experimental-strip-types scripts/test-backend.mjs"
+    "test:backend": "node --conditions=react-server --experimental-strip-types scripts/test-backend.mjs",
+    "test:neon": "node --conditions=react-server --experimental-strip-types scripts/test-neon.mjs"
   },
   "dependencies": {
+    "@neon/config": "^1.9.2",
+    "@neon/env": "^1.6.3",
     "@neondatabase/auth": "0.6.0-beta",
     "@neondatabase/serverless": "1.2.0",
     "next": "16.4.2",

@@ -103,3 +103,11 @@ export async function dbTransaction<T = unknown>(
     client.release();
   }
 }
+
+export async function closeDbPool(): Promise<void> {
+  if (poolInstance) {
+    const currentPool = poolInstance;
+    poolInstance = null;
+    await currentPool.end();
+  }
+}

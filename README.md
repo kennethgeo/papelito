@@ -4,7 +4,7 @@ Aplicación web progresiva en español diseñada para organizar intercambios de 
 
 [![CI](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml/badge.svg)](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml)
 
-**Estado: en desarrollo.** El código y las pruebas locales están disponibles; el acceso real con Google, Neon y el despliegue en Netlify requieren configuración y validación externa. Los documentos legales son borradores con responsable y contacto pendientes.
+**Estado: integración local con Neon verificada.** Se comprobaron las 12 tablas en PostgreSQL 18, el acceso real con Google, la sesión al recargar, el guardado de deseos y el cierre de sesión. El [informe de verificación](NEON_VERIFICACION.md) incluye comandos, resultados y límites. El despliegue en Netlify y las credenciales propias de Google para producción siguen pendientes. Los documentos legales son borradores con responsable y contacto pendientes.
 
 Para probar la demo con **Node.js 24**:
 
@@ -48,6 +48,12 @@ npm run test:draw
 # Ejecutar pruebas de integración de backend contra PostgreSQL real (PGlite, NODE_ENV=test)
 npm run test:backend
 
+# Aplicar o verificar de forma segura el esquema public en Neon usando DATABASE_URL_UNPOOLED
+npm run db:migrate
+
+# Probar conectividad real, esquema y CRUD transaccional con ROLLBACK en Neon (sin dejar filas residuales)
+npm run test:neon
+
 # Compilación de producción con Turbopack y Partial Prerendering
 npm run build
 ```
@@ -74,19 +80,41 @@ Tablas incluidas en `neon/migrations/20261016_init_papelito_neon.sql`:
 
 ---
 
-## 4. Guía de conexión: Neon + Google OAuth + Netlify
+## 4. Guía de conexión: Neon CLI + Migración + Google OAuth + Netlify
 
-> **Regla de aislamiento:** Crea un proyecto y una base de datos de Neon dedicados exclusivamente a **Papelito**. No reutilices ni conectes bases de datos de otras aplicaciones.
+> **Regla de aislamiento:** Este repositorio está vinculado mediante `.neon`, `neon.ts` y `EXPECTED_NEON_CONFIG` exclusivamente al proyecto dedicado de **Papelito** en Neon (`org-solitary-voice-24830396` / `spring-frog-51248337`, AWS PostgreSQL 18 `free_v3`, rama `production` `br-royal-tooth-b4ru7kif`, endpoint directo `ep-frosty-hall-b42n8gmw.c-6.us-east-2.aws.neon.tech`, base `neondb`). No reutilices ni conectes bases de datos de otras aplicaciones.
 
-### Paso 1: Crear base de datos y activar Neon Auth
-1. En [Neon Console](https://console.neon.tech), crea un proyecto dedicado llamado `papelito` (PostgreSQL 16 o 17).
-2. Abre el **SQL Editor** de Neon y ejecuta el contenido completo de `neon/migrations/20261016_init_papelito_neon.sql`.
-3. Copia la cadena de conexión (`DATABASE_URL`) desde **Connection Details**.
-4. En el menú lateral de Neon, entra en **Auth** y habilita **Neon Auth (Managed Better Auth)**.
-5. Copia el **Auth Base URL** (`NEON_AUTH_BASE_URL`).
+### Paso 1: Provisionar servicios con Neon CLI y aplicar migración
+El repositorio incluye `neon.ts` (`auth: true`). El vínculo `.neon` es local y está excluido de Git. En una copia nueva del repositorio, después de autenticar la CLI, ejecuta `neon link --org-id org-solitary-voice-24830396 --project-id spring-frog-51248337 --branch production -y` para crear ese vínculo y descargar las variables privadas.
 
-### Paso 2: Configurar credenciales de Google Cloud OAuth
-Con Neon Auth (Managed Better Auth), Google redirige al endpoint de callback gestionado por Neon Auth, y posteriormente Neon Auth redirige de vuelta a la aplicación (`callbackURL`).
+1. Autentica la CLI oficial de Neon en tu máquina:
+   ```bash
+   neon login
+   ```
+2. Provisiona los servicios declarados en `neon.ts` (`postgres` y `auth`) y sincroniza las variables en `.env.local`:
+   ```bash
+   neon deploy
+   ```
+3. Revisa tu archivo `.env.local` (basándote en `.env.example`) y asegúrate de definir:
+   - `DATABASE_URL`: conexión **pooled** (`ep-frosty-hall-b42n8gmw-pooler.c-6.us-east-2.aws.neon.tech/neondb`) para el runtime de la aplicación.
+   - `DATABASE_URL_UNPOOLED`: conexión **directa** (`ep-frosty-hall-b42n8gmw.c-6.us-east-2.aws.neon.tech/neondb`, sin `-pooler`) requerida para migraciones DDL.
+   - `NEON_AUTH_BASE_URL`: URL base de Neon Auth (Managed Better Auth).
+   - `NEON_AUTH_COOKIE_SECRET`: secreto aleatorio de al menos 32 caracteres (`openssl rand -hex 32`).
+   - `INVITATION_TOKEN_SECRET`: secreto aleatorio de al menos 32 caracteres para el cifrado de tokens de invitación en servidor (`openssl rand -hex 32`).
+4. Ejecuta la migración verificada sobre Neon:
+   ```bash
+   npm run db:migrate
+   ```
+   - Verifica que `.neon` apunte exactamente al proyecto y rama autorizados de Papelito y valida que tanto `DATABASE_URL` como `DATABASE_URL_UNPOOLED` correspondan exclusivamente al host directo `ep-frosty-hall-b42n8gmw.c-6.us-east-2.aws.neon.tech` y base `neondb`, rechazando esquemas `public` ajenos o parciales.
+   - Si `public` está vacío, aplica `neon/migrations/20261016_init_papelito_neon.sql` dentro de una transacción; si las 12 tablas ya existen con todas sus columnas esperadas, realiza `no-op` sin ejecutar `DROP`, `TRUNCATE` ni `DELETE`.
+5. Verifica la conectividad real y el esquema con la prueba transaccional no destructiva:
+   ```bash
+   npm run test:neon
+   ```
+   - Reutiliza `validateMigrationUrls` antes de cualquier consulta para exigir el par `DATABASE_URL` / `DATABASE_URL_UNPOOLED` del endpoint autorizado, usa el cliente real (`src/lib/db/client.ts`), ejecuta operaciones CRUD de `profiles` y `wishes` dentro de `dbTransaction`, fuerza `ROLLBACK` y comprueba `0` filas residuales para sus UUID de prueba. *(Nota: esta prueba valida SQL y transacciones en Neon; no sustituye la prueba E2E interactiva de Google OAuth en navegador).*
+
+### Paso 2: Configurar credenciales propias de Google Cloud OAuth para producción (pendiente)
+En desarrollo local (`http://127.0.0.1:3040` / `localhost` en Trusted Origins), Neon Auth está configurado con credenciales compartidas de Google para pruebas locales (verificación E2E interactiva en curso), pero **para producción debes configurar credenciales propias de Google Cloud OAuth** (las credenciales compartidas de desarrollo muestran el nombre de Neon en la pantalla de consentimiento y tienen límites de cuota):
 1. En [Google Cloud Console](https://console.cloud.google.com/apis/credentials), crea un **OAuth 2.0 Client ID** de tipo **Web application**.
 2. En **Authorized JavaScript origins**, agrega el origen del servicio Neon Auth y los de tu aplicación:
    - `http://127.0.0.1:3040`
@@ -96,11 +124,12 @@ Con Neon Auth (Managed Better Auth), Google redirige al endpoint de callback ges
 4. En **Neon Console -> Auth -> OAuth Providers -> Google**, pega el **Client ID** y **Client Secret** obtenidos de Google Cloud.
 5. En **Neon Console -> Auth -> Configuration (Trusted Origins / Redirect URLs)**, agrega los orígenes de la aplicación (`http://127.0.0.1:3040`, `http://localhost:3000` y `https://<tu-sitio>.netlify.app`), que son los destinos válidos para `callbackURL`.
 
-### Paso 3: Despliegue en Netlify
+### Paso 3: Despliegue en Netlify (pendiente)
 El proyecto incluye `netlify.toml` preconfigurado con Node 24, servidor Next.js (SSR/App Router, sin export estático), cabeceras de seguridad y `Cache-Control: no-store` para `/api/*`, `/auth/*` y `/unirse/*`.
 1. Conecta el repositorio en **Netlify** (`Add new site -> Import an existing project`).
 2. En **Site configuration -> Environment variables**, define:
-   - `DATABASE_URL`: cadena de conexión PostgreSQL de Neon.
+   - `DATABASE_URL`: cadena de conexión PostgreSQL **pooled** (`-pooler`) de Neon para el runtime.
+   - `DATABASE_URL_UNPOOLED`: cadena de conexión PostgreSQL **directa** (sin `-pooler`) si ejecutas migraciones desde CI/CD.
    - `NEON_AUTH_BASE_URL`: URL base de Neon Auth.
    - `NEON_AUTH_COOKIE_SECRET`: secreto aleatorio de al menos 32 caracteres (`openssl rand -hex 32`).
    - `INVITATION_TOKEN_SECRET`: secreto aleatorio de al menos 32 caracteres para el cifrado de tokens de invitación en servidor (`openssl rand -hex 32`).

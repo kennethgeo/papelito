@@ -10,19 +10,26 @@ export interface AuthUser {
 }
 
 let authInstance: ReturnType<typeof createNeonAuth> | null = null;
+let cachedConfigKey: string | null = null;
 
 export function getNeonAuth() {
   if (!isNeonAuthConfigured()) {
+    authInstance = null;
+    cachedConfigKey = null;
     return null;
   }
-  if (!authInstance) {
+  const baseUrl = process.env.NEON_AUTH_BASE_URL!;
+  const secret = process.env.NEON_AUTH_COOKIE_SECRET!;
+  const configKey = `${baseUrl}|${secret}`;
+  if (!authInstance || cachedConfigKey !== configKey) {
     authInstance = createNeonAuth({
-      baseUrl: process.env.NEON_AUTH_BASE_URL!,
+      baseUrl,
       cookies: {
-        secret: process.env.NEON_AUTH_COOKIE_SECRET!,
+        secret,
         sessionDataTtl: 300,
       },
     });
+    cachedConfigKey = configKey;
   }
   return authInstance;
 }

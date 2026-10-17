@@ -646,8 +646,11 @@ async function runTests() {
   );
   console.log('✓ 9. Exportación completa de datos personales en versión vigente (Hallazgo 11) verificada');
 
-  // 12. Verificación de ruta OAuth GET /auth/login/google (Observación de supervisión)
+  // 12. Verificación de ruta OAuth GET /auth/login/google y proxy de intercambio de verificador (Observaciones de supervisión)
   const { GET: loginGoogleGet } = await import('../src/app/auth/login/google/route.ts');
+  const { proxy } = await import('../src/proxy.ts');
+  const { NextRequest } = await import('next/server');
+  const os = await import('node:os');
 
   // Caso A: Sin configurar -> redirige a /auth/unconfigured, nunca a OAuth
   const getUnconfiguredRes = await loginGoogleGet(new Request('http://127.0.0.1:3040/auth/login/google?next=/'));
@@ -656,10 +659,11 @@ async function runTests() {
     `GET /auth/login/google sin credenciales debe redirigir a /auth/unconfigured (status: ${getUnconfiguredRes.status})`
   );
 
-  // Caso B: Con variables configuradas -> devuelve 405 Method Not Allowed con Allow: POST (jamás inicia OAuth por GET)
+  // Caso B: Con variables configuradas -> GET /auth/login/google devuelve 405, y proxy.ts permite invitados en / y /unirse e intercambia neon_auth_session_verifier
   const prevBaseUrl = process.env.NEON_AUTH_BASE_URL;
   process.env.NEON_AUTH_BASE_URL = 'https://ep-example.neonauth.us-east-1.aws.neon.tech/neondb/auth';
   process.env.NEON_AUTH_COOKIE_SECRET = '0123456789abcdef0123456789abcdef0123456789abcdef';
+  const originalFetch = globalThis.fetch;
   try {
     const getConfiguredRes = await loginGoogleGet(new Request('http://127.0.0.1:3040/auth/login/google?next=/'));
     assert(
@@ -670,7 +674,81 @@ async function runTests() {
       getConfiguredRes.headers.get('Allow') === 'POST',
       'Respuesta 405 en /auth/login/google debe incluir cabecera Allow: POST'
     );
+
+    // Invitados en / y /unirse/[token] no deben ser redirigidos a /auth/sign-in
+    const guestHomeRes = await proxy(new NextRequest('http://127.0.0.1:3040/'));
+    assert(
+      guestHomeRes.status === 200 && guestHomeRes.headers.get('location') === null,
+      'proxy.ts debe permitir acceso de invitados a / sin redirigir a /auth/sign-in'
+    );
+    const guestJoinRes = await proxy(new NextRequest('http://127.0.0.1:3040/unirse/token-prueba'));
+    assert(
+      guestJoinRes.status === 200 && guestJoinRes.headers.get('location') === null,
+      'proxy.ts debe permitir acceso de invitados a /unirse/[token] sin redirigir a /auth/sign-in'
+    );
+
+    // Intercambio de verificador OAuth (?neon_auth_session_verifier=...) mediante getNeonAuth().middleware()
+    const nowIso = new Date().toISOString();
+    const expIso = new Date(Date.now() + 3600_000).toISOString();
+    globalThis.fetch = async (input) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (reqUrl.includes('/get-session')) {
+        return new Response(
+          JSON.stringify({
+            session: {
+              id: 'sess_1',
+              userId: 'usr_1',
+              token: 'tok_123',
+              createdAt: nowIso,
+              updatedAt: nowIso,
+              expiresAt: expIso,
+            },
+            user: {
+              id: 'usr_1',
+              email: 'ana@example.com',
+              name: 'Ana',
+              emailVerified: true,
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'set-cookie': '__Secure-neon-auth.session_token=tok_123; Path=/; HttpOnly; Secure; SameSite=Lax',
+            },
+          }
+        );
+      }
+      throw new Error(`Fetch inesperado en prueba de proxy: ${reqUrl}`);
+    };
+
+    const verifierReq = new NextRequest('http://127.0.0.1:3040/?neon_auth_session_verifier=verif_test_999', {
+      headers: {
+        cookie: '__Secure-neon-auth.session_challenge=chal_abc',
+      },
+    });
+    const verifierRes = await proxy(verifierReq);
+    const verifierLocation = verifierRes.headers.get('location') || '';
+    const parsedVerifierLoc = new URL(verifierLocation, 'http://127.0.0.1:3040');
+    assert(
+      verifierRes.status === 307 &&
+        parsedVerifierLoc.pathname === '/' &&
+        !parsedVerifierLoc.searchParams.has('neon_auth_session_verifier'),
+      `proxy.ts debe intercambiar el verificador OAuth y redirigir a URL limpia sin verificador (location: ${verifierLocation})`
+    );
+    assert(
+      verifierRes.headers.getSetCookie().some((c) => c.includes('__Secure-neon-auth.session_token=tok_123')),
+      'proxy.ts debe propagar la cookie de sesión emitida durante el intercambio OAuth'
+    );
+    assert(
+      verifierRes.headers.get('Cache-Control')?.includes('private') &&
+        verifierRes.headers.get('Cache-Control')?.includes('no-store'),
+      'proxy.ts debe incluir Cache-Control: private, no-store en respuestas con verificador/sesión'
+    );
   } finally {
+    globalThis.fetch = originalFetch;
     if (prevBaseUrl === undefined) delete process.env.NEON_AUTH_BASE_URL;
     else process.env.NEON_AUTH_BASE_URL = prevBaseUrl;
     if (prevAuthSecret === undefined) delete process.env.NEON_AUTH_COOKIE_SECRET;
@@ -678,7 +756,146 @@ async function runTests() {
     if (prevInvSecret === undefined) delete process.env.INVITATION_TOKEN_SECRET;
     else process.env.INVITATION_TOKEN_SECRET = prevInvSecret;
   }
-  console.log('✓ 10. Protección de inicio OAuth (GET /auth/login/google bloqueado con 405 / sin iniciar OAuth) verificada');
+  console.log('✓ 10. Protección OAuth (405 en GET /auth/login/google) y proxy.ts (invitados en / y /unirse + intercambio de verificador OAuth) verificados');
+
+  // 13. Verificación de guardas de migración Neon (scripts/db-migrate.mjs) contra esquemas vacíos, completos, parciales y ajenos
+  const {
+    verifyNeonLinkFile,
+    validateMigrationUrls,
+    inspectAndMigratePublicSchema,
+  } = await import('./db-migrate.mjs');
+
+  // 13.1 Verificar verifyNeonLinkFile con directorio temporal (sin depender de .neon local que está en .gitignore para CI)
+  const tmpNeonDir = fs.mkdtempSync(path.join(os.tmpdir(), 'papelito-neon-test-'));
+  try {
+    await assertThrows(
+      async () => verifyNeonLinkFile(tmpNeonDir),
+      'No se encontró el archivo .neon',
+      'verifyNeonLinkFile debe fallar si no existe .neon en el directorio'
+    );
+
+    fs.writeFileSync(
+      path.join(tmpNeonDir, '.neon'),
+      JSON.stringify({
+        orgId: 'org-solitary-voice-24830396',
+        projectId: 'wrong-project-000',
+        branch: 'production',
+      }),
+      'utf8'
+    );
+    await assertThrows(
+      async () => verifyNeonLinkFile(tmpNeonDir),
+      'no coincide con el proyecto/rama autorizados',
+      'verifyNeonLinkFile debe rechazar un .neon que apunte a otro proyecto'
+    );
+
+    fs.writeFileSync(
+      path.join(tmpNeonDir, '.neon'),
+      JSON.stringify({
+        orgId: 'org-solitary-voice-24830396',
+        projectId: 'spring-frog-51248337',
+        branch: 'production',
+      }),
+      'utf8'
+    );
+    const neonLink = verifyNeonLinkFile(tmpNeonDir);
+    assert(
+      neonLink.orgId === 'org-solitary-voice-24830396' &&
+        neonLink.projectId === 'spring-frog-51248337' &&
+        neonLink.branch === 'production',
+      'verifyNeonLinkFile debe aceptar únicamente el proyecto y rama autorizados de Papelito'
+    );
+  } finally {
+    fs.rmSync(tmpNeonDir, { recursive: true, force: true });
+  }
+
+  // 13.2 Verificar validación de URLs (directa sin -pooler, coincidencia con pooled y host/base exclusivos de Papelito)
+  const validUrls = validateMigrationUrls(
+    'postgresql://neondb_owner:secret@ep-frosty-hall-b42n8gmw-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require',
+    'postgresql://neondb_owner:secret@ep-frosty-hall-b42n8gmw.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require'
+  );
+  assert(
+    validUrls.directHost === 'ep-frosty-hall-b42n8gmw.c-6.us-east-2.aws.neon.tech' &&
+      validUrls.databaseName === 'neondb',
+    'validateMigrationUrls debe aceptar únicamente el par pooled/unpooled del endpoint y base autorizados de Papelito'
+  );
+
+  await assertThrows(
+    async () =>
+      validateMigrationUrls(
+        'postgresql://neondb_owner:secret@ep-frosty-hall-b42n8gmw-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require',
+        'postgresql://neondb_owner:secret@ep-frosty-hall-b42n8gmw-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require'
+      ),
+    'no debe contener "-pooler"',
+    'validateMigrationUrls debe rechazar DATABASE_URL_UNPOOLED con -pooler'
+  );
+
+  await assertThrows(
+    async () =>
+      validateMigrationUrls(
+        'postgresql://neondb_owner:secret@ep-frosty-hall-b42n8gmw-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require',
+        'postgresql://neondb_owner:secret@ep-other-project-999999.us-east-2.aws.neon.tech/neondb?sslmode=require'
+      ),
+    'no coincide con el endpoint de DATABASE_URL',
+    'validateMigrationUrls debe rechazar endpoints distintos entre DATABASE_URL y DATABASE_URL_UNPOOLED'
+  );
+
+  await assertThrows(
+    async () =>
+      validateMigrationUrls(
+        'postgresql://neondb_owner:secret@ep-calm-meadow-123456-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require',
+        'postgresql://neondb_owner:secret@ep-calm-meadow-123456.us-east-2.aws.neon.tech/neondb?sslmode=require'
+      ),
+    'no coincide con el host directo autorizado de Papelito',
+    'validateMigrationUrls debe rechazar un par pooled/unpooled coherente pero perteneciente a otro proyecto Neon'
+  );
+
+  await assertThrows(
+    async () =>
+      validateMigrationUrls(
+        'postgresql://neondb_owner:secret@ep-frosty-hall-b42n8gmw-pooler.c-6.us-east-2.aws.neon.tech/otradb?sslmode=require',
+        'postgresql://neondb_owner:secret@ep-frosty-hall-b42n8gmw.c-6.us-east-2.aws.neon.tech/otradb?sslmode=require'
+      ),
+    'no coincide con la base autorizada de Papelito',
+    'validateMigrationUrls debe rechazar una base de datos distinta a neondb'
+  );
+
+  // 13.3 Probar inspectAndMigratePublicSchema sobre PGlite limpio -> aplica migración y luego hace noop idempotente
+  const pgliteMigrationTest = new PGlite();
+  const pglitePartialTest = new PGlite();
+  try {
+    const appliedRes = await inspectAndMigratePublicSchema(pgliteMigrationTest, migrationSql);
+    assert(
+      appliedRes.status === 'migrated' && appliedRes.tablesCount === 12,
+      'inspectAndMigratePublicSchema debe aplicar las 12 tablas cuando public está vacío'
+    );
+    const noopRes = await inspectAndMigratePublicSchema(pgliteMigrationTest, migrationSql);
+    assert(
+      noopRes.status === 'noop' && noopRes.tablesCount === 12,
+      'inspectAndMigratePublicSchema debe hacer no-op seguro cuando las 12 tablas y columnas ya existen'
+    );
+
+    // 13.4 Probar rechazo ante tabla ajena en public
+    await pgliteMigrationTest.exec('CREATE TABLE public.quiniela_matches (id int);');
+    await assertThrows(
+      () => inspectAndMigratePublicSchema(pgliteMigrationTest, migrationSql),
+      'tablas ajenas a Papelito',
+      'inspectAndMigratePublicSchema debe abortar si detecta tablas ajenas en public'
+    );
+
+    // 13.5 Probar rechazo ante esquema parcial
+    await pglitePartialTest.exec('CREATE TABLE public.profiles (user_id text primary key);');
+    await assertThrows(
+      () => inspectAndMigratePublicSchema(pglitePartialTest, migrationSql),
+      'esquema public parcial detectado',
+      'inspectAndMigratePublicSchema debe abortar si public tiene solo parte de las tablas esperadas'
+    );
+  } finally {
+    await pgliteMigrationTest.close();
+    await pglitePartialTest.close();
+    await pg.close();
+  }
+  console.log('✓ 11. Guardas de migración Neon (.neon, host/base autorizados exclusivos, rechazo de esquemas ajenos/parciales y no-op validado) verificadas');
 
   console.log('=== Todas las pruebas de integración de backend pasaron con éxito ===');
 }

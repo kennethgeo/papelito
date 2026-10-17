@@ -1,26 +1,66 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { isNeonAuthConfigured } from '@/lib/auth/config';
+import { getNeonAuth } from '@/lib/auth/server';
+
+function applyPrivateNoStoreHeaders(response: NextResponse) {
+  response.headers.set('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0');
+  response.headers.set('Pragma', 'no-cache');
+}
 
 export async function proxy(request: NextRequest) {
-  const response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
+  const pathname = request.nextUrl.pathname;
+  const hasVerifier = request.nextUrl.searchParams.has('neon_auth_session_verifier');
+  const hasAuthCookie = Boolean(request.headers.get('cookie')?.includes('__Secure-neon-auth'));
+  const isAuthOrApiPath = pathname.startsWith('/auth') || pathname.startsWith('/api');
 
-  // If path is auth or api related, enforce strict anti-cache headers
-  if (request.nextUrl.pathname.startsWith('/auth') || request.nextUrl.pathname.startsWith('/api')) {
-    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-    response.headers.set('Pragma', 'no-cache');
+  const auth = getNeonAuth();
+  if (!auth) {
+    const fallbackResponse = NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
+    if (isAuthOrApiPath || hasVerifier || hasAuthCookie) {
+      applyPrivateNoStoreHeaders(fallbackResponse);
+    }
+    return fallbackResponse;
   }
 
-  // If Neon Auth is not configured, proceed without session refresh
-  if (!isNeonAuthConfigured()) {
-    return response;
+  // Invoke official Neon Auth middleware without custom loginUrl so '/' and '/unirse'
+  // are never skipped as loginPathname and always process OAuth session verifier exchange.
+  const authMiddleware = auth.middleware();
+  const authResponse = await authMiddleware(request);
+
+  // If the official middleware returned a redirect to the default unauthenticated loginUrl
+  // ('/auth/sign-in'), allow guests through on public pages while preserving any cookie cleanup.
+  const redirectLocation = authResponse.headers.get('location');
+  if (redirectLocation) {
+    try {
+      const redirectUrl = new URL(redirectLocation, request.url);
+      if (redirectUrl.pathname === '/auth/sign-in') {
+        const guestResponse = NextResponse.next({
+          request: {
+            headers: request.headers,
+          },
+        });
+        for (const setCookie of authResponse.headers.getSetCookie()) {
+          guestResponse.headers.append('Set-Cookie', setCookie);
+        }
+        if (isAuthOrApiPath || hasVerifier || hasAuthCookie || guestResponse.headers.getSetCookie().length > 0) {
+          applyPrivateNoStoreHeaders(guestResponse);
+        }
+        return guestResponse;
+      }
+    } catch {
+      // If location is not a valid URL, return authResponse as-is below
+    }
   }
 
-  return response;
+  if (isAuthOrApiPath || hasVerifier || hasAuthCookie || authResponse.headers.getSetCookie().length > 0) {
+    applyPrivateNoStoreHeaders(authResponse);
+  }
+
+  return authResponse;
 }
 
 export const config = {
