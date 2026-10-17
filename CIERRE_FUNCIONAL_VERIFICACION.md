@@ -90,3 +90,17 @@ La compilación final volvió a arrancar correctamente. GET `/`, `/?mode=demo` y
 Se eliminó la rama temporal al terminar: la CLI lista únicamente `production`. Se borraron los archivos privados de credenciales de prueba y conexión temporal. La configuración de producción conserva `Require Verification: true`, método `otp`, envío al registrar y sin envío al iniciar sesión.
 
 El primer intento de Netlify del commit `2a908e4` compiló Next y empaquetó las dos funciones, pero su escáner detuvo la publicación al encontrar en README la URL de Auth marcada como secreta en el entorno. Se sustituyó por `<NEON_AUTH_BASE_URL>/callback/google`, manteniendo activo el escaneo; no se expuso un Client Secret, una contraseña ni una conexión de base de datos.
+
+## Despliegue y tarea programada comprobados
+
+Netlify publicó `41260ba` en el despliegue `6ad3c8a206849e348f206c92`; CI de ese commit terminó en `success` (run `39061456285`). Las rutas públicas, legales y manifiesto devolvieron HTTP 200; una asignación sin sesión devolvió 401. La invocación pública de la función programada fue denegada con HTTP 403. La expectativa inicial de 404 de la sonda se ajustó al rechazo real de la plataforma, sin cambiar controles de acceso.
+
+La consola muestra `retention-cleanup` como Scheduled, `@daily`, a las 00:00 UTC (18:00 Costa Rica). Se ejecutó «Run now» después de comprobar cero elegibles en simulación. Log de producción del 17 de octubre, 13:16:43 Costa Rica:
+
+```json
+{"job":"retention-cleanup","status":200,"ok":true,"dryRun":false,"retentionMonths":12,"eligibleCount":0,"deletedCount":0,"exchangeIds":[]}
+```
+
+Duración observada: 252.38 ms. Esto prueba el empaquetado, variables de producción, conexión real y ejecución del job en Netlify; los casos de eliminación y cascada se probaron con datos sintéticos en PostgreSQL aislado.
+
+El repaso final del registro de la PWA detectó que el listener podía instalarse después del evento `load` en teléfonos lentos. El componente ahora registra inmediatamente si el documento ya terminó de cargar, o espera `load` una sola vez y limpia el listener. La instalación en un dispositivo físico sigue pendiente; no se presenta como probada.
