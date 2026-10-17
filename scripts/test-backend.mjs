@@ -1021,6 +1021,83 @@ async function runTests() {
     'isInvalidRecoveryTokenState debe detectar tokens faltantes o INVALID_TOKEN'
   );
 
+  // 14.3b Origen canónico en /auth/logout (permalink de Netlify -> dominio principal, config inválida/credenciales y preservación de orígenes locales)
+  const { resolveLogoutRedirectUrl } = await import('../src/lib/security/urls.ts');
+  const { POST: logoutPost } = await import('../src/app/auth/logout/route.ts');
+
+  assert(
+    resolveLogoutRedirectUrl(
+      'https://6ad381b30d8aaecb76a882aa--papelitocr.netlify.app/auth/logout?from=nav',
+      'https://papelitocr.netlify.app'
+    ).toString() === 'https://papelitocr.netlify.app/',
+    'resolveLogoutRedirectUrl debe redirigir desde permalink de Netlify al dominio principal configurado en la raíz sin query/path'
+  );
+  assert(
+    resolveLogoutRedirectUrl(
+      'https://6ad381b30d8aaecb76a882aa--papelitocr.netlify.app/auth/logout',
+      'https://papelitocr.netlify.app/subruta?x=1#hash'
+    ).toString() === 'https://papelitocr.netlify.app/',
+    'resolveLogoutRedirectUrl debe normalizar a la raíz limpia sin path, query ni hash'
+  );
+  assert(
+    resolveLogoutRedirectUrl(
+      'https://papelitocr.netlify.app/auth/logout?foo=1',
+      'https://usuario:clave@evil.example.com'
+    ).toString() === 'https://papelitocr.netlify.app/' &&
+      resolveLogoutRedirectUrl(
+        'https://papelitocr.netlify.app/auth/logout',
+        'ftp://papelitocr.netlify.app'
+      ).toString() === 'https://papelitocr.netlify.app/' &&
+      resolveLogoutRedirectUrl(
+        'https://papelitocr.netlify.app/auth/logout',
+        'no-es-una-url'
+      ).toString() === 'https://papelitocr.netlify.app/' &&
+      resolveLogoutRedirectUrl(
+        'https://papelitocr.netlify.app/auth/logout',
+        ''
+      ).toString() === 'https://papelitocr.netlify.app/',
+    'resolveLogoutRedirectUrl debe hacer fallback seguro al origen de request si NEXT_PUBLIC_APP_URL falta, es inválida o incluye credenciales'
+  );
+  assert(
+    resolveLogoutRedirectUrl(
+      'http://localhost:3040/auth/logout',
+      'https://papelitocr.netlify.app'
+    ).toString() === 'http://localhost:3040/' &&
+      resolveLogoutRedirectUrl(
+        'http://127.0.0.1:3040/auth/logout',
+        'https://papelitocr.netlify.app'
+      ).toString() === 'http://127.0.0.1:3040/' &&
+      resolveLogoutRedirectUrl(
+        'http://[::1]:3040/auth/logout',
+        'https://papelitocr.netlify.app'
+      ).toString() === 'http://[::1]:3040/',
+    'resolveLogoutRedirectUrl debe conservar el origen local (localhost, 127.0.0.1, ::1) para no alterar cookies locales'
+  );
+
+  const prevPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  try {
+    process.env.NEXT_PUBLIC_APP_URL = 'https://papelitocr.netlify.app';
+    const permalinkLogoutReq = new NextRequest(
+      'https://6ad381b30d8aaecb76a882aa--papelitocr.netlify.app/auth/logout',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://sitio-arbitrario.malicioso',
+          'x-forwarded-host': 'sitio-arbitrario.malicioso',
+        },
+      }
+    );
+    const logoutRes = await logoutPost(permalinkLogoutReq);
+    assert(
+      logoutRes.status === 303 &&
+        logoutRes.headers.get('location') === 'https://papelitocr.netlify.app/',
+      `POST /auth/logout debe responder 303 hacia NEXT_PUBLIC_APP_URL ignorando permalink y x-forwarded-host arbitrarios (location: ${logoutRes.headers.get('location')})`
+    );
+  } finally {
+    if (prevPublicAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = prevPublicAppUrl;
+  }
+
   // 14.4 Ciclo de consentimiento en DB: el login/alta nunca autoacepta, persiste entre sesiones y exige confirmar nueva versión una sola vez
   const emailAuthUser = 'correo-user-01';
   await getOrCreateProfile(emailAuthUser, 'correo@papelito.cr', 'Usuario Correo', '#7043A2');

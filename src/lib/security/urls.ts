@@ -63,3 +63,49 @@ export function getSafeInternalRedirect(url: unknown, fallback = '/'): string {
   }
   return fallback;
 }
+
+function isLocalLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return (
+    normalized === 'localhost' ||
+    normalized === '127.0.0.1' ||
+    normalized === '::1' ||
+    normalized === '[::1]'
+  );
+}
+
+/**
+ * Resolves the safe 303 redirect URL for POST /auth/logout.
+ * - Preserves the request origin on local loopback hosts (localhost, 127.0.0.1, ::1)
+ *   so local session cookies are never switched across origins.
+ * - For non-local requests (e.g. Netlify where request.url may be rewritten to a deploy permalink),
+ *   uses the validated public origin from NEXT_PUBLIC_APP_URL (http/https only, no credentials,
+ *   root "/" without path/query/hash).
+ * - Falls back to the request origin root "/" if NEXT_PUBLIC_APP_URL is missing or invalid.
+ */
+export function resolveLogoutRedirectUrl(
+  requestUrl: string | URL,
+  configuredAppUrl: unknown = process.env.NEXT_PUBLIC_APP_URL
+): URL {
+  const reqUrl = typeof requestUrl === 'string' ? new URL(requestUrl) : new URL(requestUrl.toString());
+
+  if (isLocalLoopbackHost(reqUrl.hostname)) {
+    return new URL('/', reqUrl.origin);
+  }
+
+  if (typeof configuredAppUrl === 'string' && configuredAppUrl.trim().length > 0) {
+    try {
+      const parsed = new URL(configuredAppUrl.trim());
+      const isHttpOrHttps = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      const hasCredentials = parsed.username !== '' || parsed.password !== '';
+
+      if (isHttpOrHttps && !hasCredentials && !isLocalLoopbackHost(parsed.hostname)) {
+        return new URL('/', parsed.origin);
+      }
+    } catch {
+      // Fall back to requestUrl.origin below
+    }
+  }
+
+  return new URL('/', reqUrl.origin);
+}
