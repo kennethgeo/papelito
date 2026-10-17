@@ -10,7 +10,9 @@
     "lint": "eslint",
     "type-check": "tsc --noEmit",
     "db:migrate": "node scripts/db-migrate.mjs",
+    "privacy:delete": "node --conditions=react-server --experimental-strip-types scripts/privacy-delete.mjs",
     "test:draw": "node --experimental-strip-types scripts/test-draw.mjs",
+    "test:lifecycle": "node --conditions=react-server --experimental-strip-types scripts/test-lifecycle.mjs",
     "test:backend": "node --conditions=react-server --experimental-strip-types scripts/test-backend.mjs",
     "test:neon": "node --conditions=react-server --experimental-strip-types scripts/test-neon.mjs"
   },

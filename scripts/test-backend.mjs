@@ -64,6 +64,7 @@ async function runTests() {
   const migrationSql = fs.readFileSync(migrationPath, 'utf8');
   assert(!migrationSql.includes('CREATE EXTENSION'), 'La migración no debe requerir CREATE EXTENSION pgcrypto');
   await pg.exec(migrationSql);
+  await pg.exec(fs.readFileSync(path.join(rootDir, 'neon/migrations/20261017_retention_and_lifecycle.sql'), 'utf8'));
   console.log('✓ 1. Esquema SQL de Neon ejecutado limpiamente en PostgreSQL (PGlite, gen_random_uuid nativo)');
 
   // 2. Verificar guardia NODE_ENV==='test' en setTestDbAdapter e inyectar adaptador PGlite

@@ -106,23 +106,24 @@ El repositorio incluye `neon.ts` (`auth: true`). El vínculo `.neon` es local y 
    npm run db:migrate
    ```
    - Verifica que `.neon` apunte exactamente al proyecto y rama autorizados de Papelito y valida que tanto `DATABASE_URL` como `DATABASE_URL_UNPOOLED` correspondan exclusivamente al host directo `ep-frosty-hall-b42n8gmw.c-6.us-east-2.aws.neon.tech` y base `neondb`, rechazando esquemas `public` ajenos o parciales.
-   - Si `public` está vacío, aplica `neon/migrations/20261016_init_papelito_neon.sql` dentro de una transacción; si las 12 tablas ya existen con todas sus columnas esperadas, realiza `no-op` sin ejecutar `DROP`, `TRUNCATE` ni `DELETE`.
+   - Si `public` está vacío, aplica `neon/migrations/20261016_init_papelito_neon.sql` dentro de una transacción; si existe el esquema anterior, aplica `20261017_retention_and_lifecycle.sql`; si las 12 tablas ya tienen sus columnas esperadas, realiza `no-op` sin ejecutar `DROP`, `TRUNCATE` ni `DELETE`.
 5. Verifica la conectividad real y el esquema con la prueba transaccional no destructiva:
    ```bash
    npm run test:neon
    ```
    - Reutiliza `validateMigrationUrls` antes de cualquier consulta para exigir el par `DATABASE_URL` / `DATABASE_URL_UNPOOLED` del endpoint autorizado, usa el cliente real (`src/lib/db/client.ts`), ejecuta operaciones CRUD de `profiles` y `wishes` dentro de `dbTransaction`, fuerza `ROLLBACK` y comprueba `0` filas residuales para sus UUID de prueba. *(Nota: esta prueba valida SQL y transacciones en Neon; no sustituye la prueba E2E interactiva de Google OAuth en navegador).*
 
-### Paso 2: Configurar credenciales propias de Google Cloud OAuth para producción (pendiente)
-En desarrollo local (`http://127.0.0.1:3040` / `localhost` en Trusted Origins), Neon Auth está configurado con credenciales compartidas de Google para pruebas locales (verificación E2E interactiva en curso), pero **para producción debes configurar credenciales propias de Google Cloud OAuth** (las credenciales compartidas de desarrollo muestran el nombre de Neon en la pantalla de consentimiento y tienen límites de cuota):
-1. En [Google Cloud Console](https://console.cloud.google.com/apis/credentials), crea un **OAuth 2.0 Client ID** de tipo **Web application**.
-2. En **Authorized JavaScript origins**, agrega el origen del servicio Neon Auth y los de tu aplicación:
-   - `http://127.0.0.1:3040`
-   - `http://localhost:3000`
-   - `https://<tu-sitio>.netlify.app` (y tu dominio personalizado si aplica)
-3. En **Authorized redirect URIs** de Google Cloud, agrega la URL de callback entregada por Neon Auth en tu proyecto (correspondiente a `<NEON_AUTH_BASE_URL>/callback/google`; verifica el valor exacto mostrado en **Neon Console -> Auth -> OAuth Providers -> Google**).
-4. En **Neon Console -> Auth -> OAuth Providers -> Google**, pega el **Client ID** y **Client Secret** obtenidos de Google Cloud.
-5. En **Neon Console -> Auth -> Configuration (Trusted Origins / Redirect URLs)**, agrega los orígenes de la aplicación (`http://127.0.0.1:3040`, `http://localhost:3000` y `https://<tu-sitio>.netlify.app`), que son los destinos válidos para `callbackURL`.
+### Paso 2: Google OAuth propio — configurado
+
+El proyecto independiente de Google Cloud es `papelito-costa-rica`, con audiencia externa en producción y cliente web «Papelito Web». El ID y el secreto están guardados en Neon Auth, fuera del repositorio. El callback autorizado es exactamente:
+
+```text
+https://ep-frosty-hall-b42n8gmw.neonauth.c-6.us-east-2.aws.neon.tech/neondb/auth/callback/google
+```
+
+Este flujo usa redirección de servidor; no necesita agregar orígenes JavaScript del navegador. Los destinos de regreso de la app se autorizan por separado en Neon Auth: `http://127.0.0.1:3040`, `http://localhost:3040` y `https://papelitocr.netlify.app`. Al añadir un dominio propio, actualizar sus destinos exactos y la marca de Google; no usar comodines. Google puede mostrar `neon.tech` por el host del callback: publicar la audiencia no equivale a verificar una marca con dominio propio.
+
+La recuperación por enlace y la verificación obligatoria por OTP se probaron con entrega real confirmada por el titular. El remitente propio se deja pendiente por su decisión; actualmente se usa el proveedor compartido de Neon.
 
 ### Paso 3: Configuración del despliegue en Netlify
 El proyecto incluye `netlify.toml` preconfigurado con Node 24, servidor Next.js (SSR/App Router, sin export estático), cabeceras de seguridad y `Cache-Control: no-store` para `/api/*`, `/auth/*` y `/unirse/*`.
@@ -140,4 +141,22 @@ El proyecto incluye `netlify.toml` preconfigurado con Node 24, servidor Next.js 
 
 ## 5. Textos legales y privacidad (Costa Rica — Ley N.° 8968)
 
-La aplicación incluye borradores funcionales informativos accesibles públicamente en `/terminos`, `/privacidad`, `/consentimiento` y `/almacenamiento`, diseñados bajo los principios de separación de consentimiento, minimización de datos y derechos ARCO en Costa Rica. Antes de operar públicamente con usuarios reales, el titular del despliegue debe completar los datos definitivos de identificación del responsable y correo de contacto en `src/lib/legal/constants.ts` y validarlos según su operación particular (estos textos constituyen borradores operativos y no representan una certificación legal).
+La aplicación incluye borradores funcionales informativos accesibles públicamente en `/terminos`, `/privacidad`, `/consentimiento` y `/almacenamiento`, diseñados bajo los principios de separación de consentimiento, minimización de datos y derechos ARCO en Costa Rica. Antes de operar públicamente con usuarios reales, el titular del despliegue debe completar la identidad jurídica y el domicilio del responsable y revisar los textos. El nombre público es Papelito Costa Rica y el correo de soporte/privacidad es kennethgeo97@gmail.com. La configuración está en `src/lib/legal/constants.ts`. Estos textos constituyen borradores operativos y no representan una certificación legal.
+
+## Operación de privacidad y retención
+
+El organizador puede finalizar un intercambio sorteado, cancelar uno activo o transferir la organización a otro participante aprobado. El cierre revoca invitaciones y registra `closed_at`. Una Scheduled Function privada de Netlify, `retention-cleanup`, elimina diariamente los grupos cerrados hace 12 meses (meses calendario), junto con sus datos dependientes. Las cuentas y listas personales tienen un ciclo separado. No hay un endpoint HTTP público para ejecutar esta tarea. Se puede comprobar desde Functions → retention-cleanup → Run now.
+
+La solicitud de baja en Mi cuenta exige un ingreso en los últimos 15 minutos, frase y confirmación expresa. La pantalla explica y pide autorización antes de transferir grupos activos o cancelar grupos sin otros aprobados. **Registrar una solicitud no borra inmediatamente la cuenta:** el operador debe revisar y procesar las solicitudes dentro del plazo indicado en la política.
+
+```bash
+npm run privacy:delete -- --list
+npm run privacy:delete -- --request-id UUID
+npm run privacy:delete -- --request-id UUID --execute
+```
+
+El segundo comando simula sin cambios. El tercero borra primero el usuario y sus sesiones mediante la CLI oficial de Neon; confirma su ausencia y elimina sus datos de la app en una transacción. Requiere `neon login` vigente y las variables locales de la base exclusiva de Papelito. Un fallo de Auth conserva la solicitud y los datos. Si Auth se eliminó pero falla la transacción posterior, se puede reintentar el mismo request-id. Una solicitud antigua que todavía organiza grupos activos con terceros se bloquea: revisar su impacto y transferir primero, o añadir `--confirm-organizer-transfer` de manera consciente.
+
+Los sorteos activos afectados por una baja se invalidan y se borran sus asignaciones; las otras personas conservan sus cuentas. El nuevo organizador debe repetir el sorteo con un motivo registrado. No se escriben ni se borran usuarios de `neon_auth` mediante SQL.
+
+Ver la evidencia y los límites de la comprobación en [CIERRE_FUNCIONAL_VERIFICACION.md](CIERRE_FUNCIONAL_VERIFICACION.md). `npm run test:lifecycle` cubre cierre, permisos, transferencia, reintentos de baja y retención con PostgreSQL aislado, además de las pruebas existentes.

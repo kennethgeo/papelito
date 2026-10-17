@@ -5,6 +5,7 @@ import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { THEME_CONFIG } from '@/lib/theme';
 import { ThemeKey, Participant } from '@/types';
+import { ExchangeLifecycleControls } from '@/components/ExchangeLifecycleControls';
 import { RibbonDivider } from '@/components/RibbonDivider';
 
 export const ExchangeDetailView: React.FC = () => {
@@ -76,7 +77,7 @@ export const ExchangeDetailView: React.FC = () => {
   if (!currentExchange) {
     return (
       <div style={{ padding: '2rem 1rem', textAlign: 'center' }}>
-        <p>No se encontró el intercambio seleccionado.</p>
+        <p role="status">{real && !real.errorMessage ? 'Cargando tu intercambio…' : 'No se pudo cargar el intercambio seleccionado.'}</p>
         <button
           onClick={() => navigateTo('intercambios_lista')}
           style={{
@@ -270,7 +271,7 @@ export const ExchangeDetailView: React.FC = () => {
           </div>
 
           {/* Organizer theme switch button */}
-          {currentExchange.isCurrentUserOrganizer && currentExchange.status !== 'sorteado' && (
+          {currentExchange.isCurrentUserOrganizer && currentExchange.status === 'inscripcion_abierta' && (
             <button
               onClick={() => setShowThemeModal(true)}
               style={{
@@ -421,9 +422,12 @@ export const ExchangeDetailView: React.FC = () => {
                 </>
               )}
             </div>
-          ) : currentExchange.status === 'sorteado' ? (
+          ) : currentExchange.status === 'finalizado' || currentExchange.status === 'cancelado' ? (
+            <p>Este intercambio está cerrado.</p>
+          ) : currentExchange.status === 'sorteado' || (currentExchange.currentDrawVersion || 0) > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              <button
+              {currentExchange.drawNotice && <p role="status">Sorteo v{currentExchange.currentDrawVersion}: {currentExchange.drawNotice}</p>}
+              {currentExchange.status === 'sorteado' && <button
                 onClick={() => navigateTo('asignacion_revelar', currentExchange.id)}
                 className="btn-primary"
                 style={{
@@ -445,7 +449,7 @@ export const ExchangeDetailView: React.FC = () => {
                 }}
               >
                 <span>Ver a quién regalo</span>
-              </button>
+              </button>}
 
               {currentExchange.isCurrentUserOrganizer && real && (
                 <div style={{ marginTop: '0.25rem' }}>
@@ -612,8 +616,10 @@ export const ExchangeDetailView: React.FC = () => {
         </div>
       </div>
 
+      <ExchangeLifecycleControls key={currentExchange.id} exchange={currentExchange} />
+
       {/* Share Invitation Section (Organizer Only in Real Mode) */}
-      {isApprovedMember && (currentExchange.isCurrentUserOrganizer || Boolean(demo)) && (
+      {isApprovedMember && currentExchange.status === 'inscripcion_abierta' && (currentExchange.isCurrentUserOrganizer || Boolean(demo)) && (
         <div
           className="invite-box"
           style={{
@@ -854,7 +860,7 @@ export const ExchangeDetailView: React.FC = () => {
                           )}
                         </div>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          Unido el {p.joinedAt}
+                          Unido el {new Date(p.joinedAt).toLocaleDateString('es-CR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Costa_Rica' })}
                         </span>
                       </div>
                     </div>
@@ -862,7 +868,7 @@ export const ExchangeDetailView: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {currentExchange.isCurrentUserOrganizer &&
                       !p.isOrganizer &&
-                      currentExchange.status !== 'sorteado' &&
+                      currentExchange.status === 'inscripcion_abierta' &&
                       (pStatus === 'pending' || pStatus === 'rejected') ? (
                         <div style={{ display: 'flex', gap: '0.35rem' }}>
                           <button
@@ -915,7 +921,7 @@ export const ExchangeDetailView: React.FC = () => {
                           </span>
                           {currentExchange.isCurrentUserOrganizer &&
                             !p.isOrganizer &&
-                            currentExchange.status !== 'sorteado' &&
+                            currentExchange.status === 'inscripcion_abierta' &&
                             real && (
                               <button
                                 onClick={() => real.manageMember(p.id, 'rejected')}

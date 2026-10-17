@@ -65,13 +65,15 @@ export default function TerminosPage() {
           <h3>1. Identificación del servicio y estado operativo</h3>
           <p>
             «Papelito» es una aplicación para la coordinación de intercambios de regalos y amigos secretos.
-            La identidad societaria u operadora definitiva y los canales de contacto formal se encuentran
-            pendientes de configuración y revisión jurídica final previa al lanzamiento público.
+            Su nombre público es {LEGAL_CONSTANTS.PUBLIC_NAME}. El contacto es{' '}
+            <a href={`mailto:${LEGAL_CONSTANTS.CONTACT_EMAIL}`}>{LEGAL_CONSTANTS.CONTACT_EMAIL}</a>.
+            La identidad jurídica y el domicilio del responsable están pendientes de completar y revisar;
+            el nombre público no se presenta como una sociedad inscrita.
           </p>
 
           <h3>2. Elegibilidad y participación</h3>
           <p>
-            El servicio está propuesto para personas de al menos {LEGAL_CONSTANTS.MINIMUM_RECOMMENDED_AGE} años.
+            El servicio está dirigido a personas de al menos {LEGAL_CONSTANTS.MINIMUM_RECOMMENDED_AGE} años.
             Puedes acceder con Google o con correo electrónico y una contraseña de Papelito.
             Neon Auth administra la autenticación y las credenciales de acceso.
           </p>
@@ -89,6 +91,12 @@ export default function TerminosPage() {
             sorteo, deberá ejecutar una invalidación explícita que quedará registrada de forma visible para todos
             los participantes con un nuevo número de versión.
           </p>
+          <p>
+            Si se procesa la eliminación de la cuenta de un participante de un sorteo activo, esa versión
+            se invalida y se borran sus asignaciones. El organizador deberá repetirlo con los miembros restantes.
+            La organización puede transferirse a otro participante aprobado. Finalizar o cancelar un intercambio
+            desactiva sus invitaciones y nuevos sorteos; el cierre no se puede deshacer.
+          </p>
 
           <h3>4. Enlaces a tiendas y deslinde de responsabilidad comercial</h3>
           <p>
@@ -100,9 +108,10 @@ export default function TerminosPage() {
 
           <h3>5. Conservación de eventos y datos</h3>
           <p>
-            Los intercambios cerrados o finalizados se conservarán durante un período propuesto de{' '}
-            {LEGAL_CONSTANTS.RETENTION_MONTHS_AFTER_CLOSE} meses, tras el cual podrán ser eliminados de las bases
-            activas junto con sus asignaciones, sin perjuicio de los respaldos de seguridad técnicos.
+            Los intercambios finalizados o cancelados se eliminan de la base activa mediante una tarea diaria
+            al cumplir {LEGAL_CONSTANTS.RETENTION_MONTHS_AFTER_CLOSE} meses desde el cierre registrado, junto
+            con sus asignaciones. La política de privacidad detalla los cierres anteriores a esta versión y
+            el alcance de la eliminación en respaldos. Las cuentas y listas personales de deseos tienen un ciclo separado.
           </p>
 
           <h3>6. Actualización de condiciones</h3>

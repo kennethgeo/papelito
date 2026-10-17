@@ -73,6 +73,8 @@ export interface Exchange {
   exclusions?: Array<{ id?: string; giverId: string; receiverId: string }>;
   minParticipants: number;
   currentDrawVersion?: number;
+  closedAt?: string | null;
+  drawNotice?: string | null;
   currentUserMemberStatus?: 'approved' | 'pending' | 'rejected';
   assignment?: Assignment;
 }

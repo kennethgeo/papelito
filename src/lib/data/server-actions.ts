@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
-import { getServerSession } from '@/lib/auth/server';
+import { getServerSession, getFreshServerSession } from '@/lib/auth/server';
 import { isDatabaseConfigured } from '@/lib/db/client';
 import {
   createExchangeWithInvitation,
@@ -14,6 +14,8 @@ import {
   setExchangeExclusions,
   acceptInvitationAtomic,
   getInvitationPreview,
+  updateExchangeLifecycleStatus,
+  transferExchangeOrganizer,
   type CreateExchangeInput,
 } from '@/lib/repositories/exchanges';
 import { executeAndCommitDraw } from '@/lib/repositories/draw';
@@ -36,6 +38,10 @@ import {
   getLatestConsentStatus,
   submitPrivacyRequest,
   exportUserData,
+  getAccountDeletionImpact,
+  requestAccountDeletion,
+  type AccountDeletionImpact,
+  type RequestAccountDeletionResult,
 } from '@/lib/repositories/profiles';
 import { LEGAL_CONSTANTS } from '@/lib/legal/constants';
 import {
@@ -482,6 +488,9 @@ export async function submitPrivacyRequestAction(
     if (requestType !== 'export' && requestType !== 'delete') {
       return { success: false, error: 'Tipo de solicitud inválido.' };
     }
+    if (requestType === 'delete') {
+      return { success: false, error: 'Usá la confirmación de eliminación en Mi cuenta para solicitar la baja.' };
+    }
     if (notes !== undefined && (typeof notes !== 'string' || notes.length > 500)) {
       return { success: false, error: 'Las notas no pueden exceder 500 caracteres.' };
     }
@@ -536,5 +545,115 @@ export async function getInvitationPreviewAction(
     return { success: true, data: preview };
   } catch (err: unknown) {
     return { success: false, error: sanitizeErrorMessage(err, 'Error al previsualizar la invitación.') };
+  }
+}
+
+export async function updateExchangeLifecycleStatusAction(
+  exchangeId: string,
+  nextStatus: 'finalizado' | 'cancelado'
+): Promise<ActionResult<{ status: 'finalizado' | 'cancelado'; closedAt: string }>> {
+  try {
+    if (!exchangeId || typeof exchangeId !== 'string') {
+      return { success: false, error: 'Identificador de intercambio inválido.' };
+    }
+    if (nextStatus !== 'finalizado' && nextStatus !== 'cancelado') {
+      return { success: false, error: 'Estado de cierre inválido.' };
+    }
+    const user = await requireConsentedUser();
+    const res = await updateExchangeLifecycleStatus(exchangeId, user.id, nextStatus);
+    revalidatePath('/');
+    return { success: true, data: res };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, 'Error al actualizar el estado del intercambio.'),
+    };
+  }
+}
+
+export async function transferExchangeOrganizerAction(
+  exchangeId: string,
+  newOrganizerUserId: string
+): Promise<ActionResult> {
+  try {
+    if (!exchangeId || typeof exchangeId !== 'string') {
+      return { success: false, error: 'Identificador de intercambio inválido.' };
+    }
+    if (!newOrganizerUserId || typeof newOrganizerUserId !== 'string') {
+      return { success: false, error: 'Selecciona el participante aprobado a quien transferir la organización.' };
+    }
+    const user = await requireConsentedUser();
+    await transferExchangeOrganizer(exchangeId, user.id, newOrganizerUserId);
+    revalidatePath('/');
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, 'Error al transferir la organización del intercambio.'),
+    };
+  }
+}
+
+export async function getAccountDeletionImpactAction(): Promise<ActionResult<AccountDeletionImpact>> {
+  try {
+    const user = await requireAuth();
+    const impact = await getAccountDeletionImpact(user.id);
+    return { success: true, data: impact };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, 'Error al consultar el impacto de baja de la cuenta.'),
+    };
+  }
+}
+
+export async function requestAccountDeletionAction(input: {
+  confirmPhrase: string;
+  confirmIrreversible: boolean;
+  confirmOrganizerImpact?: boolean;
+  notes?: string;
+}): Promise<ActionResult<RequestAccountDeletionResult>> {
+  try {
+    if (!input || typeof input.confirmPhrase !== 'string' ||
+        (input.notes !== undefined && (typeof input.notes !== 'string' || input.notes.length > 500))) {
+      return { success: false, error: 'Revisá la confirmación y las notas (máximo 500 caracteres).' };
+    }
+    if (!isDatabaseConfigured()) {
+      return {
+        success: false,
+        error: 'El almacenamiento en la nube no está configurado en este entorno.',
+      };
+    }
+
+    const freshSession = await getFreshServerSession();
+    if (!freshSession || !freshSession.user) {
+      return {
+        success: false,
+        error: 'Debes iniciar sesión con una sesión activa verificada para solicitar la baja de tu cuenta.',
+      };
+    }
+
+    await getOrCreateProfile(
+      freshSession.user.id,
+      freshSession.user.email,
+      freshSession.user.name,
+      freshSession.user.avatarColor
+    );
+
+    const result = await requestAccountDeletion(freshSession.user.id, {
+      confirmPhrase: input.confirmPhrase,
+      confirmIrreversible: input.confirmIrreversible === true,
+      confirmOrganizerImpact: input.confirmOrganizerImpact === true,
+      notes: input.notes,
+      sessionAuthenticatedAt: freshSession.authenticatedAt,
+    });
+
+    revalidatePath('/');
+    return { success: true, data: result };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, 'Error al registrar la solicitud de eliminación de cuenta.'),
+    };
   }
 }

@@ -48,7 +48,7 @@ export async function getServerSession(): Promise<{ user: AuthUser } | null> {
   await connection();
 
   try {
-    const { data: session } = await auth.getSession();
+    const { data: session } = await auth.getSession({ query: { disableCookieCache: 'true' } });
     if (!session || !session.user) {
       return null;
     }
@@ -59,6 +59,43 @@ export async function getServerSession(): Promise<{ user: AuthUser } | null> {
         name: session.user.name || session.user.email?.split('@')[0] || 'Participante',
         avatarColor: '#46245D',
       },
+    };
+  } catch (err) {
+    unstable_rethrow(err);
+    return null;
+  }
+}
+
+export async function getFreshServerSession(): Promise<{
+  user: AuthUser;
+  authenticatedAt: string | null;
+} | null> {
+  const auth = getNeonAuth();
+  if (!auth) {
+    return null;
+  }
+
+  await connection();
+
+  try {
+    const { data: session } = await auth.getSession({
+      query: { disableCookieCache: 'true' },
+    });
+    if (!session || !session.user) {
+      return null;
+    }
+
+    const rawCreated = session.session?.createdAt;
+    const createdMs = rawCreated ? new Date(rawCreated).getTime() : NaN;
+
+    return {
+      user: {
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.name || session.user.email?.split('@')[0] || 'Participante',
+        avatarColor: '#46245D',
+      },
+      authenticatedAt: Number.isFinite(createdMs) ? new Date(createdMs).toISOString() : null,
     };
   } catch (err) {
     unstable_rethrow(err);

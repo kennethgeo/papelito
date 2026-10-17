@@ -137,6 +137,22 @@ button:active {
   animation: fadeIn 0.22s ease-out forwards;
 }
 
+.exchange-management { margin-bottom: 1.5rem; padding: 1.15rem; background: #fff; border: 1px dashed var(--color-tinta); border-radius: 18px; }
+.exchange-management summary { cursor: pointer; font-family: var(--font-heading); font-weight: 800; min-height: 32px; }
+.exchange-management p, .account-deletion-panel p, .account-deletion-panel li, .account-deletion-demo { font-size: .84rem; line-height: 1.5; overflow-wrap: anywhere; }
+.management-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.management-button { min-height: 44px; padding: .65rem .85rem; border: 1px solid var(--border-subtle); border-radius: 11px; background: var(--surface-subtle); color: var(--color-tinta); font: 700 .83rem var(--font-body); cursor: pointer; }
+.management-button.danger { background: #fff5f5; color: #9b1c1c; border-color: #feb2b2; }
+.management-button:disabled { opacity: .6; cursor: wait; }
+.management-note { margin-top: 1rem; padding: 1rem; border-radius: 14px; border: 1px solid #e8c8ad; background: #fff9ef; }
+.management-note h3 { margin-top: 0; font-family: var(--font-heading); }
+.management-field { display: grid; gap: .4rem; margin: .85rem 0; font-size: .84rem; font-weight: 700; }
+.management-field input, .management-field textarea, .management-field select { width: 100%; min-width: 0; min-height: 44px; padding: .7rem; border: 1px solid var(--border-subtle); border-radius: 9px; background: #fff; color: var(--color-tinta); font: 1rem var(--font-body); }
+.management-check { display: flex; align-items: flex-start; gap: .65rem; font-size: .84rem; line-height: 1.5; margin: .85rem 0; }
+.management-check input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--color-tinta); }
+.management-error { color: #9b1c1c; font-weight: 700; }
+.management-note a { color: var(--color-tinta); text-decoration: underline; }
+
 /* Respect user's motion preference */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

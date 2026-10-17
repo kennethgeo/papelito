@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { RibbonLogo } from '@/components/RibbonLogo';
+import { LEGAL_CONSTANTS } from '@/lib/legal/constants';
 
 export const metadata = {
   title: 'Consentimiento Informado — Papelito',
@@ -42,6 +43,9 @@ export default function ConsentimientoPage() {
           Borrador basado en los artículos 5 y 6 de la Ley 8968 de Costa Rica. Pendiente de revisión jurídica
           y de completar la identidad y dirección del responsable.
         </p>
+        <p>Nombre público: {LEGAL_CONSTANTS.PUBLIC_NAME}. Contacto de privacidad:{' '}
+          <a href={`mailto:${LEGAL_CONSTANTS.CONTACT_EMAIL}`}>{LEGAL_CONSTANTS.CONTACT_EMAIL}</a>.
+          Versión {LEGAL_CONSTANTS.VERSION}.</p>
 
         <hr style={{ border: 'none', borderTop: '1px solid #EDF2F7', margin: '1.5rem 0' }} />
 
@@ -60,6 +64,12 @@ export default function ConsentimientoPage() {
               <strong>Destinatarios:</strong> Su alias y avatar serán visibles para los demás miembros de sus
               intercambios. Su asignación secreta y sus deseos solo serán consultados por la persona a quien le
               corresponda regalarle.
+            </li>
+            <li>
+              <strong>Proveedores:</strong> Neon administra la base de datos, el acceso y los correos
+              transaccionales; Netlify aloja el servicio. La base de datos y el acceso se alojan en Ohio,
+              Estados Unidos. Google interviene si elegís ingresar con Google. Consultá la{' '}
+              <Link href="/privacidad">política de privacidad</Link> para conocer la conservación y la eliminación.
             </li>
             <li>
               <strong>Carácter facultativo:</strong> La entrega de estos datos es voluntaria; sin embargo, no

@@ -1,3 +1,5 @@
+> Actualización del 17 de octubre de 2026: Google OAuth propio, recuperación, OTP, despliegue y privacidad se documentan en [CIERRE_FUNCIONAL_VERIFICACION.md](CIERRE_FUNCIONAL_VERIFICACION.md). Los pendientes anteriores de este registro histórico deben leerse con esa actualización.
+
 # Acceso por correo y consentimiento por cuenta
 
 Verificación realizada el 17 de octubre de 2026, Costa Rica.

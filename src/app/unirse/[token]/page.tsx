@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
+import { connection } from 'next/server';
 import { RibbonLogo } from '@/components/RibbonLogo';
 import { RibbonDivider } from '@/components/RibbonDivider';
 import { isDatabaseConfigured } from '@/lib/db/client';
@@ -24,6 +25,8 @@ interface PreviewState {
 }
 
 async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: string }> }) {
+  // Invitation expiry and membership must be evaluated for the incoming request.
+  await connection();
   const { token } = await tokenPromise;
 
   let preview: PreviewState = {

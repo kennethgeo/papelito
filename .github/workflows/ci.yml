@@ -42,3 +42,6 @@ jobs:
 
       - name: Production build (without external secrets)
         run: npm run build
+
+      - name: Lifecycle, deletion and retention integration tests
+        run: npm run test:lifecycle

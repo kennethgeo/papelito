@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { useOptionalRealData } from '@/context/RealDataContext';
+import { AccountDeletionPanel } from '@/components/AccountDeletionPanel';
 import { RibbonDivider } from '@/components/RibbonDivider';
 
 export const AccountView: React.FC = () => {
@@ -24,9 +25,6 @@ export const AccountView: React.FC = () => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Privacy requests state
-  const [deleteRequested, setDeleteRequested] = useState(false);
-  const [deleteNotes, setDeleteNotes] = useState('');
-  const [showDeleteForm, setShowDeleteForm] = useState(false);
   const [exported, setExported] = useState(false);
 
   const handleSaveAlias = async (e: React.FormEvent) => {
@@ -90,22 +88,7 @@ export const AccountView: React.FC = () => {
     setTimeout(() => setExported(false), 3000);
   };
 
-  const [deleteError, setDeleteError] = useState('');
   const [consentMsg, setConsentMsg] = useState('');
-
-  const handleRequestDeletion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setDeleteError('');
-    if (isReal && realData) {
-      const ok = await realData.submitPrivacyRequest('delete', deleteNotes);
-      if (!ok) {
-        setDeleteError('No se pudo registrar la solicitud de eliminación en el servidor. Inténtalo de nuevo.');
-        return;
-      }
-    }
-    setDeleteRequested(true);
-    setShowDeleteForm(false);
-  };
 
   const handleRevokeConsent = async () => {
     if (!isReal || !realData) return;
@@ -307,7 +290,7 @@ export const AccountView: React.FC = () => {
         </h2>
 
         <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.45, margin: '0 0 1rem 0' }}>
-          De conformidad con la Ley 8968, puedes descargar una copia íntegra de tu información o
+          De conformidad con la Ley 8968, puedes descargar una copia de tus datos personales o
           registrar una solicitud formal de eliminación de cuenta.
         </p>
 
@@ -331,117 +314,9 @@ export const AccountView: React.FC = () => {
             {exported ? '✓ Archivo JSON descargado' : '📥 Exportar mis datos (JSON)'}
           </button>
 
-          {/* Request Deletion */}
-          {!deleteRequested && (
-            <button
-              onClick={() => setShowDeleteForm(!showDeleteForm)}
-              style={{
-                flex: 1,
-                minHeight: '42px',
-                backgroundColor: '#FFF5F5',
-                color: '#C53030',
-                border: '1px solid #FEB2B2',
-                borderRadius: '12px',
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                padding: '0.5rem 0.85rem',
-              }}
-            >
-              Solicitar eliminación
-            </button>
-          )}
         </div>
 
-        {/* Deletion Form */}
-        {showDeleteForm && !deleteRequested && (
-          <form
-            onSubmit={handleRequestDeletion}
-            style={{
-              backgroundColor: '#FFF5F5',
-              border: '1px solid #FEB2B2',
-              borderRadius: '14px',
-              padding: '1rem',
-              marginTop: '0.75rem',
-            }}
-          >
-            <strong style={{ display: 'block', fontSize: '0.88rem', color: '#9B1C1C', marginBottom: '0.35rem' }}>
-              Confirmación de solicitud de supresión
-            </strong>
-            <p style={{ fontSize: '0.8rem', color: '#7F1D1D', lineHeight: 1.4, margin: '0 0 0.75rem 0' }}>
-              Al pulsar «Enviar solicitud», se registrará tu petición en el sistema. Si formas parte de un
-              intercambio con sorteo ya completado, tu salida requiere coordinación previa con el
-              organizador para no alterar la asignación del grupo.
-            </p>
-            <textarea
-              rows={2}
-              placeholder="Motivo o aclaración (opcional)"
-              value={deleteNotes}
-              onChange={(e) => setDeleteNotes(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                borderRadius: '8px',
-                border: '1px solid #FEB2B2',
-                fontSize: '0.85rem',
-                marginBottom: '0.75rem',
-              }}
-            />
-            {deleteError && (
-              <div role="alert" style={{ color: '#C53030', fontSize: '0.8rem', marginBottom: '0.6rem', fontWeight: 600 }}>
-                {deleteError}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                type="submit"
-                style={{
-                  backgroundColor: '#C53030',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '0.5rem 1rem',
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Confirmar y enviar solicitud
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowDeleteForm(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#7F1D1D',
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                }}
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        )}
-
-        {deleteRequested && (
-          <div
-            style={{
-              backgroundColor: '#FEF3D6',
-              border: '1px solid #F6E05E',
-              borderRadius: '12px',
-              padding: '0.85rem',
-              fontSize: '0.82rem',
-              color: '#744210',
-              lineHeight: 1.45,
-            }}
-          >
-            ⏳ <strong>Solicitud de eliminación registrada:</strong> Se ha guardado tu solicitud
-            administrativa. El artículo 7 de la Ley 8968 establece cinco días hábiles, desde la recepción,
-            para resolver lo que corresponda. La cuenta aún no se ha eliminado.
-          </div>
-        )}
+        <AccountDeletionPanel />
 
         {isReal && realData && (
           <div

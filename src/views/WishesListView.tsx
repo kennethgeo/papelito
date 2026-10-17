@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { Wish, Currency } from '@/types';
@@ -37,6 +37,8 @@ export const WishesListView: React.FC = () => {
   const [currency, setCurrency] = useState<Currency>(defaultCurrency);
   const [priority, setPriority] = useState<Wish['priority']>('alta');
   const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   const resetForm = () => {
     setTitle('');
@@ -63,48 +65,58 @@ export const WishesListView: React.FC = () => {
 
   const handleSaveWish = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingRef.current) return;
     if (!title.trim()) {
       setFormError('Por favor escribe un título para el deseo o idea de regalo.');
       return;
     }
 
-    if (real) {
-      const ok = await real.saveWish({
-        id: editingWishId || undefined,
-        title: title.trim(),
-        description: description.trim() || undefined,
-        url: url.trim() || undefined,
-        approximatePrice: approximatePrice ? Number(approximatePrice) : undefined,
-        currency,
-        priority: priority as 'alta' | 'media' | 'baja',
-      });
-      if (!ok) {
-        setFormError('No se pudo guardar el deseo en el servidor. Por favor intenta de nuevo.');
-        return;
-      }
-    } else if (demo) {
-      if (editingWishId) {
-        demo.updateUserWish(editingWishId, {
+    savingRef.current = true;
+    setSaving(true);
+    setFormError('');
+    try {
+      if (real) {
+        const ok = await real.saveWish({
+          id: editingWishId || undefined,
           title: title.trim(),
           description: description.trim() || undefined,
           url: url.trim() || undefined,
           approximatePrice: approximatePrice ? Number(approximatePrice) : undefined,
           currency,
-          priority,
+          priority: priority as 'alta' | 'media' | 'baja',
         });
-      } else {
-        demo.addUserWish({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          url: url.trim() || undefined,
-          approximatePrice: approximatePrice ? Number(approximatePrice) : undefined,
-          currency,
-          priority,
-        });
+        if (!ok) {
+          setFormError('No se pudo guardar el deseo en el servidor. Por favor intenta de nuevo.');
+          return;
+        }
+      } else if (demo) {
+        if (editingWishId) {
+          demo.updateUserWish(editingWishId, {
+            title: title.trim(),
+            description: description.trim() || undefined,
+            url: url.trim() || undefined,
+            approximatePrice: approximatePrice ? Number(approximatePrice) : undefined,
+            currency,
+            priority,
+          });
+        } else {
+          demo.addUserWish({
+            title: title.trim(),
+            description: description.trim() || undefined,
+            url: url.trim() || undefined,
+            approximatePrice: approximatePrice ? Number(approximatePrice) : undefined,
+            currency,
+            priority,
+          });
+        }
       }
+      resetForm();
+    } catch {
+      setFormError('No se pudo conectar. Conservamos tu idea para volver a intentar.');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-
-    resetForm();
   };
 
   const handleDeleteWish = async (wishId: string) => {
@@ -258,6 +270,7 @@ export const WishesListView: React.FC = () => {
             <button
               type="button"
               onClick={resetForm}
+              disabled={saving}
               style={{
                 background: 'none',
                 border: 'none',
@@ -499,6 +512,8 @@ export const WishesListView: React.FC = () => {
             </button>
             <button
               type="submit"
+              disabled={saving}
+              aria-busy={saving}
               style={{
                 flex: 1,
                 padding: '0.75rem',
@@ -511,7 +526,7 @@ export const WishesListView: React.FC = () => {
                 cursor: 'pointer',
               }}
             >
-              {editingWishId ? 'Guardar cambios' : 'Añadir a mis deseos'}
+              {saving ? 'Guardando tu idea…' : editingWishId ? 'Guardar cambios' : 'Añadir a mis deseos'}
             </button>
           </div>
         </form>

@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".netlify/**",
+    ".codex-remote-attachments/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

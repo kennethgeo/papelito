@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { ThemeKey, Currency } from '@/types';
@@ -26,6 +26,9 @@ export const CreateExchangeWizard: React.FC = () => {
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const submitting = useRef(false);
 
   // Date inference (NEVER based on current date)
   const inferred = inferThemeFromDate(eventDate);
@@ -71,35 +74,48 @@ export const CreateExchangeWizard: React.FC = () => {
   };
 
   const handleConfirmCreate = async () => {
-    if (real) {
-      const res = await real.createExchange({
-        name: name.trim(),
-        description: description.trim() || 'Intercambio organizado a través de Papelito.',
-        eventDate,
-        registrationDeadline,
-        budgetAmount,
-        currency,
-        suggestedTheme: (inferred.theme || 'general') as 'navidad' | 'amistad' | 'cumpleanos' | 'general',
-        selectedTheme: (effectiveTheme || 'general') as 'navidad' | 'amistad' | 'cumpleanos' | 'general',
-        requiresApproval,
-      });
+    if (submitting.current) return;
+    submitting.current = true;
+    setCreating(true);
+    setCreateError('');
+    try {
+      if (real) {
+        const res = await real.createExchange({
+          name: name.trim(),
+          description: description.trim() || 'Intercambio organizado a través de Papelito.',
+          eventDate,
+          registrationDeadline,
+          budgetAmount,
+          currency,
+          suggestedTheme: (inferred.theme || 'general') as 'navidad' | 'amistad' | 'cumpleanos' | 'general',
+          selectedTheme: (effectiveTheme || 'general') as 'navidad' | 'amistad' | 'cumpleanos' | 'general',
+          requiresApproval,
+        });
 
-      if (res.success && res.exchangeId) {
-        navigateTo('intercambio_detalle', res.exchangeId);
+        if (res.success && res.exchangeId) {
+          navigateTo('intercambio_detalle', res.exchangeId);
+        } else {
+          setCreateError(res.error || 'No se pudo crear el intercambio. Revisá tu conexión e intentá de nuevo.');
+        }
+      } else if (demo) {
+        const createdId = demo.createExchange({
+          name: name.trim(),
+          description: description.trim() || 'Intercambio organizado a través de Papelito.',
+          eventDate,
+          registrationDeadline,
+          budgetAmount,
+          currency,
+          requiresApproval,
+          manualThemeOverride: manualTheme || undefined,
+        });
+
+        navigateTo('intercambio_detalle', createdId);
       }
-    } else if (demo) {
-      const createdId = demo.createExchange({
-        name: name.trim(),
-        description: description.trim() || 'Intercambio organizado a través de Papelito.',
-        eventDate,
-        registrationDeadline,
-        budgetAmount,
-        currency,
-        requiresApproval,
-        manualThemeOverride: manualTheme || undefined,
-      });
-
-      navigateTo('intercambio_detalle', createdId);
+    } catch {
+      setCreateError('No se pudo conectar con Papelito. Conservamos tus datos para que podás volver a intentarlo.');
+    } finally {
+      submitting.current = false;
+      setCreating(false);
     }
   };
 
@@ -115,6 +131,7 @@ export const CreateExchangeWizard: React.FC = () => {
       <button
         onClick={() => navigateTo('intercambios_lista')}
         className="btn-back"
+        disabled={creating}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -587,7 +604,8 @@ export const CreateExchangeWizard: React.FC = () => {
 
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button
-              onClick={() => setStep(1)}
+              disabled={creating}
+                onClick={() => setStep(1)}
               style={{
                 flex: 0.45,
                 minHeight: '48px',
@@ -804,7 +822,8 @@ export const CreateExchangeWizard: React.FC = () => {
 
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button
-              onClick={() => setStep(2)}
+              disabled={creating}
+                onClick={() => setStep(2)}
               style={{
                 flex: 0.45,
                 minHeight: '48px',
@@ -947,7 +966,8 @@ export const CreateExchangeWizard: React.FC = () => {
 
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
             <button
-              onClick={() => setStep(3)}
+              disabled={creating}
+                onClick={() => setStep(3)}
               style={{
                 flex: 0.45,
                 minHeight: '48px',
@@ -963,6 +983,8 @@ export const CreateExchangeWizard: React.FC = () => {
             </button>
             <button
               onClick={handleConfirmCreate}
+              disabled={creating}
+              aria-busy={creating}
               className="btn-primary"
               style={{
                 flex: 1,
@@ -978,9 +1000,10 @@ export const CreateExchangeWizard: React.FC = () => {
                 boxShadow: '0 4px 14px rgba(112, 67, 162, 0.28)',
               }}
             >
-              ✨ Crear intercambio ahora
+              {creating ? 'Creando tu intercambio…' : '✨ Crear intercambio ahora'}
             </button>
           </div>
+          {createError && <p role="alert" style={{ color: '#9B1C1C', lineHeight: 1.5, marginBottom: 0 }}>{createError}</p>}
         </div>
       )}
     </div>

@@ -46,6 +46,7 @@ next-env.d.ts
 desktop.ini
 Thumbs.db
 .codex/
+.codex-remote-attachments/
 .agents/
 
 # Local agent briefs and review notes (not application source)

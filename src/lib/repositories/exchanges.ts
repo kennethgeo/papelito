@@ -2,6 +2,11 @@ import 'server-only';
 import crypto from 'node:crypto';
 import { dbQuery, dbTransaction } from '@/lib/db/client';
 import { getCostaRicaTodayDate } from '@/lib/date/costa-rica';
+import {
+  purgeExpiredClosedExchangesWithClient,
+  type PurgeExpiredExchangesOptions,
+  type PurgeExpiredExchangesResult,
+} from '@/lib/retention/cleanup';
 
 export interface CreateExchangeInput {
   name: string;
@@ -198,6 +203,7 @@ export async function getMyExchanges(userId: string) {
     requires_approval: boolean;
     min_participants: number;
     current_draw_version: number;
+    closed_at: string | null;
     is_organizer: boolean;
     member_status: string;
     organizer_alias: string;
@@ -217,6 +223,7 @@ export async function getMyExchanges(userId: string) {
        e.requires_approval,
        e.min_participants,
        e.current_draw_version,
+       e.closed_at::text as closed_at,
        m.is_organizer,
        m.status as member_status,
        p.alias as organizer_alias,
@@ -243,6 +250,7 @@ export async function getMyExchanges(userId: string) {
     requiresApproval: row.requires_approval,
     minParticipants: row.min_participants,
     currentDrawVersion: row.current_draw_version,
+    closedAt: row.closed_at,
     isOrganizer: row.is_organizer,
     memberStatus: row.member_status as 'approved' | 'pending' | 'rejected',
     organizerAlias: row.organizer_alias,
@@ -288,8 +296,10 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
     min_participants: number;
     status: string;
     current_draw_version: number;
+    closed_at: string | null;
     organizer_alias: string;
     organizer_avatar: string;
+    draw_notice: string | null;
   }>(
     `SELECT
        e.id,
@@ -307,8 +317,11 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
        e.min_participants,
        e.status,
        e.current_draw_version,
+       e.closed_at::text as closed_at,
        p.alias as organizer_alias,
-       p.avatar_color as organizer_avatar
+       p.avatar_color as organizer_avatar,
+       (SELECT dv.invalidation_reason FROM draw_versions dv
+        WHERE dv.exchange_id = e.id AND dv.version_number = e.current_draw_version) AS draw_notice
      FROM exchanges e
      JOIN profiles p ON p.user_id = e.organizer_id
      WHERE e.id = $1`,
@@ -339,6 +352,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
         minParticipants: ex.min_participants,
         status: ex.status,
         currentDrawVersion: ex.current_draw_version,
+        closedAt: ex.closed_at,
         organizerAlias: ex.organizer_alias,
         isCurrentUserOrganizer: false,
         currentUserMemberStatus: userMembership.status,
@@ -433,6 +447,8 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
       minParticipants: ex.min_participants,
       status: ex.status,
       currentDrawVersion: ex.current_draw_version,
+      closedAt: ex.closed_at,
+      drawNotice: ex.draw_notice,
       organizerAlias: ex.organizer_alias,
       isCurrentUserOrganizer: isOrganizer,
       currentUserMemberStatus: userMembership.status,
@@ -781,5 +797,161 @@ export async function setExchangeExclusions(
     }
 
     return true;
+  });
+}
+
+/**
+ * Transitions an exchange to a terminal state ('finalizado' or 'cancelado'),
+ * recording `closed_at` for 12-month automatic retention and revoking open invitations.
+ */
+export async function updateExchangeLifecycleStatus(
+  exchangeId: string,
+  actorUserId: string,
+  nextStatus: 'finalizado' | 'cancelado',
+  referenceNow: Date = new Date()
+): Promise<{ status: 'finalizado' | 'cancelado'; closedAt: string }> {
+  if (nextStatus !== 'finalizado' && nextStatus !== 'cancelado') {
+    throw new Error('El estado de cierre debe ser finalizado o cancelado.');
+  }
+
+  return await dbTransaction(async (client) => {
+    const exRes = await client.query<{
+      organizer_id: string;
+      status: string;
+      closed_at: string | null;
+    }>(
+      `SELECT organizer_id, status, closed_at::text
+       FROM exchanges
+       WHERE id = $1
+       FOR UPDATE`,
+      [exchangeId]
+    );
+
+    if (exRes.rowCount === 0) {
+      throw new Error('Intercambio no encontrado.');
+    }
+
+    const ex = exRes.rows[0];
+    if (ex.organizer_id !== actorUserId) {
+      throw new Error('Solo la persona organizadora puede finalizar o cancelar el intercambio.');
+    }
+
+    if (ex.status === 'finalizado' || ex.status === 'cancelado') {
+      if (ex.status === nextStatus && ex.closed_at) {
+        return { status: nextStatus, closedAt: ex.closed_at };
+      }
+      throw new Error('Este intercambio ya fue cerrado anteriormente.');
+    }
+
+    if (nextStatus === 'finalizado' && ex.status !== 'sorteado') {
+      throw new Error('Solo se puede finalizar un intercambio que ya tiene sorteo. Para abandonarlo antes, elegí cancelar.');
+    }
+
+    const nowIso = referenceNow.toISOString();
+
+    await client.query(
+      `UPDATE invitations
+       SET revoked_at = $1::timestamptz
+       WHERE exchange_id = $2 AND revoked_at IS NULL`,
+      [nowIso, exchangeId]
+    );
+
+    const updRes = await client.query<{ status: 'finalizado' | 'cancelado'; closed_at: string }>(
+      `UPDATE exchanges
+       SET status = $1,
+           closed_at = COALESCE(closed_at, $2::timestamptz),
+           updated_at = $2::timestamptz
+       WHERE id = $3
+       RETURNING status, closed_at::text AS closed_at`,
+      [nextStatus, nowIso, exchangeId]
+    );
+
+    return {
+      status: updRes.rows[0].status,
+      closedAt: updRes.rows[0].closed_at,
+    };
+  });
+}
+
+/**
+ * Transfers the organizer role of an exchange to another approved member.
+ */
+export async function transferExchangeOrganizer(
+  exchangeId: string,
+  actorUserId: string,
+  newOrganizerUserId: string
+): Promise<boolean> {
+  if (!newOrganizerUserId || newOrganizerUserId.trim().length === 0) {
+    throw new Error('Debes seleccionar un participante aprobado como nuevo organizador.');
+  }
+
+  return await dbTransaction(async (client) => {
+    const exRes = await client.query<{ organizer_id: string; status: string }>(
+      `SELECT organizer_id, status FROM exchanges WHERE id = $1 FOR UPDATE`,
+      [exchangeId]
+    );
+
+    if (exRes.rowCount === 0) {
+      throw new Error('Intercambio no encontrado.');
+    }
+
+    const ex = exRes.rows[0];
+    if (ex.organizer_id !== actorUserId) {
+      throw new Error('Solo la persona organizadora actual puede transferir la organización.');
+    }
+
+    if (newOrganizerUserId === actorUserId) {
+      throw new Error('Ya eres la persona organizadora de este intercambio.');
+    }
+
+    const memRes = await client.query<{ user_id: string; status: string }>(
+      `SELECT user_id, status
+       FROM memberships
+       WHERE exchange_id = $1 AND user_id IN ($2, $3)
+       FOR UPDATE`,
+      [exchangeId, actorUserId, newOrganizerUserId]
+    );
+
+    const targetMember = memRes.rows.find((m) => m.user_id === newOrganizerUserId);
+    if (!targetMember || targetMember.status !== 'approved') {
+      throw new Error(
+        'Solo puedes transferir la organización a un participante aprobado de este intercambio.'
+      );
+    }
+
+    await client.query(
+      `UPDATE exchanges
+       SET organizer_id = $1, updated_at = now()
+       WHERE id = $2`,
+      [newOrganizerUserId, exchangeId]
+    );
+
+    await client.query(
+      `UPDATE memberships
+       SET is_organizer = (user_id = $1)
+       WHERE exchange_id = $2 AND user_id IN ($1, $3)`,
+      [newOrganizerUserId, exchangeId, actorUserId]
+    );
+
+    await client.query(
+      `UPDATE invitations
+       SET created_by = $1
+       WHERE exchange_id = $2 AND created_by = $3`,
+      [newOrganizerUserId, exchangeId, actorUserId]
+    );
+
+    return true;
+  });
+}
+
+/**
+ * Purges closed ('finalizado' / 'cancelado') exchanges whose closed_at timestamp is
+ * at least 12 real calendar months in the past, inside a PostgreSQL transaction.
+ */
+export async function purgeExpiredClosedExchanges(
+  options: PurgeExpiredExchangesOptions = {}
+): Promise<PurgeExpiredExchangesResult> {
+  return await dbTransaction(async (client) => {
+    return await purgeExpiredClosedExchangesWithClient(client, options);
   });
 }

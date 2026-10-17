@@ -23,7 +23,15 @@ import {
   revokeConsentAction,
   submitPrivacyRequestAction,
   exportUserDataAction,
+  updateExchangeLifecycleStatusAction,
+  transferExchangeOrganizerAction,
+  getAccountDeletionImpactAction,
+  requestAccountDeletionAction,
 } from '@/lib/data/server-actions';
+import type {
+  AccountDeletionImpact,
+  RequestAccountDeletionResult,
+} from '@/lib/repositories/profiles';
 import { LEGAL_CONSTANTS } from '@/lib/legal/constants';
 import {
   Exchange,
@@ -80,6 +88,14 @@ interface RealDataContextType {
   }) => Promise<{ success: boolean; exchangeId?: string; error?: string }>;
   manageMember: (targetUserId: string, newStatus: 'approved' | 'rejected') => Promise<boolean>;
   updateExchangeTheme: (exchangeId: string, newTheme: ThemeKey) => Promise<boolean>;
+  updateExchangeLifecycle: (
+    exchangeId: string,
+    nextStatus: 'finalizado' | 'cancelado'
+  ) => Promise<{ success: boolean; error?: string }>;
+  transferExchangeOrganizer: (
+    exchangeId: string,
+    newOrganizerUserId: string
+  ) => Promise<{ success: boolean; error?: string }>;
   saveExclusions: (
     exchangeId: string,
     rules: Array<{ giverUserId: string; excludedReceiverUserId: string }>
@@ -103,6 +119,13 @@ interface RealDataContextType {
   confirmConsent: (termsAccepted: boolean, privacyAccepted: boolean) => Promise<boolean>;
   revokeUserConsent: () => Promise<boolean>;
   submitPrivacyRequest: (type: 'export' | 'delete', notes?: string) => Promise<boolean>;
+  getAccountDeletionImpact: () => Promise<AccountDeletionImpact | null>;
+  requestAccountDeletion: (input: {
+    confirmPhrase: string;
+    confirmIrreversible: boolean;
+    confirmOrganizerImpact?: boolean;
+    notes?: string;
+  }) => Promise<{ success: boolean; data?: RequestAccountDeletionResult; error?: string }>;
   exportAllUserData: () => Promise<Record<string, unknown> | null>;
   reloadExchanges: () => Promise<void>;
   reloadWishes: () => Promise<void>;
@@ -182,6 +205,7 @@ export function RealDataProvider({
             requiresApproval: item.requiresApproval,
             minParticipants: item.minParticipants || 3,
             currentDrawVersion: item.currentDrawVersion || 0,
+            closedAt: item.closedAt ?? null,
             currentUserMemberStatus: item.memberStatus,
             participantCount: item.participantCount ?? 0,
             participants: [],
@@ -259,6 +283,8 @@ export function RealDataProvider({
           requiresApproval: ex.requiresApproval,
           minParticipants: ex.minParticipants || 3,
           currentDrawVersion: ex.currentDrawVersion || 0,
+          closedAt: ex.closedAt ?? null,
+          drawNotice: 'drawNotice' in ex ? ex.drawNotice : null,
           currentUserMemberStatus: (ex.currentUserMemberStatus || 'approved') as 'approved' | 'pending' | 'rejected',
           participantCount: approvedCount,
           participants: mappedParticipants,
@@ -323,6 +349,10 @@ export function RealDataProvider({
     setErrorMessage(null);
     setActiveView(view);
     if (exchangeId) {
+      if (exchangeId !== selectedExchangeId) {
+        setCurrentExchange(null);
+        setCurrentAssignment(null);
+      }
       setSelectedExchangeId(exchangeId);
     }
   };
@@ -344,6 +374,8 @@ export function RealDataProvider({
       const res = await createExchangeAction(data);
       if (res.success && res.data) {
         await reloadExchanges();
+        setCurrentExchange(null);
+        setCurrentAssignment(null);
         setSelectedExchangeId(res.data.exchangeId);
         setActiveView('intercambio_detalle');
         return { success: true, exchangeId: res.data.exchangeId };
@@ -379,6 +411,44 @@ export function RealDataProvider({
     }
     setErrorMessage(res.error || 'Error al cambiar el tema del intercambio.');
     return false;
+  };
+
+  const updateExchangeLifecycleHandler = async (
+    exchangeId: string,
+    nextStatus: 'finalizado' | 'cancelado'
+  ) => {
+    setErrorMessage(null);
+    const res = await updateExchangeLifecycleStatusAction(exchangeId, nextStatus);
+    if (res.success) {
+      if (selectedExchangeId === exchangeId) {
+        await loadExchangeDetails(exchangeId);
+      }
+      await reloadExchanges();
+      return { success: true };
+    }
+    return {
+      success: false,
+      error: res.error || 'No se pudo actualizar el estado del intercambio.',
+    };
+  };
+
+  const transferExchangeOrganizerHandler = async (
+    exchangeId: string,
+    newOrganizerUserId: string
+  ) => {
+    setErrorMessage(null);
+    const res = await transferExchangeOrganizerAction(exchangeId, newOrganizerUserId);
+    if (res.success) {
+      if (selectedExchangeId === exchangeId) {
+        await loadExchangeDetails(exchangeId);
+      }
+      await reloadExchanges();
+      return { success: true };
+    }
+    return {
+      success: false,
+      error: res.error || 'No se pudo transferir la organización del intercambio.',
+    };
   };
 
   const saveExclusionsHandler = async (
@@ -578,6 +648,32 @@ export function RealDataProvider({
     return res.success;
   };
 
+  const getAccountDeletionImpactHandler = useCallback(async () => {
+    const res = await getAccountDeletionImpactAction();
+    if (res.success && res.data) {
+      return res.data;
+    }
+    return null;
+  }, []);
+
+  const requestAccountDeletionHandler = async (input: {
+    confirmPhrase: string;
+    confirmIrreversible: boolean;
+    confirmOrganizerImpact?: boolean;
+    notes?: string;
+  }) => {
+    setErrorMessage(null);
+    const res = await requestAccountDeletionAction(input);
+    if (res.success && res.data) {
+      await reloadExchanges();
+      return { success: true, data: res.data };
+    }
+    return {
+      success: false,
+      error: res.error || 'No se pudo registrar la solicitud de eliminación de cuenta.',
+    };
+  };
+
   const exportAllUserDataHandler = async () => {
     setErrorMessage(null);
     const res = await exportUserDataAction();
@@ -606,6 +702,8 @@ export function RealDataProvider({
         createExchange,
         manageMember,
         updateExchangeTheme: updateExchangeThemeHandler,
+        updateExchangeLifecycle: updateExchangeLifecycleHandler,
+        transferExchangeOrganizer: transferExchangeOrganizerHandler,
         saveExclusions: saveExclusionsHandler,
         regenerateInviteLink: regenerateInviteLinkHandler,
         executeDraw: executeDrawHandler,
@@ -618,6 +716,8 @@ export function RealDataProvider({
         confirmConsent: confirmConsentHandler,
         revokeUserConsent: revokeUserConsentHandler,
         submitPrivacyRequest: submitPrivacyRequestHandler,
+        getAccountDeletionImpact: getAccountDeletionImpactHandler,
+        requestAccountDeletion: requestAccountDeletionHandler,
         exportAllUserData: exportAllUserDataHandler,
         reloadExchanges,
         reloadWishes,

@@ -34,6 +34,7 @@ export const EXPECTED_PAPELITO_SCHEMA = {
     'min_participants',
     'status',
     'current_draw_version',
+    'closed_at',
     'created_at',
     'updated_at',
   ],
@@ -58,6 +59,13 @@ export const EXPECTED_PAPELITO_SCHEMA = {
   gift_purchases: ['id', 'exchange_id', 'wish_id', 'buyer_id', 'purchased_at'],
   privacy_requests: ['id', 'user_id', 'request_type', 'notes', 'status', 'created_at', 'processed_at'],
 };
+
+const INCREMENTAL_MIGRATION_20261017_PATH = path.join(
+  rootDir,
+  'neon',
+  'migrations',
+  '20261017_retention_and_lifecycle.sql'
+);
 
 /**
  * Loads .env.local and .env into process.env without overwriting existing variables
@@ -189,7 +197,7 @@ export function validateMigrationUrls(databaseUrl, unpooledUrl) {
   };
 }
 
-export async function verifyExpectedColumns(client) {
+async function fetchColumnsByTable(client) {
   const colsRes = await client.query(
     `SELECT table_name, column_name
      FROM information_schema.columns
@@ -203,8 +211,13 @@ export async function verifyExpectedColumns(client) {
     }
     columnsByTable.get(row.table_name).add(row.column_name);
   }
+  return columnsByTable;
+}
 
-  for (const [tableName, expectedCols] of Object.entries(EXPECTED_PAPELITO_SCHEMA)) {
+export async function verifyExpectedColumns(client, schemaOverride = EXPECTED_PAPELITO_SCHEMA) {
+  const columnsByTable = await fetchColumnsByTable(client);
+
+  for (const [tableName, expectedCols] of Object.entries(schemaOverride)) {
     const actualCols = columnsByTable.get(tableName);
     if (!actualCols) {
       throw new Error(`Falta la tabla esperada "${tableName}" en el esquema public.`);
@@ -220,10 +233,11 @@ export async function verifyExpectedColumns(client) {
 
 /**
  * Inspects public schema and applies migration inside a transaction if public is empty,
+ * applies incremental versioned migration if upgrading from 20261016 (missing exchanges.closed_at),
  * or validates all 12 tables and expected columns before no-op.
  * Never executes DROP, TRUNCATE, or DELETE.
  */
-export async function inspectAndMigratePublicSchema(client, migrationSql) {
+export async function inspectAndMigratePublicSchema(client, migrationSql, incrementalSqlOverride) {
   const expectedTableNames = Object.keys(EXPECTED_PAPELITO_SCHEMA);
   const expectedTableSet = new Set(expectedTableNames);
 
@@ -250,7 +264,46 @@ export async function inspectAndMigratePublicSchema(client, migrationSql) {
     );
   }
 
+  const incrementalSql =
+    incrementalSqlOverride ??
+    (fs.existsSync(INCREMENTAL_MIGRATION_20261017_PATH)
+      ? fs.readFileSync(INCREMENTAL_MIGRATION_20261017_PATH, 'utf8')
+      : '');
+
   if (existingTables.length === expectedTableNames.length) {
+    const columnsByTable = await fetchColumnsByTable(client);
+    const exchangeCols = columnsByTable.get('exchanges');
+    const needsClosedAtUpgrade = exchangeCols && !exchangeCols.has('closed_at');
+
+    if (needsClosedAtUpgrade) {
+      // Verify all baseline 20261016 columns exist before applying incremental upgrade
+      const baselineSchema = {
+        ...EXPECTED_PAPELITO_SCHEMA,
+        exchanges: EXPECTED_PAPELITO_SCHEMA.exchanges.filter((c) => c !== 'closed_at'),
+      };
+      await verifyExpectedColumns(client, baselineSchema);
+
+      await client.query('BEGIN');
+      try {
+        if (typeof client.exec === 'function') {
+          await client.exec(incrementalSql);
+        } else {
+          await client.query(incrementalSql);
+        }
+        await verifyExpectedColumns(client);
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      }
+      return {
+        status: 'migrated',
+        incremental: true,
+        appliedMigration: '20261017_retention_and_lifecycle.sql',
+        tablesCount: existingTables.length,
+      };
+    }
+
     await verifyExpectedColumns(client);
     return { status: 'noop', tablesCount: existingTables.length };
   }
@@ -260,8 +313,14 @@ export async function inspectAndMigratePublicSchema(client, migrationSql) {
   try {
     if (typeof client.exec === 'function') {
       await client.exec(migrationSql);
+      if (incrementalSql) {
+        await client.exec(incrementalSql);
+      }
     } else {
       await client.query(migrationSql);
+      if (incrementalSql) {
+        await client.query(incrementalSql);
+      }
     }
     await verifyExpectedColumns(client);
     await client.query('COMMIT');
@@ -270,7 +329,7 @@ export async function inspectAndMigratePublicSchema(client, migrationSql) {
     throw err;
   }
 
-  return { status: 'migrated', tablesCount: expectedTableNames.length };
+  return { status: 'migrated', incremental: false, tablesCount: expectedTableNames.length };
 }
 
 async function runCliMigration() {
@@ -298,9 +357,13 @@ async function runCliMigration() {
   try {
     client = await pool.connect();
     const result = await inspectAndMigratePublicSchema(client, migrationSql);
-    if (result.status === 'migrated') {
+    if (result.status === 'migrated' && result.incremental) {
       console.log(
-        `✓ Migración aplicada exitosamente dentro de transacción (${result.tablesCount}/12 tablas creadas y verificadas en public).`
+        `✓ Migración incremental (${result.appliedMigration}) aplicada exitosamente dentro de transacción (${result.tablesCount}/12 tablas verificadas en public).`
+      );
+    } else if (result.status === 'migrated') {
+      console.log(
+        `✓ Migración inicial aplicada exitosamente dentro de transacción (${result.tablesCount}/12 tablas creadas y verificadas en public).`
       );
     } else {
       console.log(

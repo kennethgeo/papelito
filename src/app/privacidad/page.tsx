@@ -64,19 +64,20 @@ export default function PrivacidadPage() {
         <div style={{ fontSize: '0.92rem', color: 'var(--color-tinta)', lineHeight: 1.6 }}>
           <h3>1. Responsable del tratamiento y contacto</h3>
           <p>
-            Los datos identificativos definitivos del operador y el correo específico para atención de
-            solicitudes de privacidad se encuentran pendientes de asignación formal. Deben completarse
-            antes de habilitar el servicio con datos reales. Las opciones de «Mi cuenta» permiten exportar
-            datos y registrar solicitudes cuando el servicio esté conectado.
+            El servicio utiliza el nombre público {LEGAL_CONSTANTS.PUBLIC_NAME}. Para soporte y solicitudes
+            de privacidad, escribí a <a href={`mailto:${LEGAL_CONSTANTS.CONTACT_EMAIL}`}>{LEGAL_CONSTANTS.CONTACT_EMAIL}</a>.
+            La identidad jurídica y el domicilio del responsable todavía deben completarse; este nombre
+            público no identifica por sí solo una sociedad inscrita. Este documento está pendiente de revisión jurídica.
           </p>
 
           <h3>2. Tratamiento internacional y proveedores de infraestructura</h3>
           <p>
-            La infraestructura prevista utiliza Neon PostgreSQL, Neon Auth y Netlify. Google participa
+            La infraestructura utiliza Neon PostgreSQL y Neon Auth en la región de Ohio, Estados Unidos,
+            y Netlify para alojamiento y distribución. El tratamiento puede ocurrir fuera de Costa Rica. Google participa
             cuando eliges acceder mediante ese proveedor. El acceso con correo y contraseña lo administra
             Neon Auth; las contraseñas no se guardan en texto plano en los perfiles de Papelito.
-            Antes del lanzamiento se identificarán los proveedores efectivamente contratados, la ubicación
-            del tratamiento y las condiciones aplicables a transferencias fuera de Costa Rica.
+            Neon Auth envía los correos transaccionales de acceso y recuperación mediante su proveedor compartido.
+            No utilizamos estos correos para publicidad. No vendemos los datos de los participantes.
           </p>
 
           <h3>3. Finalidad y visibilidad segmentada</h3>
@@ -102,17 +103,24 @@ export default function PrivacidadPage() {
             administrativamente. El{' '}
             <a href="https://formatos.inamu.go.cr/SIDOC/DOCS/ley_8968.pdf" target="_blank" rel="noopener noreferrer">artículo 7 de la Ley 8968</a>{' '}
             establece cinco días hábiles, desde su recepción, para resolver lo que corresponda. Registrar
-            la solicitud no equivale a haber eliminado la cuenta. En caso de encontrarse en un
-            intercambio activo ya sorteado, la salida se coordinará para resguardar la dinámica del grupo sin
-            desatender el derecho de supresión.
+            la solicitud no equivale a haber eliminado la cuenta. La pantalla muestra los intercambios afectados
+            y pide una confirmación expresa. Si organizás un grupo activo con otras personas, podés transferirlo
+            antes o autorizar su transferencia al participante aprobado más antiguo al enviar la solicitud;
+            si solo hay personas pendientes, se cancela. Al procesar la baja se eliminan el acceso y los datos
+            personales de la base activa. Los sorteos activos en los que participabas se invalidan, se borran
+            sus asignaciones y deben repetirse con los participantes restantes. Los datos propios de las otras
+            personas se conservan. Los grupos sin otros participantes se eliminan.
           </p>
 
           <h3>5. Conservación y respaldos</h3>
           <p>
-            Los eventos cerrados se retienen por un plazo sugerido de{' '}
-            {LEGAL_CONSTANTS.RETENTION_MONTHS_AFTER_CLOSE} meses. La versión definitiva deberá precisar
-            el plazo efectivo, el procedimiento de eliminación y la conservación en respaldos de los
-            proveedores seleccionados. La eliminación automática por antigüedad está pendiente de implementación.
+            Los intercambios finalizados o cancelados se eliminan de la base activa mediante una tarea diaria
+            al cumplir {LEGAL_CONSTANTS.RETENTION_MONTHS_AFTER_CLOSE} meses desde su cierre registrado,
+            junto con sus invitaciones, participantes y asignaciones. Para cierres anteriores a esta versión,
+            el plazo comienza con la migración del 17 de octubre de 2026. Los intercambios activos no se eliminan
+            por antigüedad. Tu cuenta y tu lista personal de deseos se conservan hasta que solicites su eliminación.
+            Los respaldos de los proveedores siguen sus propios ciclos de expiración; una baja en la base activa
+            no implica la eliminación instantánea de todas sus copias técnicas.
           </p>
         </div>
 
