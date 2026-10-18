@@ -1,811 +1,494 @@
-'use client';
+"use client";
 
-import React, { useRef, useState } from 'react';
-import { useOptionalDemoData } from '@/context/DemoDataContext';
-import { useOptionalRealData } from '@/context/RealDataContext';
-import { Wish, Currency } from '@/types';
-import { RibbonDivider } from '@/components/RibbonDivider';
+import { useRef, useState } from "react";
+import { useOptionalDemoData } from "@/context/DemoDataContext";
+import { useOptionalRealData } from "@/context/RealDataContext";
+import { formatMoney } from "@/lib/event-dates";
+import type { Currency, Wish } from "@/types";
 
-export const WishesListView: React.FC = () => {
+const emptyDraft = {
+  title: "",
+  description: "",
+  url: "",
+  price: "",
+  currency: "CRC" as Currency,
+  priority: "media" as Wish["priority"],
+};
+function selectedGroups(wish: Wish) {
+  return wish.selectedInExchanges ?? (wish.exchangeId ? [wish.exchangeId] : []);
+}
+
+export function WishesListView() {
   const real = useOptionalRealData();
   const demo = useOptionalDemoData();
+  const wishes = real?.myWishes ?? demo?.userWishes ?? [];
+  const exchanges = (real?.exchanges ?? demo?.exchanges ?? []).filter(
+    (ex) => (ex.currentUserMemberStatus ?? "approved") === "approved",
+  );
+  const [draft, setDraft] = useState(emptyDraft);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const lock = useRef(false);
+  const [pending, setPending] = useState<Record<string, boolean>>({});
+  const selectionLocks = useRef(new Set<string>());
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const titleRef = useRef<HTMLInputElement>(null);
 
-  const userWishes: Wish[] = real
-    ? real.myWishes.map((w) => ({
-        id: w.id,
-        title: w.title,
-        description: w.description || '',
-        url: w.url || '',
-        approximatePrice: w.approximatePrice || undefined,
-        currency: (w.currency || 'CRC') as Currency,
-        priority: (w.priority || 'media') as Wish['priority'],
-        selectedInExchanges: w.selectedInExchanges,
-        createdAt: new Date().toISOString(),
-      }))
-    : (demo?.userWishes || []);
-
-  const defaultCurrency: Currency = (real ? 'CRC' : demo?.userProfile.preferences.defaultCurrency || 'CRC') as Currency;
-
-  const [isAdding, setIsAdding] = useState(false);
-  const [editingWishId, setEditingWishId] = useState<string | null>(null);
-
-  // Form states
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [url, setUrl] = useState('');
-  const [approximatePrice, setApproximatePrice] = useState<number | ''>('');
-  const [currency, setCurrency] = useState<Currency>(defaultCurrency);
-  const [priority, setPriority] = useState<Wish['priority']>('alta');
-  const [formError, setFormError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
-
-  const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setUrl('');
-    setApproximatePrice('');
-    setCurrency(defaultCurrency);
-    setPriority('alta');
-    setFormError('');
-    setIsAdding(false);
-    setEditingWishId(null);
-  };
-
-  const handleStartEdit = (wish: Wish) => {
-    setEditingWishId(wish.id);
-    setTitle(wish.title);
-    setDescription(wish.description || '');
-    setUrl(wish.url || '');
-    setApproximatePrice(wish.approximatePrice || '');
-    setCurrency(wish.currency);
-    setPriority(wish.priority);
-    setIsAdding(true);
-  };
-
-  const handleSaveWish = async (e: React.FormEvent) => {
+  function cancelEdit() {
+    setEditing(null);
+    setDraft(emptyDraft);
+    setExpanded(false);
+    setError("");
+  }
+  function edit(wish: Wish) {
+    setEditing(wish.id);
+    setDraft({
+      title: wish.title,
+      description: wish.description ?? "",
+      url: wish.url ?? "",
+      price:
+        wish.approximatePrice === undefined
+          ? ""
+          : String(wish.approximatePrice),
+      currency: wish.currency,
+      priority: wish.priority,
+    });
+    setExpanded(
+      !!(wish.description || wish.url || wish.approximatePrice !== undefined),
+    );
+    setError("");
+    setMessage("");
+    titleRef.current?.focus();
+    titleRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+  async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (savingRef.current) return;
-    if (!title.trim()) {
-      setFormError('Por favor escribe un título para el deseo o idea de regalo.');
+    if (lock.current) return;
+    setError("");
+    setMessage("");
+    if (!draft.title.trim() || draft.title.trim().length > 150) {
+      setError("Escribí una idea de regalo de hasta 150 caracteres.");
+      titleRef.current?.focus();
       return;
     }
-
-    savingRef.current = true;
-    setSaving(true);
-    setFormError('');
+    if (draft.url.trim()) {
+      try {
+        const url = new URL(draft.url.trim());
+        if (!["http:", "https:"].includes(url.protocol)) throw new Error();
+      } catch {
+        setError("El enlace debe empezar con https:// o http://.");
+        return;
+      }
+    }
+    const price = draft.price.trim() === "" ? undefined : Number(draft.price);
+    if (
+      price !== undefined &&
+      (!Number.isFinite(price) || price < 0 || price > 100_000_000)
+    ) {
+      setError("Revisá el precio: usá un número entre 0 y 100 millones.");
+      return;
+    }
+    lock.current = true;
+    setBusy(true);
     try {
+      const data = {
+        title: draft.title.trim(),
+        description: draft.description.trim(),
+        url: draft.url.trim(),
+        approximatePrice: price,
+        currency: draft.currency,
+        priority: draft.priority,
+      };
       if (real) {
-        const ok = await real.saveWish({
-          id: editingWishId || undefined,
-          title: title.trim(),
-          description: description.trim() || undefined,
-          url: url.trim() || undefined,
-          approximatePrice: approximatePrice ? Number(approximatePrice) : undefined,
-          currency,
-          priority: priority as 'alta' | 'media' | 'baja',
-        });
-        if (!ok) {
-          setFormError('No se pudo guardar el deseo en el servidor. Por favor intenta de nuevo.');
+        if (!(await real.saveWish({ ...data, id: editing ?? undefined }))) {
+          setError("No se guardó la idea. Conservamos lo que escribiste.");
           return;
         }
       } else if (demo) {
-        if (editingWishId) {
-          demo.updateUserWish(editingWishId, {
-            title: title.trim(),
-            description: description.trim() || undefined,
-            url: url.trim() || undefined,
-            approximatePrice: approximatePrice ? Number(approximatePrice) : undefined,
-            currency,
-            priority,
-          });
-        } else {
-          demo.addUserWish({
-            title: title.trim(),
-            description: description.trim() || undefined,
-            url: url.trim() || undefined,
-            approximatePrice: approximatePrice ? Number(approximatePrice) : undefined,
-            currency,
-            priority,
-          });
-        }
+        if (editing) demo.updateUserWish(editing, data);
+        else demo.addUserWish(data);
       }
-      resetForm();
+      setMessage(
+        editing
+          ? "Cambios guardados."
+          : "¡Idea guardada! Elegí abajo en cuáles intercambios compartirla.",
+      );
+      cancelEdit();
+      titleRef.current?.focus();
     } catch {
-      setFormError('No se pudo conectar. Conservamos tu idea para volver a intentar.');
+      setError(
+        "Se perdió la conexión. Revisá tu lista antes de volver a guardar. Conservamos tu idea.",
+      );
     } finally {
-      savingRef.current = false;
-      setSaving(false);
+      lock.current = false;
+      setBusy(false);
     }
-  };
-
-  const handleDeleteWish = async (wishId: string) => {
-    if (real) {
-      const ok = await real.deleteWish(wishId);
-      if (!ok) {
-        setFormError('No se pudo eliminar el deseo en el servidor.');
-      }
-    } else if (demo) {
-      demo.deleteUserWish(wishId);
+  }
+  async function remove(id: string) {
+    if (lock.current || selectionLocks.current.size) return;
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      if (real) {
+        if (!(await real.deleteWish(id))) {
+          setError("No se pudo borrar la idea. Intentá de nuevo.");
+          return;
+        }
+      } else demo?.deleteUserWish(id);
+      if (editing === id) cancelEdit();
+      setDeleting(null);
+      setMessage(
+        "Idea eliminada de tu lista y de los intercambios donde la compartiste.",
+      );
+    } catch {
+      setError(
+        "Revisá tu conexión y la lista antes de intentar borrar otra vez.",
+      );
+    } finally {
+      lock.current = false;
+      setBusy(false);
     }
-  };
-
-  const formatCurrency = (amount: number, cur: string) => {
-    if (cur === 'CRC') {
-      return `₡${amount.toLocaleString('es-CR')}`;
+  }
+  async function select(wish: Wish, exchangeId: string, checked: boolean) {
+    const key = `${wish.id}:${exchangeId}`;
+    if (selectionLocks.current.size || lock.current) return;
+    selectionLocks.current.add(key);
+    setPending((prev) => ({ ...prev, [key]: checked }));
+    setError("");
+    setMessage("");
+    try {
+      const ok = real
+        ? await real.toggleWishInExchange(exchangeId, wish.id, checked)
+        : (demo?.toggleWishInExchange(exchangeId, wish.id, checked), true);
+      if (!ok)
+        setError(
+          "No se pudo cambiar dónde se comparte esta idea. La selección anterior se conservó.",
+        );
+      else
+        setMessage(
+          checked
+            ? "Idea compartida en ese intercambio."
+            : "Idea retirada de ese intercambio. Sigue en tu lista personal.",
+        );
+    } catch {
+      setError(
+        "No pudimos confirmar el cambio. Actualizá la lista antes de repetirlo.",
+      );
+    } finally {
+      selectionLocks.current.delete(key);
+      setPending((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     }
-    return `$${amount.toLocaleString('en-US')}`;
-  };
-
-  const getPriorityBadge = (p: Wish['priority']) => {
-    const badges = {
-      alta: { label: 'Prioridad alta', bg: '#EDE5F5', text: '#59317C' },
-      media: { label: 'Prioridad media', bg: '#FEF3D6', text: '#7A5200' },
-      baja: { label: 'Prioridad baja', bg: '#EDE5F5', text: '#46245D' },
-    }[p];
-
-    return (
-      <span
-        style={{
-          fontSize: '0.72rem',
-          fontWeight: 700,
-          textTransform: 'none',
-          letterSpacing: '0.04em',
-          backgroundColor: badges.bg,
-          color: badges.text,
-          padding: '0.2rem 0.55rem',
-          borderRadius: '999px',
-        }}
-      >
-        {badges.label}
-      </span>
-    );
-  };
+  }
 
   return (
-    <div
-      className="wishes-page animate-fade-in"
-      style={{
-        maxWidth: '560px',
-        margin: '0 auto',
-        padding: '1.25rem 1rem 5rem 1rem',
-      }}
-    >
-      {/* Header & Add Button */}
-      <div className="paper-secondary-heading"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '1.25rem',
-          gap: '0.75rem',
-        }}
-      >
+    <div className="workshop-page wishes-workshop">
+      <div className="workshop-heading">
         <div>
-          <h1
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.75rem',
-              fontWeight: 800,
-              color: 'var(--color-tinta)',
-              margin: '0 0 0.2rem 0',
-              lineHeight: 1.15,
-            }}
-          >
-            Mis deseos
-          </h1>
-          <p
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              margin: 0,
-            }}
-          >
-            Dejá unas pistas para quien te regale.
+          <p className="workshop-step">Una ayudita para quien te regala</p>
+          <h1>Se vale dar pistas.</h1>
+          <p>
+            Guardá tus ideas y elegí en qué intercambios compartir cada una.
           </p>
         </div>
-
-        {!isAdding && (
-          <button
-            onClick={() => {
-              resetForm();
-              setIsAdding(true);
-            }}
-            className="btn-create"
-            style={{
-              backgroundColor: 'var(--color-frambuesa)',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '14px',
-              padding: '0.75rem 1.15rem',
-              fontFamily: 'var(--font-heading)',
-              fontSize: '0.92rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              boxShadow: '0 4px 12px rgba(112, 67, 162, 0.25)',
-              flexShrink: 0,
-            }}
-          >
-            <span>+ Añadir deseo</span>
-          </button>
-        )}
+        <span className="wish-doodle" aria-hidden="true">
+          ✳
+        </span>
       </div>
-
-      {/* Add / Edit Form Card */}
-      {isAdding && (
-        <form
-          onSubmit={handleSaveWish}
-          className="wish-form animate-fade-in"
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '20px',
-            border: '2px solid var(--color-celeste)',
-            padding: '1.35rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 8px 24px rgba(70, 36, 93, 0.08)',
-          }}
+      <div className="wishes-layout">
+        <section
+          className="workshop-sheet wish-composer"
+          aria-labelledby="wish-form-title"
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1rem',
-            }}
-          >
-            <h2
-              style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: '1.25rem',
-                fontWeight: 800,
-                color: 'var(--color-tinta)',
-                margin: 0,
-              }}
+          <span className="paper-tape" aria-hidden="true" />
+          <h2 id="wish-form-title">
+            {editing ? "Afinemos esta pista." : "¿Qué te haría ilusión?"}
+          </h2>
+          <form onSubmit={save} noValidate aria-busy={busy}>
+            <label className="workshop-field" htmlFor="wish-title">
+              Idea de regalo
+              <input
+                id="wish-title"
+                ref={titleRef}
+                maxLength={150}
+                value={draft.title}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                placeholder="Un libro, una plantita, algo hecho a mano…"
+                disabled={busy}
+              />
+            </label>
+            <details
+              className="workshop-options"
+              open={expanded}
+              onToggle={(e) => setExpanded(e.currentTarget.open)}
             >
-              {editingWishId ? 'Editar idea de regalo' : 'Nueva idea de regalo'}
-            </h2>
-            <button
-              type="button"
-              onClick={resetForm}
-              disabled={saving}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-secondary)',
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-              }}
-            >
-              ✕ Cancelar
-            </button>
+              <summary>Agregar enlace, precio o detalles</summary>
+              <label className="workshop-field" htmlFor="wish-description">
+                Detalles que ayudan
+                <textarea
+                  id="wish-description"
+                  value={draft.description}
+                  onChange={(e) =>
+                    setDraft({ ...draft, description: e.target.value })
+                  }
+                  maxLength={500}
+                  rows={3}
+                  disabled={busy}
+                  placeholder="Talla, color, sabor favorito…"
+                />
+              </label>
+              <label className="workshop-field" htmlFor="wish-url">
+                Enlace al regalo <span>(opcional)</span>
+                <input
+                  id="wish-url"
+                  type="url"
+                  inputMode="url"
+                  value={draft.url}
+                  onChange={(e) => setDraft({ ...draft, url: e.target.value })}
+                  placeholder="https://"
+                  maxLength={2000}
+                  disabled={busy}
+                />
+              </label>
+              <div className="workshop-fields-row">
+                <label className="workshop-field" htmlFor="wish-price">
+                  Precio aproximado
+                  <input
+                    id="wish-price"
+                    type="number"
+                    min="0"
+                    max="100000000"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={draft.price}
+                    onChange={(e) =>
+                      setDraft({ ...draft, price: e.target.value })
+                    }
+                    disabled={busy}
+                  />
+                </label>
+                <label className="workshop-field" htmlFor="wish-currency">
+                  Moneda
+                  <select
+                    id="wish-currency"
+                    value={draft.currency}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        currency: e.target.value as Currency,
+                      })
+                    }
+                    disabled={busy}
+                  >
+                    <option value="CRC">Colones ₡</option>
+                    <option value="USD">Dólares $</option>
+                  </select>
+                </label>
+              </div>
+              <label className="workshop-field" htmlFor="wish-priority">
+                ¿Cuánto te gusta esta idea?
+                <select
+                  id="wish-priority"
+                  value={draft.priority}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      priority: e.target.value as Wish["priority"],
+                    })
+                  }
+                  disabled={busy}
+                >
+                  <option value="media">Me encantaría</option>
+                  <option value="alta">Es mi favorita</option>
+                  <option value="baja">También me gustaría</option>
+                </select>
+              </label>
+            </details>
+            <div className="workshop-actions">
+              <button className="paper-button" disabled={busy}>
+                {busy
+                  ? "Guardando…"
+                  : editing
+                    ? "Guardar cambios"
+                    : "Guardar idea"}
+              </button>
+              {editing && (
+                <button
+                  className="paper-text-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={cancelEdit}
+                >
+                  Cancelar edición
+                </button>
+              )}
+            </div>
+          </form>
+          <p className="field-help">
+            El nombre del regalo es suficiente. Los demás detalles son
+            opcionales.
+          </p>
+        </section>
+        <section className="wish-pool" aria-label="Mis ideas de regalo">
+          <div className="section-heading">
+            <h2>Tu lista de ilusiones</h2>
+            <span className="count-stamp">{wishes.length}</span>
           </div>
-
-          {formError && (
-            <div
-              role="alert"
-              style={{
-                backgroundColor: '#FFF5F5',
-                border: '1px solid #FEB2B2',
-                color: '#C53030',
-                padding: '0.5rem 0.75rem',
-                borderRadius: '8px',
-                fontSize: '0.82rem',
-                marginBottom: '1rem',
-              }}
-            >
-              {formError}
+          <div aria-live="polite" aria-atomic="true">
+            {message && <p className="workshop-success">{message}</p>}
+          </div>
+          {error && (
+            <p role="alert" className="workshop-error">
+              {error}
+            </p>
+          )}
+          {!wishes.length && (
+            <div className="empty-wish-note">
+              <p className="workshop-step">
+                El primer papelito está en blanco.
+              </p>
+              <h3>Algo pequeño también cuenta.</h3>
+              <p>
+                Tu café favorito, un color que te encanta o una experiencia
+                juntos. Dale una pista a quien te regala.
+              </p>
+              <button
+                className="paper-text-button"
+                onClick={() => titleRef.current?.focus()}
+              >
+                Escribir mi primera idea ↑
+              </button>
             </div>
           )}
-
-          {/* Title */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              htmlFor="wish-title"
-              style={{
-                display: 'block',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Título o artículo deseado *
-            </label>
-            <input
-              id="wish-title"
-              type="text"
-              placeholder="Ej. Café de especialidad Tarrazú en grano"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: '1.5px solid var(--border-subtle)',
-                fontSize: '0.95rem',
-              }}
-            />
-          </div>
-
-          {/* Description */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              htmlFor="wish-desc"
-              style={{
-                display: 'block',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Detalles, color o especificaciones (opcional)
-            </label>
-            <textarea
-              id="wish-desc"
-              rows={2}
-              placeholder="Ej. Tueste medio, bolsa de 340g. Evitar sabores añadidos."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: '1.5px solid var(--border-subtle)',
-                fontSize: '0.9rem',
-                fontFamily: 'var(--font-body)',
-                resize: 'vertical',
-              }}
-            />
-          </div>
-
-          {/* Reference Link */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              htmlFor="wish-url"
-              style={{
-                display: 'block',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Enlace de referencia de tienda (opcional)
-            </label>
-            <input
-              id="wish-url"
-              type="url"
-              placeholder="https://tienda.co.cr/articulo"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: '1.5px solid var(--border-subtle)',
-                fontSize: '0.9rem',
-              }}
-            />
-          </div>
-
-          {/* Price & Currency */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '0.65rem', marginBottom: '1rem' }}>
-            <div>
-              <label
-                htmlFor="wish-price"
-                style={{
-                  display: 'block',
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  color: 'var(--color-tinta)',
-                  marginBottom: '0.35rem',
-                }}
-              >
-                Precio aproximado
-              </label>
-              <input
-                id="wish-price"
-                type="number"
-                min="0"
-                placeholder="Ej. 7500"
-                value={approximatePrice}
-                onChange={(e) => setApproximatePrice(e.target.value === '' ? '' : Number(e.target.value))}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '12px',
-                  border: '1.5px solid var(--border-subtle)',
-                  fontSize: '0.95rem',
-                }}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="wish-currency"
-                style={{
-                  display: 'block',
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  color: 'var(--color-tinta)',
-                  marginBottom: '0.35rem',
-                }}
-              >
-                Moneda
-              </label>
-              <select
-                id="wish-currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value as Currency)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '12px',
-                  border: '1.5px solid var(--border-subtle)',
-                  fontSize: '0.95rem',
-                  backgroundColor: '#FFFFFF',
-                }}
-              >
-                <option value="CRC">CRC (₡)</option>
-                <option value="USD">USD ($)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Priority */}
-          <div style={{ marginBottom: '1.25rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Nivel de prioridad para quien te regale
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
-              {(['alta', 'media', 'baja'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPriority(p)}
-                  style={{
-                    padding: '0.6rem',
-                    borderRadius: '10px',
-                    border: priority === p ? '2px solid var(--color-frambuesa)' : '1px solid var(--border-subtle)',
-                    backgroundColor: priority === p ? 'var(--surface-subtle)' : '#FFFFFF',
-                    fontWeight: priority === p ? 700 : 500,
-                    fontSize: '0.82rem',
-                    textTransform: 'capitalize',
-                    color: 'var(--color-tinta)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.65rem' }}>
-            <button
-              type="button"
-              onClick={resetForm}
-              style={{
-                flex: 0.4,
-                padding: '0.75rem',
-                backgroundColor: 'var(--surface-subtle)',
-                color: 'var(--color-tinta)',
-                border: 'none',
-                borderRadius: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              aria-busy={saving}
-              style={{
-                flex: 1,
-                padding: '0.75rem',
-                backgroundColor: 'var(--color-frambuesa)',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '12px',
-                fontWeight: 700,
-                fontFamily: 'var(--font-heading)',
-                cursor: 'pointer',
-              }}
-            >
-              {saving ? 'Guardando tu idea…' : editingWishId ? 'Guardar cambios' : 'Añadir a mis deseos'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Wishes List */}
-      {userWishes.length === 0 ? (
-        <div
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '20px',
-            border: '1px dashed var(--border-subtle)',
-            padding: '2.5rem 1.5rem',
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: '2.2rem', marginBottom: '0.5rem' }}>✨</div>
-          <h3
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.2rem',
-              color: 'var(--color-tinta)',
-              margin: '0 0 0.35rem 0',
-            }}
-          >
-            Tu lista de deseos está vacía
-          </h3>
-          <p
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              margin: '0 0 1.25rem 0',
-              lineHeight: 1.45,
-            }}
-          >
-            Añade al menos dos o tres ideas de diferentes rangos de precio para que tu amigo
-            secreto tenga buenas opciones para elegir.
-          </p>
-          <button
-            onClick={() => setIsAdding(true)}
-            style={{
-              backgroundColor: 'var(--color-frambuesa)',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '0.75rem 1.25rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            + Añadir mi primer deseo
-          </button>
-        </div>
-      ) : (
-        <div className="paper-my-wishes">
-          {userWishes.map((wish) => {
-            const availableExchanges = (real ? real.exchanges : (demo?.exchanges || [])).filter(
-              (ex) => (ex.currentUserMemberStatus || 'approved') === 'approved'
-            );
-            const selectedIds = wish.selectedInExchanges || [];
-
-            const handleToggleExchange = async (exchangeId: string, currentlySelected: boolean) => {
-              setFormError('');
-              if (real) {
-                const ok = await real.toggleWishInExchange(exchangeId, wish.id, !currentlySelected);
-                if (!ok) {
-                  setFormError('No se pudo actualizar la selección del deseo para el intercambio.');
-                }
-              } else if (demo) {
-                const nextSelected = currentlySelected
-                  ? selectedIds.filter((id) => id !== exchangeId)
-                  : [...selectedIds, exchangeId];
-                demo.updateUserWish(wish.id, { selectedInExchanges: nextSelected });
-              }
-            };
-
-            return (
-              <div
-                key={wish.id}
-                className="paper-my-wish"
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: '18px',
-                  border: '1px solid var(--border-subtle)',
-                  padding: '1.15rem',
-                  boxShadow: '0 2px 8px rgba(70, 36, 93, 0.04)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    gap: '0.5rem',
-                    marginBottom: '0.45rem',
-                  }}
-                >
-                  <h3
-                    style={{
-                      fontFamily: 'var(--font-heading)',
-                      fontSize: '1.08rem',
-                      fontWeight: 700,
-                      color: 'var(--color-tinta)',
-                      margin: 0,
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    {wish.title}
-                  </h3>
-                  {getPriorityBadge(wish.priority)}
-                </div>
-
-                {wish.description && (
-                  <p
-                    style={{
-                      fontSize: '0.88rem',
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.45,
-                      margin: '0 0 0.75rem 0',
-                    }}
-                  >
-                    {wish.description}
-                  </p>
-                )}
-
-                {availableExchanges.length > 0 && (
-                  <div
-                    style={{
-                      backgroundColor: 'var(--surface-subtle)',
-                      borderRadius: '12px',
-                      padding: '0.65rem 0.75rem',
-                      marginBottom: '0.75rem',
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: 'block',
-                        fontSize: '0.74rem',
-                        fontWeight: 700,
-                        color: 'var(--color-tinta)',
-                        marginBottom: '0.4rem',
-                      }}
-                    >
-                      Compartir esta idea en mis intercambios:
+          <ul className="wish-list">
+            {wishes.map((wish, index) => (
+              <li key={wish.id} className="wish-note">
+                <article aria-labelledby={`wish-${wish.id}`}>
+                  <div className="wish-note-heading">
+                    <span className="wish-number" aria-hidden="true">
+                      {String(index + 1).padStart(2, "0")}
                     </span>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-                      {availableExchanges.map((ex) => {
-                        const isSelected = selectedIds.includes(ex.id);
-                        return (
-                          <label
-                            key={ex.id}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              padding: '0.25rem 0.6rem',
-                              borderRadius: '999px',
-                              fontSize: '0.76rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              backgroundColor: isSelected ? '#EDE5F5' : '#FFFFFF',
-                              color: 'var(--color-tinta)',
-                              border: isSelected
-                                ? '1.5px solid var(--color-frambuesa)'
-                                : '1px solid var(--border-subtle)',
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => void handleToggleExchange(ex.id, isSelected)}
-                              style={{ margin: 0 }}
-                            />
-                            <span>{ex.name}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                    <h3 id={`wish-${wish.id}`}>{wish.title}</h3>
+                    {wish.priority === "alta" && (
+                      <span className="favorite-stamp">Favorita</span>
+                    )}
                   </div>
-                )}
-
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '0.5rem',
-                    paddingTop: '0.65rem',
-                    borderTop: '1px solid #F1F5F9',
-                  }}
-                >
-                  <div>
-                    {wish.approximatePrice && (
-                      <span
-                        style={{
-                          fontSize: '0.85rem',
-                          fontWeight: 700,
-                          color: 'var(--color-tinta)',
-                        }}
-                      >
-                        Precio: {formatCurrency(wish.approximatePrice, wish.currency)}
+                  {wish.description && <p>{wish.description}</p>}
+                  <div className="wish-meta">
+                    {wish.approximatePrice !== undefined && (
+                      <span>
+                        {formatMoney(wish.approximatePrice, wish.currency)}
                       </span>
                     )}
-                    {wish.url && (
-                      <div style={{ marginTop: '0.2rem' }}>
-                        <a
-                          href={wish.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            fontSize: '0.78rem',
-                            color: 'var(--color-frambuesa)',
-                            textDecoration: 'underline',
-                            fontWeight: 600,
-                          }}
-                        >
-                          Enlace de referencia ↗
-                        </a>
-                      </div>
+                    {wish.url && /^https?:\/\//i.test(wish.url) && (
+                      <a
+                        href={wish.url}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                      >
+                        Ver regalo ↗
+                      </a>
                     )}
                   </div>
-
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button
-                      onClick={() => handleStartEdit(wish)}
-                      style={{
-                        background: 'none',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: '8px',
-                        padding: '0.35rem 0.65rem',
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                        color: 'var(--color-tinta)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDeleteWish(wish.id)}
-                      style={{
-                        background: 'none',
-                        border: '1px solid #FEB2B2',
-                        borderRadius: '8px',
-                        padding: '0.35rem 0.65rem',
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                        color: '#C53030',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <RibbonDivider />
-
-      {/* Advice & Privacy Box */}
-      <div className="paper-wishes-privacy"
-        style={{
-          backgroundColor: '#FFFDF5',
-          border: '1px solid #FEF3D6',
-          borderRadius: '16px',
-          padding: '1rem',
-          fontSize: '0.82rem',
-          color: '#7A5200',
-          lineHeight: 1.45,
-        }}
-      >
-        Los deseos que compartís en un intercambio los verá quien te regale.
-        Dejá ideas y preferencias; evitá direcciones o datos sensibles.
+                  <details className="wish-sharing">
+                    <summary>
+                      {selectedGroups(wish).length
+                        ? `Compartida en ${selectedGroups(wish).length} ${selectedGroups(wish).length === 1 ? "intercambio" : "intercambios"}`
+                        : "Solo en tu lista · Elegí dónde compartirla"}
+                    </summary>
+                    <p className="field-help">
+                      En cada intercambio seleccionado podrá verla la persona a
+                      quien le toque regalarte.
+                    </p>
+                    {exchanges.length ? (
+                      exchanges.map((ex) => {
+                        const key = `${wish.id}:${ex.id}`;
+                        return (
+                          <label className="workshop-check" key={key}>
+                            <input
+                              type="checkbox"
+                              checked={
+                                pending[key] ??
+                                selectedGroups(wish).includes(ex.id)
+                              }
+                              disabled={Object.keys(pending).length > 0 || busy}
+                              onChange={(e) =>
+                                void select(wish, ex.id, e.target.checked)
+                              }
+                            />
+                            <span>
+                              {ex.name}
+                              {key in pending && (
+                                <small>Guardando selección…</small>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      })
+                    ) : (
+                      <p>
+                        Primero creá un intercambio o esperá a que aprueben tu
+                        ingreso.
+                      </p>
+                    )}
+                  </details>
+                  {deleting === wish.id ? (
+                    <div className="confirmation-note">
+                      <p>
+                        ¿Borrar «{wish.title}»? También se quitará de los
+                        intercambios donde la compartiste.
+                      </p>
+                      <div className="workshop-actions">
+                        <button
+                          className="paper-outline-button danger-button"
+                          disabled={busy || Object.keys(pending).length > 0}
+                          onClick={() => void remove(wish.id)}
+                        >
+                          Sí, borrar idea
+                        </button>
+                        <button
+                          className="paper-text-button"
+                          disabled={busy}
+                          onClick={() => setDeleting(null)}
+                        >
+                          Conservar idea
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="wish-note-actions">
+                      <button
+                        className="paper-text-button"
+                        aria-label={`Editar ${wish.title}`}
+                        disabled={busy}
+                        onClick={() => edit(wish)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        className="paper-text-button"
+                        aria-label={`Borrar ${wish.title}`}
+                        disabled={busy}
+                        onClick={() => setDeleting(wish.id)}
+                      >
+                        Borrar
+                      </button>
+                    </div>
+                  )}
+                </article>
+              </li>
+            ))}
+          </ul>
+        </section>
       </div>
     </div>
   );
-};
+}

@@ -160,3 +160,18 @@ El segundo comando simula sin cambios. El tercero borra primero el usuario y sus
 Los sorteos activos afectados por una baja se invalidan y se borran sus asignaciones; las otras personas conservan sus cuentas. El nuevo organizador debe repetir el sorteo con un motivo registrado. No se escriben ni se borran usuarios de `neon_auth` mediante SQL.
 
 Ver la evidencia y los límites de la comprobación en [CIERRE_FUNCIONAL_VERIFICACION.md](CIERRE_FUNCIONAL_VERIFICACION.md). `npm run test:lifecycle` cubre cierre, permisos, transferencia, reintentos de baja y retención con PostgreSQL aislado, además de las pruebas existentes.
+
+## Preparación del piloto festivo
+
+La creación usa dos pasos y fechas dinámicas. La app agrupa sus lecturas, actualiza al volver o recuperar conexión y permite compartir cada deseo en intercambios específicos. La PWA ofrece ayuda de instalación y actualización sin cachear información privada.
+
+```bash
+npm run test:ux
+npm run test:journey
+npm run test:pwa
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+Las pruebas de navegador arrancan una instancia de producción separada en 3041 sin conexión a servicios reales. Cubren escritorio y teléfonos emulados de 320/390 px. El recorrido de cuatro participantes usa repositorios reales sobre PostgreSQL aislado; la prueba SQL de Neon continúa disponible por separado con rollback. Ver alcance, resultados y la comprobación adicional de Auth que requiere autorización en [MEJORAS_PILOTO.md](MEJORAS_PILOTO.md). El piloto con personas y teléfonos físicos lo realiza el titular.

@@ -1,15 +1,19 @@
-import React, { Suspense } from 'react';
-import Link from 'next/link';
-import { unstable_rethrow } from 'next/navigation';
-import { connection } from 'next/server';
-import { RibbonLogo } from '@/components/RibbonLogo';
-import { RibbonDivider } from '@/components/RibbonDivider';
-import { isDatabaseConfigured } from '@/lib/db/client';
-import { getServerSession } from '@/lib/auth/server';
-import { getInvitationPreviewAction } from '@/lib/data/server-actions';
-import { getLatestConsentStatus, getOrCreateProfile } from '@/lib/repositories/profiles';
-import { GoogleJoinButton } from '@/components/GoogleJoinButton';
-import { JoinExchangeClientAction } from '@/components/JoinExchangeClientAction';
+import React, { Suspense } from "react";
+import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
+import { connection } from "next/server";
+import { RibbonLogo } from "@/components/RibbonLogo";
+import { RibbonDivider } from "@/components/RibbonDivider";
+import { isDatabaseConfigured } from "@/lib/db/client";
+import { getServerSession } from "@/lib/auth/server";
+import { getInvitationPreviewAction } from "@/lib/data/server-actions";
+import {
+  getLatestConsentStatus,
+  getOrCreateProfile,
+} from "@/lib/repositories/profiles";
+import { GoogleJoinButton } from "@/components/GoogleJoinButton";
+import { JoinExchangeClientAction } from "@/components/JoinExchangeClientAction";
+import { formatEventDate, formatMoney } from "@/lib/event-dates";
 
 interface PreviewState {
   valid: boolean;
@@ -24,14 +28,18 @@ interface PreviewState {
   reason?: string;
 }
 
-async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: string }> }) {
+async function UnirseContent({
+  tokenPromise,
+}: {
+  tokenPromise: Promise<{ token: string }>;
+}) {
   // Invitation expiry and membership must be evaluated for the incoming request.
   await connection();
   const { token } = await tokenPromise;
 
   let preview: PreviewState = {
     valid: false,
-    reason: 'El servicio de base de datos no está configurado en este entorno.',
+    reason: "El servicio de base de datos no está configurado en este entorno.",
   };
 
   if (isDatabaseConfigured()) {
@@ -42,24 +50,27 @@ async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: 
           valid: true,
           exchangeId: res.data.exchangeId,
           name: res.data.name,
-          description: res.data.description || '',
+          description: res.data.description || "",
           eventDate: res.data.eventDate,
           budgetAmount: Number(res.data.budgetAmount),
-          currency: res.data.currency || 'CRC',
+          currency: res.data.currency || "CRC",
           requiresApproval: res.data.requiresApproval || false,
-          organizerAlias: res.data.organizerAlias || 'Organizador',
+          organizerAlias: res.data.organizerAlias || "Organizador",
         };
       } else {
         preview = {
           valid: false,
-          reason: res.data?.reason || res.error || 'Enlace de invitación no válido o inexistente.',
+          reason:
+            res.data?.reason ||
+            res.error ||
+            "Enlace de invitación no válido o inexistente.",
         };
       }
     } catch (err) {
       unstable_rethrow(err);
       preview = {
         valid: false,
-        reason: 'Error al consultar la invitación en el servidor.',
+        reason: "Error al consultar la invitación en el servidor.",
       };
     }
   }
@@ -74,7 +85,7 @@ async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: 
         currentUser.id,
         currentUser.email,
         currentUser.name,
-        currentUser.avatarColor || '#46245D'
+        currentUser.avatarColor || "#46245D",
       );
       const consentStatus = await getLatestConsentStatus(currentUser.id);
       initialHasConsented = consentStatus.hasCurrentConsent;
@@ -87,46 +98,59 @@ async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: 
   return (
     <div
       style={{
-        maxWidth: '480px',
-        width: '100%',
-        backgroundColor: '#FFFFFF',
-        borderRadius: '24px',
-        border: '1px solid var(--border-subtle)',
-        padding: '2rem 1.5rem',
-        boxShadow: '0 8px 30px rgba(70, 36, 93, 0.08)',
-        textAlign: 'center',
+        maxWidth: "480px",
+        width: "100%",
+        backgroundColor: "#FFFFFF",
+        borderRadius: "24px",
+        border: "1px solid var(--border-subtle)",
+        padding: "2rem 1.5rem",
+        boxShadow: "0 8px 30px rgba(70, 36, 93, 0.08)",
+        textAlign: "center",
       }}
     >
       <RibbonLogo size="md" />
 
       {!preview.valid ? (
-        <div style={{ marginTop: '1.5rem' }}>
+        <div style={{ marginTop: "1.5rem" }}>
           <h1
             style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.4rem',
+              fontFamily: "var(--font-heading)",
+              fontSize: "1.4rem",
               fontWeight: 800,
-              color: 'var(--color-tinta)',
-              margin: '0 0 0.5rem 0',
+              color: "var(--color-tinta)",
+              margin: "0 0 0.5rem 0",
             }}
           >
             Invitación no disponible
           </h1>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+          <p
+            style={{
+              fontSize: "0.9rem",
+              color: "var(--text-secondary)",
+              marginBottom: "1.5rem",
+              lineHeight: 1.5,
+            }}
+          >
             {preview.reason}
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+          >
+            <p className="field-help">
+              Pedile a quien organiza una invitación nueva. Si ya formás parte
+              del intercambio, podés encontrarlo desde tu cuenta en el inicio.
+            </p>
             <Link
               href="/"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'var(--color-tinta)',
-                color: '#FFFFFF',
-                padding: '0.75rem 1.25rem',
-                borderRadius: '12px',
-                textDecoration: 'none',
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "var(--color-tinta)",
+                color: "#FFFFFF",
+                padding: "0.75rem 1.25rem",
+                borderRadius: "12px",
+                textDecoration: "none",
                 fontWeight: 700,
               }}
             >
@@ -135,19 +159,19 @@ async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: 
           </div>
         </div>
       ) : (
-        <div style={{ marginTop: '1.25rem' }}>
+        <div style={{ marginTop: "1.25rem" }}>
           <span
             style={{
-              display: 'inline-block',
-              backgroundColor: 'var(--color-celeste)',
-              color: 'var(--color-tinta)',
-              fontSize: '0.72rem',
+              display: "inline-block",
+              backgroundColor: "var(--color-celeste)",
+              color: "var(--color-tinta)",
+              fontSize: "0.72rem",
               fontWeight: 800,
-              textTransform: 'none',
-              letterSpacing: '0.06em',
-              padding: '0.25rem 0.65rem',
-              borderRadius: '999px',
-              marginBottom: '0.75rem',
+              textTransform: "none",
+              letterSpacing: "0.06em",
+              padding: "0.25rem 0.65rem",
+              borderRadius: "999px",
+              marginBottom: "0.75rem",
             }}
           >
             Invitación a intercambio
@@ -155,73 +179,121 @@ async function UnirseContent({ tokenPromise }: { tokenPromise: Promise<{ token: 
 
           <h1
             style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.55rem',
+              fontFamily: "var(--font-heading)",
+              fontSize: "1.55rem",
               fontWeight: 800,
-              color: 'var(--color-tinta)',
-              margin: '0 0 0.4rem 0',
+              color: "var(--color-tinta)",
+              margin: "0 0 0.4rem 0",
               lineHeight: 1.2,
             }}
           >
             {preview.name}
           </h1>
 
-          <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>
+          <p
+            style={{
+              fontSize: "0.88rem",
+              color: "var(--text-secondary)",
+              margin: "0 0 1rem 0",
+            }}
+          >
             Organizado por <strong>{preview.organizerAlias}</strong>
           </p>
 
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '0.65rem',
-              backgroundColor: 'var(--surface-subtle)',
-              borderRadius: '14px',
-              padding: '0.85rem',
-              marginBottom: '1.25rem',
-              textAlign: 'left',
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.65rem",
+              backgroundColor: "var(--surface-subtle)",
+              borderRadius: "14px",
+              padding: "0.85rem",
+              marginBottom: "1.25rem",
+              textAlign: "left",
             }}
           >
             <div>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'none' }}>
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  color: "var(--text-secondary)",
+                  textTransform: "none",
+                }}
+              >
                 Entrega
               </span>
-              <strong style={{ display: 'block', fontSize: '0.92rem', color: 'var(--color-tinta)' }}>
-                {preview.eventDate}
+              <strong
+                style={{
+                  display: "block",
+                  fontSize: "0.92rem",
+                  color: "var(--color-tinta)",
+                }}
+              >
+                {formatEventDate(preview.eventDate || "")}
               </strong>
             </div>
             <div>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'none' }}>
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  color: "var(--text-secondary)",
+                  textTransform: "none",
+                }}
+              >
                 Presupuesto
               </span>
-              <strong style={{ display: 'block', fontSize: '0.92rem', color: 'var(--color-tinta)' }}>
-                {preview.currency === 'CRC' ? `₡${preview.budgetAmount?.toLocaleString('es-CR')}` : `$${preview.budgetAmount}`} {preview.currency}
+              <strong
+                style={{
+                  display: "block",
+                  fontSize: "0.92rem",
+                  color: "var(--color-tinta)",
+                }}
+              >
+                {formatMoney(
+                  preview.budgetAmount || 0,
+                  preview.currency || "CRC",
+                )}
               </strong>
             </div>
           </div>
 
           <RibbonDivider />
 
-          <div style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-              🔒 <strong>Privacidad protegida:</strong> Al unirte, los demás participantes solo verán
-              tu nombre o alias visible. Tus ideas de regalo solo serán compartidas con la persona a
-              la que le corresponda regalarte una vez realizado el sorteo.
+          <div style={{ marginBottom: "1.5rem", textAlign: "left" }}>
+            <p
+              style={{
+                fontSize: "0.78rem",
+                color: "var(--text-secondary)",
+                margin: 0,
+                lineHeight: 1.4,
+              }}
+            >
+              🔒 <strong>Privacidad protegida:</strong> Al unirte, los demás
+              participantes solo verán tu nombre o alias visible. Tus ideas de
+              regalo solo serán compartidas con la persona a la que le
+              corresponda regalarte una vez realizado el sorteo.
             </p>
           </div>
 
           {currentUser ? (
             <JoinExchangeClientAction
               token={token}
-              userEmail={currentUser.email || currentUser.name || 'tu cuenta'}
+              userEmail={currentUser.email || currentUser.name || "tu cuenta"}
               initialHasConsented={initialHasConsented}
             />
           ) : (
             <GoogleJoinButton nextUrl={`/unirse/${token}`} />
           )}
 
-          <div style={{ marginTop: '1rem' }}>
-            <Link href="/" style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>
+          <div style={{ marginTop: "1rem" }}>
+            <Link
+              href="/"
+              style={{
+                fontSize: "0.82rem",
+                color: "var(--text-secondary)",
+                textDecoration: "none",
+              }}
+            >
               Volver al inicio
             </Link>
           </div>
@@ -237,15 +309,21 @@ export default function UnirsePage(props: {
   return (
     <div
       style={{
-        minHeight: '100vh',
-        backgroundColor: 'var(--bg-app)',
-        padding: '2rem 1rem 4rem 1rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        minHeight: "100vh",
+        backgroundColor: "var(--bg-app)",
+        padding: "2rem 1rem 4rem 1rem",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      <Suspense fallback={<div style={{ textAlign: 'center', padding: '2rem' }}>Cargando invitación...</div>}>
+      <Suspense
+        fallback={
+          <div style={{ textAlign: "center", padding: "2rem" }}>
+            Cargando invitación...
+          </div>
+        }
+      >
         <UnirseContent tokenPromise={props.params} />
       </Suspense>
     </div>

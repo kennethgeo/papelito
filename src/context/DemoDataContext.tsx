@@ -1,6 +1,12 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useSyncExternalStore,
+} from "react";
 import {
   Exchange,
   UserProfile,
@@ -8,13 +14,13 @@ import {
   ActiveTab,
   AppView,
   ThemeKey,
-} from '@/types';
+} from "@/types";
 import {
   INITIAL_EXCHANGES,
   INITIAL_USER_PROFILE,
   INITIAL_USER_WISHES,
-} from '@/lib/demo-data';
-import { inferThemeFromDate } from '@/lib/theme';
+} from "@/lib/demo-data";
+import { inferThemeFromDate } from "@/lib/theme";
 
 interface DemoDataContextType {
   exchanges: Exchange[];
@@ -35,30 +41,37 @@ interface DemoDataContextType {
     eventDate: string;
     registrationDeadline: string;
     budgetAmount: number;
-    currency: 'CRC' | 'USD';
+    currency: "CRC" | "USD";
     requiresApproval: boolean;
     manualThemeOverride?: ThemeKey;
   }) => string;
   updateExchangeTheme: (id: string, theme: ThemeKey) => void;
   revealAssignment: (exchangeId: string) => void;
   toggleWishPurchased: (exchangeId: string, wishId: string) => void;
-  addUserWish: (wish: Omit<Wish, 'id' | 'createdAt'>) => void;
+  addUserWish: (wish: Omit<Wish, "id" | "createdAt">) => void;
   updateUserWish: (id: string, updates: Partial<Wish>) => void;
   deleteUserWish: (id: string) => void;
+  toggleWishInExchange: (
+    exchangeId: string,
+    wishId: string,
+    selected: boolean,
+  ) => void;
   updateProfileAlias: (alias: string) => void;
   resetDemoData: () => void;
 }
 
-const DemoDataContext = createContext<DemoDataContextType | undefined>(undefined);
+const DemoDataContext = createContext<DemoDataContextType | undefined>(
+  undefined,
+);
 
 const STORAGE_KEYS = {
-  EXCHANGES: 'el_lazo_demo_exchanges_v1',
-  PROFILE: 'el_lazo_demo_profile_v1',
-  WISHES: 'el_lazo_demo_wishes_v1',
+  EXCHANGES: "el_lazo_demo_exchanges_v1",
+  PROFILE: "el_lazo_demo_profile_v1",
+  WISHES: "el_lazo_demo_wishes_v1",
 };
 
 function getStoredOrDefault<T>(key: string, defaultValue: T): T {
-  if (typeof window === 'undefined') return defaultValue;
+  if (typeof window === "undefined") return defaultValue;
   try {
     const item = window.localStorage.getItem(key);
     return item ? (JSON.parse(item) as T) : defaultValue;
@@ -69,26 +82,30 @@ function getStoredOrDefault<T>(key: string, defaultValue: T): T {
 
 const emptySubscribe = () => () => {};
 
-export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   // Officially recommended hydration check via useSyncExternalStore
   const isHydrated = useSyncExternalStore(
     emptySubscribe,
     () => true,
-    () => false
+    () => false,
   );
 
   const [exchanges, setExchanges] = useState<Exchange[]>(() =>
-    getStoredOrDefault(STORAGE_KEYS.EXCHANGES, INITIAL_EXCHANGES)
+    getStoredOrDefault(STORAGE_KEYS.EXCHANGES, INITIAL_EXCHANGES),
   );
   const [userProfile, setUserProfile] = useState<UserProfile>(() =>
-    getStoredOrDefault(STORAGE_KEYS.PROFILE, INITIAL_USER_PROFILE)
+    getStoredOrDefault(STORAGE_KEYS.PROFILE, INITIAL_USER_PROFILE),
   );
   const [userWishes, setUserWishes] = useState<Wish[]>(() =>
-    getStoredOrDefault(STORAGE_KEYS.WISHES, INITIAL_USER_WISHES)
+    getStoredOrDefault(STORAGE_KEYS.WISHES, INITIAL_USER_WISHES),
   );
-  const [currentExchangeId, setCurrentExchangeId] = useState<string | null>('exc-navidad-2026');
-  const [activeTab, setActiveTab] = useState<ActiveTab>('intercambios');
-  const [activeView, setActiveView] = useState<AppView>('intercambios_lista');
+  const [currentExchangeId, setCurrentExchangeId] = useState<string | null>(
+    "exc-navidad-2026",
+  );
+  const [activeTab, setActiveTab] = useState<ActiveTab>("intercambios");
+  const [activeView, setActiveView] = useState<AppView>("intercambios_lista");
 
   // Save to localStorage when state changes
   useEffect(() => {
@@ -112,7 +129,20 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch {}
   }, [userWishes, isHydrated]);
 
-  const currentExchange = exchanges.find((e) => e.id === currentExchangeId) || null;
+  const visibleExchanges = exchanges.map((ex) => ({
+    ...ex,
+    participants: ex.participants.map((p) => {
+      if (p.id !== userProfile.id) return p;
+      const count = userWishes.filter((w) =>
+        (
+          w.selectedInExchanges ?? (w.exchangeId ? [w.exchangeId] : [])
+        ).includes(ex.id),
+      ).length;
+      return { ...p, wishCount: count, isReady: count > 0 };
+    }),
+  }));
+  const currentExchange =
+    visibleExchanges.find((e) => e.id === currentExchangeId) || null;
 
   const navigateTo = (view: AppView, exchangeId?: string) => {
     if (exchangeId) {
@@ -122,33 +152,33 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Sync tab
     if (
-      view === 'intercambios_lista' ||
-      view === 'intercambio_crear' ||
-      view === 'intercambio_detalle' ||
-      view === 'asignacion_revelar'
+      view === "intercambios_lista" ||
+      view === "intercambio_crear" ||
+      view === "intercambio_detalle" ||
+      view === "asignacion_revelar"
     ) {
-      setActiveTab('intercambios');
-    } else if (view === 'deseos_lista') {
-      setActiveTab('deseos');
-    } else if (view === 'cuenta_perfil') {
-      setActiveTab('cuenta');
+      setActiveTab("intercambios");
+    } else if (view === "deseos_lista") {
+      setActiveTab("deseos");
+    } else if (view === "cuenta_perfil") {
+      setActiveTab("cuenta");
     }
-    if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
   const switchTab = (tab: ActiveTab) => {
     setActiveTab(tab);
-    if (tab === 'intercambios') {
-      setActiveView('intercambios_lista');
-    } else if (tab === 'deseos') {
-      setActiveView('deseos_lista');
-    } else if (tab === 'cuenta') {
-      setActiveView('cuenta_perfil');
+    if (tab === "intercambios") {
+      setActiveView("intercambios_lista");
+    } else if (tab === "deseos") {
+      setActiveView("deseos_lista");
+    } else if (tab === "cuenta") {
+      setActiveView("cuenta_perfil");
     }
-    if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -158,7 +188,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     eventDate: string;
     registrationDeadline: string;
     budgetAmount: number;
-    currency: 'CRC' | 'USD';
+    currency: "CRC" | "USD";
     requiresApproval: boolean;
     manualThemeOverride?: ThemeKey;
   }): string => {
@@ -172,10 +202,10 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       description: data.description,
       eventDate: data.eventDate,
       registrationDeadline: data.registrationDeadline,
-      timezone: 'America/Costa_Rica',
+      timezone: "America/Costa_Rica",
       budgetAmount: data.budgetAmount,
       currency: data.currency,
-      status: 'inscripcion_abierta',
+      status: "inscripcion_abierta",
       suggestedTheme: suggested,
       selectedTheme: finalTheme,
       manualThemeOverride: data.manualThemeOverride,
@@ -191,7 +221,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           avatarColor: userProfile.avatarColor,
           isOrganizer: true,
           isReady: true,
-          joinedAt: new Date().toISOString().split('T')[0],
+          joinedAt: new Date().toISOString().split("T")[0],
           wishCount: userWishes.length,
         },
       ],
@@ -213,7 +243,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           };
         }
         return exc;
-      })
+      }),
     );
   };
 
@@ -231,7 +261,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           };
         }
         return exc;
-      })
+      }),
     );
   };
 
@@ -244,17 +274,19 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             assignment: {
               ...exc.assignment,
               wishes: exc.assignment.wishes.map((w) =>
-                w.id === wishId ? { ...w, isPurchasedByGiver: !w.isPurchasedByGiver } : w
+                w.id === wishId
+                  ? { ...w, isPurchasedByGiver: !w.isPurchasedByGiver }
+                  : w,
               ),
             },
           };
         }
         return exc;
-      })
+      }),
     );
   };
 
-  const addUserWish = (wishData: Omit<Wish, 'id' | 'createdAt'>) => {
+  const addUserWish = (wishData: Omit<Wish, "id" | "createdAt">) => {
     const newWish: Wish = {
       ...wishData,
       id: `wish-${Date.now()}`,
@@ -265,12 +297,32 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateUserWish = (id: string, updates: Partial<Wish>) => {
     setUserWishes((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, ...updates } : w))
+      prev.map((w) => (w.id === id ? { ...w, ...updates } : w)),
     );
   };
 
   const deleteUserWish = (id: string) => {
     setUserWishes((prev) => prev.filter((w) => w.id !== id));
+  };
+
+  const toggleWishInExchange = (
+    exchangeId: string,
+    wishId: string,
+    selected: boolean,
+  ) => {
+    setUserWishes((prev) =>
+      prev.map((w) => {
+        if (w.id !== wishId) return w;
+        const groups =
+          w.selectedInExchanges ?? (w.exchangeId ? [w.exchangeId] : []);
+        return {
+          ...w,
+          selectedInExchanges: selected
+            ? [...new Set([...groups, exchangeId])]
+            : groups.filter((id) => id !== exchangeId),
+        };
+      }),
+    );
   };
 
   const updateProfileAlias = (alias: string) => {
@@ -280,9 +332,9 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ...exc,
         organizerName: exc.isCurrentUserOrganizer ? alias : exc.organizerName,
         participants: exc.participants.map((p) =>
-          p.id === userProfile.id ? { ...p, alias } : p
+          p.id === userProfile.id ? { ...p, alias } : p,
         ),
-      }))
+      })),
     );
   };
 
@@ -295,15 +347,15 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setExchanges(INITIAL_EXCHANGES);
     setUserProfile(INITIAL_USER_PROFILE);
     setUserWishes(INITIAL_USER_WISHES);
-    setCurrentExchangeId('exc-navidad-2026');
-    setActiveTab('intercambios');
-    setActiveView('intercambios_lista');
+    setCurrentExchangeId("exc-navidad-2026");
+    setActiveTab("intercambios");
+    setActiveView("intercambios_lista");
   };
 
   return (
     <DemoDataContext.Provider
       value={{
-        exchanges,
+        exchanges: visibleExchanges,
         currentExchange,
         currentExchangeId,
         userProfile,
@@ -321,6 +373,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         addUserWish,
         updateUserWish,
         deleteUserWish,
+        toggleWishInExchange,
         updateProfileAlias,
         resetDemoData,
       }}
@@ -333,7 +386,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 export const useDemoData = () => {
   const context = useContext(DemoDataContext);
   if (!context) {
-    throw new Error('useDemoData must be used within a DemoDataProvider');
+    throw new Error("useDemoData must be used within a DemoDataProvider");
   }
   return context;
 };

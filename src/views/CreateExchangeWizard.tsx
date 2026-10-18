@@ -1,1011 +1,405 @@
-'use client';
+"use client";
 
-import React, { useRef, useState } from 'react';
-import { useOptionalDemoData } from '@/context/DemoDataContext';
-import { useOptionalRealData } from '@/context/RealDataContext';
-import { ThemeKey, Currency } from '@/types';
-import { inferThemeFromDate, THEME_CONFIG } from '@/lib/theme';
-import { RibbonDivider } from '@/components/RibbonDivider';
+import { useEffect, useRef, useState } from "react";
+import { useOptionalDemoData } from "@/context/DemoDataContext";
+import { useOptionalRealData } from "@/context/RealDataContext";
+import { PaperIllustration } from "@/components/PaperIllustration";
+import type { ThemeKey, Currency } from "@/types";
+import { inferThemeFromDate, THEME_CONFIG } from "@/lib/theme";
+import {
+  addCalendarDays,
+  costaRicaDate,
+  formatEventDate,
+  formatMoney,
+  suggestedEventDates,
+  validateExchangeDraft,
+} from "@/lib/event-dates";
 
-export const CreateExchangeWizard: React.FC = () => {
+export function CreateExchangeWizard() {
   const real = useOptionalRealData();
   const demo = useOptionalDemoData();
-  const navigateTo = real ? real.navigateTo : (demo?.navigateTo || (() => {}));
-
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-
-  // Form states
-  const [eventDate, setEventDate] = useState('2026-12-25');
-  const [manualTheme, setManualTheme] = useState<ThemeKey | null>(null);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [registrationDeadline, setRegistrationDeadline] = useState('2026-12-18');
-  const [budgetAmount, setBudgetAmount] = useState<number>(15000);
-  const [currency, setCurrency] = useState<Currency>('CRC');
+  const navigate = real?.navigateTo ?? demo?.navigateTo;
+  const [step, setStep] = useState<1 | 2>(1);
+  const [today, setToday] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [deadlineEdited, setDeadlineEdited] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [budget, setBudget] = useState("15000");
+  const [currency, setCurrency] = useState<Currency>("CRC");
   const [requiresApproval, setRequiresApproval] = useState(true);
-
-  // Validation errors
+  const [manualTheme, setManualTheme] = useState<ThemeKey | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState('');
-  const submitting = useRef(false);
-
-  // Date inference (NEVER based on current date)
+  const busy = useRef(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
   const inferred = inferThemeFromDate(eventDate);
-  const effectiveTheme = manualTheme || inferred.theme;
+  const theme = manualTheme ?? inferred.theme;
 
-  const handleNextStep1 = () => {
+  useEffect(() => {
+    const localToday = costaRicaDate(new Date());
+    const defaults = suggestedEventDates(localToday);
+    queueMicrotask(() => {
+      setToday(localToday);
+      setEventDate(defaults.eventDate);
+      setDeadline(defaults.registrationDeadline);
+    });
+  }, []);
+
+  function changeDate(value: string) {
+    setEventDate(value);
+    if (!deadlineEdited) {
+      const before = addCalendarDays(value, -7);
+      setDeadline(before < today ? today : before);
+    }
+  }
+
+  function review(event: React.FormEvent) {
+    event.preventDefault();
+    const validation = validateExchangeDraft(
+      {
+        name,
+        eventDate,
+        registrationDeadline: deadline,
+        budgetAmount: Number(budget),
+      },
+      today,
+    );
+    setErrors(validation);
+    if (Object.keys(validation).length) {
+      requestAnimationFrame(() => errorRef.current?.focus());
+      return;
+    }
     setStep(2);
-  };
+    setError("");
+    requestAnimationFrame(() => titleRef.current?.focus());
+    window.scrollTo({ top: 0 });
+  }
 
-  const handleNextStep2 = () => {
-    const errs: Record<string, string> = {};
-    if (!name.trim()) {
-      errs.name = 'Por favor escribe un nombre para el intercambio.';
-    }
-    if (!eventDate) {
-      errs.eventDate = 'Selecciona la fecha de entrega de los regalos.';
-    }
-    if (!registrationDeadline) {
-      errs.registrationDeadline = 'Selecciona la fecha límite de inscripción.';
-    } else if (eventDate && registrationDeadline > eventDate) {
-      errs.registrationDeadline = 'La fecha límite de inscripción no puede ser posterior a la fecha del evento.';
-    }
-
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs);
-      return;
-    }
-    setErrors({});
-    setStep(3);
-  };
-
-  const handleNextStep3 = () => {
-    const errs: Record<string, string> = {};
-    if (!budgetAmount || budgetAmount <= 0) {
-      errs.budget = 'Indica un monto de presupuesto válido.';
-    }
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs);
-      return;
-    }
-    setErrors({});
-    setStep(4);
-  };
-
-  const handleConfirmCreate = async () => {
-    if (submitting.current) return;
-    submitting.current = true;
+  async function create() {
+    if (busy.current) return;
+    busy.current = true;
     setCreating(true);
-    setCreateError('');
+    setError("");
     try {
       if (real) {
         const res = await real.createExchange({
           name: name.trim(),
-          description: description.trim() || 'Intercambio organizado a través de Papelito.',
+          description: description.trim(),
           eventDate,
-          registrationDeadline,
-          budgetAmount,
+          registrationDeadline: deadline,
+          budgetAmount: Number(budget),
           currency,
-          suggestedTheme: (inferred.theme || 'general') as 'navidad' | 'amistad' | 'cumpleanos' | 'general',
-          selectedTheme: (effectiveTheme || 'general') as 'navidad' | 'amistad' | 'cumpleanos' | 'general',
           requiresApproval,
+          suggestedTheme: inferred.theme,
+          selectedTheme: theme,
         });
-
-        if (res.success && res.exchangeId) {
-          navigateTo('intercambio_detalle', res.exchangeId);
-        } else {
-          setCreateError(res.error || 'No se pudo crear el intercambio. Revisá tu conexión e intentá de nuevo.');
+        if (!res.success || !res.exchangeId) {
+          setError(
+            res.error ||
+              "No se pudo crear. Revisá tu conexión y volvé a intentar.",
+          );
+          return;
         }
       } else if (demo) {
-        const createdId = demo.createExchange({
+        const id = demo.createExchange({
           name: name.trim(),
-          description: description.trim() || 'Intercambio organizado a través de Papelito.',
+          description: description.trim(),
           eventDate,
-          registrationDeadline,
-          budgetAmount,
+          registrationDeadline: deadline,
+          budgetAmount: Number(budget),
           currency,
           requiresApproval,
-          manualThemeOverride: manualTheme || undefined,
+          manualThemeOverride: manualTheme ?? undefined,
         });
-
-        navigateTo('intercambio_detalle', createdId);
+        navigate?.("intercambio_detalle", id);
       }
     } catch {
-      setCreateError('No se pudo conectar con Papelito. Conservamos tus datos para que podás volver a intentarlo.');
+      setError(
+        "Se interrumpió la conexión. Conservamos lo que escribiste; revisá tus intercambios antes de volver a crear.",
+      );
     } finally {
-      submitting.current = false;
+      busy.current = false;
       setCreating(false);
     }
-  };
+  }
 
   return (
-    <div
-      className="wizard-container animate-fade-in"
-      style={{
-        maxWidth: '520px',
-        margin: '0 auto',
-        padding: '1.25rem 1rem 5rem 1rem',
-      }}
-    >
+    <div className={`workshop-page occasion-${theme}`}>
       <button
-        onClick={() => navigateTo('intercambios_lista')}
-        className="btn-back"
+        className="paper-text-button back-link"
         disabled={creating}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.4rem',
-          background: 'none',
-          border: 'none',
-          color: 'var(--text-secondary)',
-          fontSize: '0.9rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-          padding: '0.5rem 0',
-          marginBottom: '0.75rem',
-        }}
+        onClick={() => navigate?.("intercambios_lista")}
       >
-        ← Volver a mis intercambios
+        ← Mis intercambios
       </button>
-
-      {/* Wizard Step Progress */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '0.5rem',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              color: 'var(--color-frambuesa)',
-              textTransform: 'none',
-              letterSpacing: '0.05em',
-            }}
-          >
-            Paso {step} de 4
-          </span>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            {step === 1 && 'Ocasión y tema visual'}
-            {step === 2 && 'Fechas y nombre'}
-            {step === 3 && 'Presupuesto y reglas'}
-            {step === 4 && 'Revisión final'}
-          </span>
+      <div className="workshop-heading">
+        <div>
+          <p className="workshop-step">
+            {step === 1 ? "Primero, los detalles" : "Todo listo para invitar"}
+          </p>
+          <h1 ref={titleRef} tabIndex={-1}>
+            {step === 1
+              ? "Armemos un buen secreto."
+              : "Así queda tu invitación."}
+          </h1>
         </div>
-
-        {/* Progress track */}
-        <div
-          style={{
-            height: '6px',
-            backgroundColor: '#E2E8F0',
-            borderRadius: '3px',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              height: '100%',
-              width: `${(step / 4) * 100}%`,
-              backgroundColor: 'var(--color-frambuesa)',
-              transition: 'width 0.25s ease',
-            }}
-          />
-        </div>
+        <span className="step-counter" aria-label={`Paso ${step} de 2`}>
+          {step} / 2
+        </span>
       </div>
-
-      {/* STEP 1: Ocasión y Tema visual */}
-      {step === 1 && (
-        <div
-          className="step-card"
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '20px',
-            border: '1px solid var(--border-subtle)',
-            padding: '1.5rem',
-            boxShadow: '0 6px 20px rgba(70, 36, 93, 0.05)',
-          }}
-        >
-          <h2
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.45rem',
-              fontWeight: 800,
-              color: 'var(--color-tinta)',
-              margin: '0 0 0.5rem 0',
-            }}
-          >
-            1. Ocasión y tema visual
-          </h2>
-
-          <p
-            style={{
-              fontSize: '0.88rem',
-              color: 'var(--text-secondary)',
-              lineHeight: 1.45,
-              margin: '0 0 1.25rem 0',
-            }}
-          >
-            El tema visual se asocia a la <strong>fecha programada del intercambio</strong> o a
-            tu selección manual. No cambia con el calendario actual ni por la fecha de tu teléfono.
-          </p>
-
-          {/* Preliminary Event Date Picker for theme inference */}
-          <div style={{ marginBottom: '1.25rem' }}>
-            <label
-              htmlFor="event-date-step1"
-              style={{
-                display: 'block',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Fecha prevista para el intercambio:
-            </label>
-            <input
-              id="event-date-step1"
-              type="date"
-              value={eventDate}
-              onChange={(e) => {
-                setEventDate(e.target.value);
-                // Also auto-update deadline to 7 days before
-                if (e.target.value) {
-                  const d = new Date(e.target.value);
-                  d.setDate(d.getDate() - 7);
-                  setRegistrationDeadline(d.toISOString().split('T')[0]);
-                }
-              }}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: '1.5px solid var(--border-subtle)',
-                fontSize: '0.95rem',
-                fontFamily: 'var(--font-body)',
-              }}
-            />
-          </div>
-
-          {/* Automatic Date Inference Result Banner */}
-          <div
-            style={{
-              backgroundColor: THEME_CONFIG[inferred.theme].badgeBg,
-              border: `1px solid ${THEME_CONFIG[inferred.theme].accentColor}33`,
-              borderRadius: '14px',
-              padding: '0.85rem 1rem',
-              marginBottom: '1.5rem',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '0.74rem',
-                fontWeight: 700,
-                color: THEME_CONFIG[inferred.theme].badgeText,
-                textTransform: 'none',
-                marginBottom: '0.25rem',
-              }}
-            >
-              Sugerencia automática por fecha del evento:
-            </div>
-            <strong
-              style={{
-                display: 'block',
-                fontSize: '0.95rem',
-                color: 'var(--color-tinta)',
-                marginBottom: '0.25rem',
-              }}
-            >
-              Tema sugerido: {THEME_CONFIG[inferred.theme].label}
-            </strong>
-            <p
-              style={{
-                fontSize: '0.8rem',
-                color: 'var(--text-secondary)',
-                margin: 0,
-                lineHeight: 1.35,
-              }}
-            >
-              {inferred.reason}
-            </p>
-          </div>
-
-          {/* Manual Theme Selector */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.65rem',
-              }}
-            >
-              Selector manual de tema (anula o confirma la sugerencia):
-            </label>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-              {(Object.keys(THEME_CONFIG) as ThemeKey[]).map((themeKey) => {
-                const meta = THEME_CONFIG[themeKey];
-                const isSelected = effectiveTheme === themeKey;
-                return (
-                  <button
-                    key={themeKey}
-                    type="button"
-                    onClick={() => setManualTheme(themeKey)}
-                    style={{
-                      textAlign: 'left',
-                      padding: '0.85rem',
-                      borderRadius: '14px',
-                      border: isSelected
-                        ? '2px solid var(--color-frambuesa)'
-                        : '1.5px solid var(--border-subtle)',
-                      backgroundColor: isSelected ? meta.bgSubtle : '#FFFFFF',
-                      cursor: 'pointer',
-                      transition: 'border-color 0.15s ease',
-                    }}
+      <div className="creation-layout">
+        <section className="workshop-sheet">
+          {step === 1 ? (
+            <form onSubmit={review} noValidate>
+              {Object.keys(errors).length > 0 && (
+                <div
+                  className="workshop-error"
+                  role="alert"
+                  tabIndex={-1}
+                  ref={errorRef}
+                >
+                  <strong>Revisemos estos detalles:</strong>
+                  <ul>
+                    {Object.entries(errors).map(([key, message]) => (
+                      <li key={key}>
+                        <a href={`#create-${key}`}>{message}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <label className="workshop-field" htmlFor="create-name">
+                ¿Cómo se llama el intercambio?
+                <input
+                  id="create-name"
+                  autoComplete="off"
+                  maxLength={100}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ej. Navidad en casa de la abuela"
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? "error-name" : undefined}
+                />
+              </label>
+              {errors.name && (
+                <p id="error-name" className="field-error">
+                  {errors.name}
+                </p>
+              )}
+              <label className="workshop-field" htmlFor="create-eventDate">
+                ¿Cuándo se entregan los regalos?
+                <input
+                  id="create-eventDate"
+                  type="date"
+                  min={today || undefined}
+                  value={eventDate}
+                  onChange={(e) => changeDate(e.target.value)}
+                  aria-invalid={!!errors.eventDate}
+                  aria-describedby="date-help"
+                />
+              </label>
+              <p id="date-help" className="field-help">
+                El tema se sugiere por esta fecha. Siempre podés cambiarlo.
+              </p>
+              <div className="workshop-fields-row">
+                <label className="workshop-field" htmlFor="create-budgetAmount">
+                  Presupuesto por regalo
+                  <input
+                    id="create-budgetAmount"
+                    type="number"
+                    min="0.01"
+                    max="100000000"
+                    step={currency === "USD" ? "0.01" : "1"}
+                    inputMode="decimal"
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    aria-invalid={!!errors.budgetAmount}
+                  />
+                </label>
+                <label className="workshop-field" htmlFor="create-currency">
+                  Moneda
+                  <select
+                    id="create-currency"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value as Currency)}
                   >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '0.35rem',
-                      }}
+                    <option value="CRC">Colones ₡</option>
+                    <option value="USD">Dólares $</option>
+                  </select>
+                </label>
+              </div>
+              <fieldset className="theme-picker">
+                <legend>Una ocasión, su propio papelito</legend>
+                <div>
+                  {(Object.keys(THEME_CONFIG) as ThemeKey[]).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-pressed={theme === key}
+                      className={`theme-choice occasion-${key}`}
+                      onClick={() => setManualTheme(key)}
                     >
-                      <span
-                        style={{
-                          width: '10px',
-                          height: '10px',
-                          borderRadius: '50%',
-                          backgroundColor: meta.accentColor,
-                        }}
-                      />
-                      {isSelected && (
-                        <span
-                          style={{
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            color: 'var(--color-frambuesa)',
-                          }}
-                        >
-                          ✓ Activo
-                        </span>
-                      )}
-                    </div>
-                    <strong
-                      style={{
-                        display: 'block',
-                        fontSize: '0.85rem',
-                        color: 'var(--color-tinta)',
-                        lineHeight: 1.25,
-                      }}
+                      <span className="theme-swatch" aria-hidden="true" />
+                      {key === "general"
+                        ? "Para celebrar"
+                        : key === "amistad"
+                          ? "Amistad"
+                          : key === "cumpleanos"
+                            ? "Cumpleaños"
+                            : "Navidad"}
+                    </button>
+                  ))}
+                </div>
+                <p className="field-help">
+                  {manualTheme ? (
+                    <button
+                      className="paper-text-button"
+                      type="button"
+                      onClick={() => setManualTheme(null)}
                     >
-                      {meta.label}
-                    </strong>
-                    <span
-                      style={{
-                        fontSize: '0.72rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: 1.3,
-                        display: 'block',
-                        marginTop: '0.2rem',
-                      }}
-                    >
-                      {meta.tagline}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <button
-            onClick={handleNextStep1}
-            className="btn-primary"
-            style={{
-              width: '100%',
-              minHeight: '48px',
-              backgroundColor: 'var(--color-frambuesa)',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '14px',
-              fontSize: '0.96rem',
-              fontWeight: 700,
-              fontFamily: 'var(--font-heading)',
-              cursor: 'pointer',
-            }}
-          >
-            Continuar a detalles del evento →
-          </button>
-        </div>
-      )}
-
-      {/* STEP 2: Nombre y Fechas */}
-      {step === 2 && (
-        <div
-          className="step-card"
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '20px',
-            border: '1px solid var(--border-subtle)',
-            padding: '1.5rem',
-            boxShadow: '0 6px 20px rgba(70, 36, 93, 0.05)',
-          }}
-        >
-          <h2
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.45rem',
-              fontWeight: 800,
-              color: 'var(--color-tinta)',
-              margin: '0 0 0.5rem 0',
-            }}
-          >
-            2. Nombre y fechas clave
-          </h2>
-
-          <p
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              margin: '0 0 1.25rem 0',
-            }}
-          >
-            Zona horaria del evento: <strong>America/Costa_Rica</strong>
-          </p>
-
-          {/* Exchange Name */}
-          <div style={{ marginBottom: '1.15rem' }}>
-            <label
-              htmlFor="exchange-name"
-              style={{
-                display: 'block',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Nombre del intercambio *
-            </label>
-            <input
-              id="exchange-name"
-              type="text"
-              placeholder="Ej. Navidad Familia Rodríguez 2026"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (errors.name) setErrors((prev) => ({ ...prev, name: '' }));
-              }}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: `1.5px solid ${errors.name ? '#E53E3E' : 'var(--border-subtle)'}`,
-                fontSize: '0.95rem',
-              }}
-            />
-            {errors.name && (
-              <span style={{ color: '#E53E3E', fontSize: '0.78rem', marginTop: '0.25rem', display: 'block' }}>
-                {errors.name}
-              </span>
-            )}
-          </div>
-
-          {/* Description */}
-          <div style={{ marginBottom: '1.15rem' }}>
-            <label
-              htmlFor="exchange-desc"
-              style={{
-                display: 'block',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Instrucciones breves o lugar de entrega (opcional)
-            </label>
-            <textarea
-              id="exchange-desc"
-              rows={3}
-              placeholder="Ej. Traer el regalo envuelto sin remitente para la cena del viernes."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: '1.5px solid var(--border-subtle)',
-                fontSize: '0.9rem',
-                fontFamily: 'var(--font-body)',
-                resize: 'vertical',
-              }}
-            />
-          </div>
-
-          {/* Event Date */}
-          <div style={{ marginBottom: '1.15rem' }}>
-            <label
-              htmlFor="event-date-step2"
-              style={{
-                display: 'block',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Fecha de entrega de regalos *
-            </label>
-            <input
-              id="event-date-step2"
-              type="date"
-              value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: '1.5px solid var(--border-subtle)',
-                fontSize: '0.95rem',
-              }}
-            />
-          </div>
-
-          {/* Registration Deadline */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label
-              htmlFor="reg-deadline"
-              style={{
-                display: 'block',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Fecha límite para confirmar participación *
-            </label>
-            <input
-              id="reg-deadline"
-              type="date"
-              value={registrationDeadline}
-              onChange={(e) => {
-                setRegistrationDeadline(e.target.value);
-                if (errors.registrationDeadline) {
-                  setErrors((prev) => ({ ...prev, registrationDeadline: '' }));
-                }
-              }}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: `1.5px solid ${errors.registrationDeadline ? '#E53E3E' : 'var(--border-subtle)'}`,
-                fontSize: '0.95rem',
-              }}
-            />
-            {errors.registrationDeadline && (
-              <span style={{ color: '#E53E3E', fontSize: '0.78rem', marginTop: '0.25rem', display: 'block' }}>
-                {errors.registrationDeadline}
-              </span>
-            )}
-            <small style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
-              Podés realizar el sorteo cuando el grupo esté listo, con al menos 3 personas aprobadas.
-              Al sortear se cierra la inscripción.
-            </small>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button
-              disabled={creating}
-                onClick={() => setStep(1)}
-              style={{
-                flex: 0.45,
-                minHeight: '48px',
-                backgroundColor: 'var(--surface-subtle)',
-                color: 'var(--color-tinta)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '14px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              ← Atrás
-            </button>
-            <button
-              onClick={handleNextStep2}
-              className="btn-primary"
-              style={{
-                flex: 1,
-                minHeight: '48px',
-                backgroundColor: 'var(--color-frambuesa)',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '14px',
-                fontSize: '0.96rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-heading)',
-                cursor: 'pointer',
-              }}
-            >
-              Siguiente: Presupuesto →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 3: Presupuesto y Reglas */}
-      {step === 3 && (
-        <div
-          className="step-card"
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '20px',
-            border: '1px solid var(--border-subtle)',
-            padding: '1.5rem',
-            boxShadow: '0 6px 20px rgba(70, 36, 93, 0.05)',
-          }}
-        >
-          <h2
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.45rem',
-              fontWeight: 800,
-              color: 'var(--color-tinta)',
-              margin: '0 0 0.5rem 0',
-            }}
-          >
-            3. Presupuesto y reglas de acceso
-          </h2>
-
-          <p
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              margin: '0 0 1.25rem 0',
-            }}
-          >
-            Establece un valor orientativo para que todos los regalos sean equilibrados.
-          </p>
-
-          {/* Currency selector (CRC default, USD alternative) */}
-          <div style={{ marginBottom: '1.25rem' }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.45rem',
-              }}
-            >
-              Moneda del presupuesto
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrency('CRC');
-                  if (budgetAmount === 25) setBudgetAmount(15000);
-                }}
-                style={{
-                  padding: '0.75rem',
-                  borderRadius: '12px',
-                  border: currency === 'CRC' ? '2px solid var(--color-tinta)' : '1px solid var(--border-subtle)',
-                  backgroundColor: currency === 'CRC' ? 'var(--surface-subtle)' : '#FFFFFF',
-                  fontWeight: 700,
-                  color: 'var(--color-tinta)',
-                  cursor: 'pointer',
-                }}
+                      Volver al tema automático
+                    </button>
+                  ) : (
+                    inferred.reason
+                  )}
+                </p>
+              </fieldset>
+              <details
+                className="workshop-options"
+                open={!!errors.registrationDeadline}
               >
-                Colones costarricenses (₡ CRC)
+                <summary>Más opciones para tu grupo</summary>
+                <label
+                  className="workshop-field"
+                  htmlFor="create-registrationDeadline"
+                >
+                  Último día para unirse
+                  <input
+                    id="create-registrationDeadline"
+                    type="date"
+                    min={today || undefined}
+                    max={eventDate || undefined}
+                    value={deadline}
+                    onChange={(e) => {
+                      setDeadline(e.target.value);
+                      setDeadlineEdited(true);
+                    }}
+                    aria-invalid={!!errors.registrationDeadline}
+                  />
+                </label>
+                <p className="field-help">
+                  Por defecto, una semana antes de la entrega. Podés sortear
+                  antes cuando haya al menos tres personas aprobadas.
+                </p>
+                <label className="workshop-field" htmlFor="create-description">
+                  Un mensaje para tu gente <span>(opcional)</span>
+                  <textarea
+                    id="create-description"
+                    maxLength={500}
+                    rows={3}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Dónde se reúnen, cómo envolver los regalos…"
+                  />
+                </label>
+                <label className="workshop-check">
+                  <input
+                    type="checkbox"
+                    checked={requiresApproval}
+                    onChange={(e) => setRequiresApproval(e.target.checked)}
+                  />
+                  <span>
+                    <strong>Aprobar a cada persona antes de que entre</strong>
+                    <small>
+                      Recomendado si el enlace se comparte en un grupo grande.
+                    </small>
+                  </span>
+                </label>
+              </details>
+              <button type="submit" className="paper-button workshop-primary">
+                Revisar mi intercambio
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrency('USD');
-                  if (budgetAmount === 15000) setBudgetAmount(25);
-                }}
-                style={{
-                  padding: '0.75rem',
-                  borderRadius: '12px',
-                  border: currency === 'USD' ? '2px solid var(--color-tinta)' : '1px solid var(--border-subtle)',
-                  backgroundColor: currency === 'USD' ? 'var(--surface-subtle)' : '#FFFFFF',
-                  fontWeight: 700,
-                  color: 'var(--color-tinta)',
-                  cursor: 'pointer',
-                }}
-              >
-                Dólares estadounidenses ($ USD)
-              </button>
-            </div>
-          </div>
-
-          {/* Budget amount input */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label
-              htmlFor="budget-amount"
-              style={{
-                display: 'block',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                color: 'var(--color-tinta)',
-                marginBottom: '0.35rem',
-              }}
-            >
-              Monto orientativo ({currency}) *
-            </label>
-            <input
-              id="budget-amount"
-              type="number"
-              min="1"
-              step={currency === 'CRC' ? '1000' : '5'}
-              value={budgetAmount}
-              onChange={(e) => setBudgetAmount(Number(e.target.value))}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: '1.5px solid var(--border-subtle)',
-                fontSize: '1.1rem',
-                fontWeight: 700,
-              }}
-            />
-          </div>
-
-          {/* Invitation Access Control */}
-          <div
-            style={{
-              backgroundColor: 'var(--surface-subtle)',
-              borderRadius: '14px',
-              padding: '1rem',
-              marginBottom: '1.5rem',
-            }}
-          >
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.75rem',
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={requiresApproval}
-                onChange={(e) => setRequiresApproval(e.target.checked)}
-                style={{
-                  marginTop: '0.15rem',
-                  accentColor: 'var(--color-frambuesa)',
-                  width: '18px',
-                  height: '18px',
-                }}
-              />
-              <div>
-                <strong style={{ fontSize: '0.88rem', color: 'var(--color-tinta)', display: 'block' }}>
-                  Aprobación previa del organizador
-                </strong>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.35, display: 'block', marginTop: '0.2rem' }}>
-                  Recomendado para evitar que personas no deseadas ingresen al intercambio si el
-                  enlace es reenviado en grupos grandes de WhatsApp.
-                </span>
+            </form>
+          ) : (
+            <div>
+              <h2>{name}</h2>
+              <dl className="review-list">
+                <div>
+                  <dt>Entrega de regalos</dt>
+                  <dd>{formatEventDate(eventDate)}</dd>
+                </div>
+                <div>
+                  <dt>Presupuesto por persona</dt>
+                  <dd>{formatMoney(Number(budget), currency)}</dd>
+                </div>
+                <div>
+                  <dt>Último día para unirse</dt>
+                  <dd>{formatEventDate(deadline)}</dd>
+                </div>
+                <div>
+                  <dt>Participantes</dt>
+                  <dd>
+                    {requiresApproval
+                      ? "Entran cuando los aprobás"
+                      : "Entran directamente con el enlace"}
+                  </dd>
+                </div>
+              </dl>
+              {description && (
+                <p className="handwritten-message">{description}</p>
+              )}
+              <div className="next-note">
+                <strong>Después, reuní a tu gente.</strong>
+                <p>
+                  Al crearlo vas a tener un enlace para compartir. El sorteo se
+                  hace cuando vos lo decidás, con al menos tres personas
+                  aprobadas.
+                </p>
               </div>
-            </label>
-          </div>
-
-          {/* Exclusions advisory note per Plan Section 3 */}
-          <div
-            style={{
-              backgroundColor: '#FFFDF5',
-              border: '1px solid #FEF3D6',
-              borderRadius: '12px',
-              padding: '0.85rem',
-              fontSize: '0.78rem',
-              color: '#7A5200',
-              lineHeight: 1.4,
-              marginBottom: '1.5rem',
-            }}
-          >
-            ℹ️ <strong>Nota sobre exclusiones:</strong> Como organizador podrás configurar reglas
-            para evitar que ciertas personas se regalen mutuamente (por ejemplo parejas). Ten en
-            cuenta que un número excesivo de exclusiones puede hacer matemáticamente imposible
-            el sorteo.
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button
-              disabled={creating}
-                onClick={() => setStep(2)}
-              style={{
-                flex: 0.45,
-                minHeight: '48px',
-                backgroundColor: 'var(--surface-subtle)',
-                color: 'var(--color-tinta)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '14px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              ← Atrás
-            </button>
-            <button
-              onClick={handleNextStep3}
-              className="btn-primary"
-              style={{
-                flex: 1,
-                minHeight: '48px',
-                backgroundColor: 'var(--color-frambuesa)',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '14px',
-                fontSize: '0.96rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-heading)',
-                cursor: 'pointer',
-              }}
-            >
-              Revisar y confirmar →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 4: Revisión final */}
-      {step === 4 && (
-        <div
-          className="step-card"
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '20px',
-            border: '1px solid var(--border-subtle)',
-            padding: '1.5rem',
-            boxShadow: '0 6px 20px rgba(70, 36, 93, 0.05)',
-          }}
+              {error && (
+                <p role="alert" className="workshop-error">
+                  {error}
+                </p>
+              )}
+              <div className="workshop-actions">
+                <button
+                  className="paper-button"
+                  onClick={create}
+                  disabled={creating}
+                  aria-busy={creating}
+                >
+                  {creating ? "Creando tu intercambio…" : "Crear intercambio"}
+                </button>
+                <button
+                  className="paper-text-button"
+                  disabled={creating}
+                  onClick={() => {
+                    setStep(1);
+                    requestAnimationFrame(() => titleRef.current?.focus());
+                  }}
+                >
+                  Editar detalles
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+        <aside
+          className="invitation-preview"
+          aria-label="Vista previa del tema"
         >
-          <h2
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.45rem',
-              fontWeight: 800,
-              color: 'var(--color-tinta)',
-              margin: '0 0 0.5rem 0',
-            }}
-          >
-            4. Confirmar creación
-          </h2>
-
-          <p
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              margin: '0 0 1.25rem 0',
-            }}
-          >
-            Revisa los detalles antes de crear tu intercambio. Podrás compartir el enlace de
-            inmediato.
-          </p>
-
-          <div
-            style={{
-              backgroundColor: 'var(--surface-subtle)',
-              borderRadius: '16px',
-              padding: '1.15rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.65rem',
-              marginBottom: '1.5rem',
-            }}
-          >
-            <div>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'none' }}>
-                Nombre
-              </span>
-              <strong style={{ display: 'block', fontSize: '1.1rem', color: 'var(--color-tinta)' }}>
-                {name}
-              </strong>
-            </div>
-
-            <div>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'none' }}>
-                Tema visual
-              </span>
-              <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--color-frambuesa)' }}>
-                {THEME_CONFIG[effectiveTheme].label}
-              </strong>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              <div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'none' }}>
-                  Fecha de entrega
-                </span>
-                <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--color-tinta)' }}>
-                  {eventDate}
-                </strong>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'none' }}>
-                  Cierre de inscripción
-                </span>
-                <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--color-tinta)' }}>
-                  {registrationDeadline}
-                </strong>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              <div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'none' }}>
-                  Presupuesto
-                </span>
-                <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--color-tinta)' }}>
-                  {currency === 'CRC' ? `₡${budgetAmount.toLocaleString('es-CR')}` : `$${budgetAmount}`} {currency}
-                </strong>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'none' }}>
-                  Control de invitados
-                </span>
-                <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--color-tinta)' }}>
-                  {requiresApproval ? 'Con aprobación previa' : 'Acceso directo'}
-                </strong>
-              </div>
-            </div>
-          </div>
-
-          <RibbonDivider />
-
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-            <button
-              disabled={creating}
-                onClick={() => setStep(3)}
-              style={{
-                flex: 0.45,
-                minHeight: '48px',
-                backgroundColor: 'var(--surface-subtle)',
-                color: 'var(--color-tinta)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '14px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              ← Modificar
-            </button>
-            <button
-              onClick={handleConfirmCreate}
-              disabled={creating}
-              aria-busy={creating}
-              className="btn-primary"
-              style={{
-                flex: 1,
-                minHeight: '48px',
-                backgroundColor: 'var(--color-frambuesa)',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '14px',
-                fontSize: '1rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-heading)',
-                cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(112, 67, 162, 0.28)',
-              }}
-            >
-              {creating ? 'Creando tu intercambio…' : '✨ Crear intercambio ahora'}
-            </button>
-          </div>
-          {createError && <p role="alert" style={{ color: '#9B1C1C', lineHeight: 1.5, marginBottom: 0 }}>{createError}</p>}
-        </div>
-      )}
+          <div className="preview-pin" aria-hidden="true" />
+          <p>Hay un papelito para tu gente.</p>
+          <PaperIllustration theme={theme} />
+          <strong>{name.trim() || "Tu próxima celebración"}</strong>
+          <span>{formatEventDate(eventDate)}</span>
+          <small>{THEME_CONFIG[theme].tagline}</small>
+        </aside>
+      </div>
     </div>
   );
-};
+}

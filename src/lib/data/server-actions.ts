@@ -1,9 +1,9 @@
-'use server';
+"use server";
 
-import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
-import { getServerSession, getFreshServerSession } from '@/lib/auth/server';
-import { isDatabaseConfigured } from '@/lib/db/client';
+import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { getServerSession, getFreshServerSession } from "@/lib/auth/server";
+import { isDatabaseConfigured } from "@/lib/db/client";
 import {
   createExchangeWithInvitation,
   regenerateExchangeInvitation,
@@ -17,20 +17,20 @@ import {
   updateExchangeLifecycleStatus,
   transferExchangeOrganizer,
   type CreateExchangeInput,
-} from '@/lib/repositories/exchanges';
-import { executeAndCommitDraw } from '@/lib/repositories/draw';
+} from "@/lib/repositories/exchanges";
+import { executeAndCommitDraw } from "@/lib/repositories/draw";
 import {
   getMyWishes,
   saveWish,
   deleteWish,
   toggleWishInExchange,
   type SaveWishInput,
-} from '@/lib/repositories/wishes';
+} from "@/lib/repositories/wishes";
 import {
   getMyAssignment,
   revealAssignment,
   toggleWishPurchase,
-} from '@/lib/repositories/assignments';
+} from "@/lib/repositories/assignments";
 import {
   getOrCreateProfile,
   updateProfileAlias,
@@ -42,13 +42,14 @@ import {
   requestAccountDeletion,
   type AccountDeletionImpact,
   type RequestAccountDeletionResult,
-} from '@/lib/repositories/profiles';
-import { LEGAL_CONSTANTS } from '@/lib/legal/constants';
+} from "@/lib/repositories/profiles";
+import { LEGAL_CONSTANTS } from "@/lib/legal/constants";
+import { readAppSnapshot } from "@/lib/repositories/app-snapshot";
 import {
   PENDING_CONSENT_COOKIE,
   consumePendingConsentIntent,
   revokeConsentAndClearCookie,
-} from '@/lib/legal/consent-flow';
+} from "@/lib/legal/consent-flow";
 
 export interface ActionResult<T = unknown> {
   success: boolean;
@@ -56,9 +57,9 @@ export interface ActionResult<T = unknown> {
   error?: string;
 }
 
-const VALID_THEMES = new Set(['navidad', 'amistad', 'cumpleanos', 'general']);
-const VALID_CURRENCIES = new Set(['CRC', 'USD']);
-const VALID_PRIORITIES = new Set(['alta', 'media', 'baja']);
+const VALID_THEMES = new Set(["navidad", "amistad", "cumpleanos", "general"]);
+const VALID_CURRENCIES = new Set(["CRC", "USD"]);
+const VALID_PRIORITIES = new Set(["alta", "media", "baja"]);
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function sanitizeErrorMessage(err: unknown, fallback: string): string {
@@ -66,11 +67,11 @@ function sanitizeErrorMessage(err: unknown, fallback: string): string {
   const msg = err.message;
   // Filter out raw PostgreSQL / driver internal diagnostics
   if (
-    msg.includes('syntax error') ||
+    msg.includes("syntax error") ||
     msg.includes('relation "') ||
-    msg.includes('violates foreign key') ||
-    msg.includes('violates check constraint') ||
-    msg.includes('duplicate key value')
+    msg.includes("violates foreign key") ||
+    msg.includes("violates check constraint") ||
+    msg.includes("duplicate key value")
   ) {
     return fallback;
   }
@@ -78,97 +79,125 @@ function sanitizeErrorMessage(err: unknown, fallback: string): string {
 }
 
 function validateIsoDate(dateStr: unknown): dateStr is string {
-  if (typeof dateStr !== 'string' || !ISO_DATE_REGEX.test(dateStr)) return false;
+  if (typeof dateStr !== "string" || !ISO_DATE_REGEX.test(dateStr))
+    return false;
   const parsed = new Date(`${dateStr}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(dateStr);
+  return (
+    !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(dateStr)
+  );
 }
 
 function validateCreateExchange(input: CreateExchangeInput): string | null {
-  if (!input || typeof input !== 'object') return 'Datos de intercambio inválidos.';
-  if (typeof input.name !== 'string' || input.name.trim().length < 2 || input.name.trim().length > 100) {
-    return 'El nombre del intercambio debe tener entre 2 y 100 caracteres.';
-  }
-  if (input.description !== undefined && (typeof input.description !== 'string' || input.description.length > 500)) {
-    return 'La descripción no puede superar los 500 caracteres.';
-  }
-  if (!validateIsoDate(input.eventDate)) {
-    return 'La fecha del evento no tiene un formato válido (YYYY-MM-DD).';
-  }
-  if (!validateIsoDate(input.registrationDeadline)) {
-    return 'La fecha límite de inscripción no tiene un formato válido (YYYY-MM-DD).';
-  }
-  if (input.registrationDeadline > input.eventDate) {
-    return 'El cierre de inscripción no puede ser posterior a la fecha del intercambio.';
+  if (!input || typeof input !== "object")
+    return "Datos de intercambio inválidos.";
+  if (
+    typeof input.name !== "string" ||
+    input.name.trim().length < 2 ||
+    input.name.trim().length > 100
+  ) {
+    return "El nombre del intercambio debe tener entre 2 y 100 caracteres.";
   }
   if (
-    typeof input.budgetAmount !== 'number' ||
+    input.description !== undefined &&
+    (typeof input.description !== "string" || input.description.length > 500)
+  ) {
+    return "La descripción no puede superar los 500 caracteres.";
+  }
+  if (!validateIsoDate(input.eventDate)) {
+    return "La fecha del evento no tiene un formato válido (YYYY-MM-DD).";
+  }
+  if (!validateIsoDate(input.registrationDeadline)) {
+    return "La fecha límite de inscripción no tiene un formato válido (YYYY-MM-DD).";
+  }
+  if (input.registrationDeadline > input.eventDate) {
+    return "El cierre de inscripción no puede ser posterior a la fecha del intercambio.";
+  }
+  if (
+    typeof input.budgetAmount !== "number" ||
     !Number.isFinite(input.budgetAmount) ||
     input.budgetAmount <= 0 ||
     input.budgetAmount > 100_000_000
   ) {
-    return 'El presupuesto debe ser un monto numérico válido mayor a cero.';
+    return "El presupuesto debe ser un monto numérico válido mayor a cero.";
   }
   if (!VALID_CURRENCIES.has(input.currency)) {
-    return 'Moneda no admitida (use CRC o USD).';
+    return "Moneda no admitida (use CRC o USD).";
   }
-  if (!VALID_THEMES.has(input.suggestedTheme) || !VALID_THEMES.has(input.selectedTheme)) {
-    return 'Tema festivo inválido.';
+  if (
+    !VALID_THEMES.has(input.suggestedTheme) ||
+    !VALID_THEMES.has(input.selectedTheme)
+  ) {
+    return "Tema festivo inválido.";
   }
-  if (typeof input.requiresApproval !== 'boolean') {
-    return 'El indicador de aprobación es inválido.';
+  if (typeof input.requiresApproval !== "boolean") {
+    return "El indicador de aprobación es inválido.";
   }
   return null;
 }
 
 function validateSaveWish(input: SaveWishInput): string | null {
-  if (!input || typeof input !== 'object') return 'Datos de deseo inválidos.';
-  if (typeof input.title !== 'string' || input.title.trim().length < 1 || input.title.trim().length > 150) {
-    return 'El título del deseo debe tener entre 1 y 150 caracteres.';
+  if (!input || typeof input !== "object") return "Datos de deseo inválidos.";
+  if (
+    typeof input.title !== "string" ||
+    input.title.trim().length < 1 ||
+    input.title.trim().length > 150
+  ) {
+    return "El título del deseo debe tener entre 1 y 150 caracteres.";
   }
-  if (input.description !== undefined && (typeof input.description !== 'string' || input.description.length > 500)) {
-    return 'La descripción no puede superar los 500 caracteres.';
+  if (
+    input.description !== undefined &&
+    (typeof input.description !== "string" || input.description.length > 500)
+  ) {
+    return "La descripción no puede superar los 500 caracteres.";
   }
   if (input.url !== undefined && input.url.trim().length > 0) {
     try {
       const parsed = new URL(input.url.trim());
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return 'El enlace del deseo debe comenzar con http:// o https://.';
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return "El enlace del deseo debe comenzar con http:// o https://.";
       }
     } catch {
-      return 'El enlace ingresado no es una URL válida.';
+      return "El enlace ingresado no es una URL válida.";
     }
   }
   if (input.approximatePrice !== undefined && input.approximatePrice !== null) {
     if (
-      typeof input.approximatePrice !== 'number' ||
+      typeof input.approximatePrice !== "number" ||
       !Number.isFinite(input.approximatePrice) ||
       input.approximatePrice < 0 ||
       input.approximatePrice > 100_000_000
     ) {
-      return 'El precio aproximado debe ser un número válido no negativo.';
+      return "El precio aproximado debe ser un número válido no negativo.";
     }
   }
   if (input.currency !== undefined && !VALID_CURRENCIES.has(input.currency)) {
-    return 'Moneda inválida.';
+    return "Moneda inválida.";
   }
   if (input.priority !== undefined && !VALID_PRIORITIES.has(input.priority)) {
-    return 'Prioridad inválida.';
+    return "Prioridad inválida.";
   }
   return null;
 }
 
 async function requireAuth() {
   if (!isDatabaseConfigured()) {
-    throw new Error('El almacenamiento en la nube no está configurado en este entorno.');
+    throw new Error(
+      "El almacenamiento en la nube no está configurado en este entorno.",
+    );
   }
 
   const session = await getServerSession();
   if (!session || !session.user) {
-    throw new Error('Debes iniciar sesión para realizar esta acción.');
+    throw new Error("Debes iniciar sesión para realizar esta acción.");
   }
 
   // Ensure user profile exists idempotently
-  await getOrCreateProfile(session.user.id, session.user.email, session.user.name, session.user.avatarColor);
+  await getOrCreateProfile(
+    session.user.id,
+    session.user.email,
+    session.user.name,
+    session.user.avatarColor,
+  );
 
   return session.user;
 }
@@ -181,11 +210,13 @@ async function requireConsentedUser() {
     return user;
   }
 
-  throw new Error('Debes confirmar el consentimiento informado vigente para realizar esta acción.');
+  throw new Error(
+    "Debes confirmar el consentimiento informado vigente para realizar esta acción.",
+  );
 }
 
 export async function createExchangeAction(
-  formData: CreateExchangeInput
+  formData: CreateExchangeInput,
 ): Promise<ActionResult<{ exchangeId: string; inviteToken: string }>> {
   try {
     const validationErr = validateCreateExchange(formData);
@@ -193,194 +224,318 @@ export async function createExchangeAction(
 
     const user = await requireConsentedUser();
     const result = await createExchangeWithInvitation(user.id, formData);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al crear el intercambio.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al crear el intercambio."),
+    };
   }
 }
 
 export async function regenerateInvitationAction(
-  exchangeId: string
+  exchangeId: string,
 ): Promise<ActionResult<{ inviteToken: string }>> {
   try {
-    if (!exchangeId || typeof exchangeId !== 'string') {
-      return { success: false, error: 'Identificador de intercambio inválido.' };
+    if (!exchangeId || typeof exchangeId !== "string") {
+      return {
+        success: false,
+        error: "Identificador de intercambio inválido.",
+      };
     }
     const user = await requireConsentedUser();
     const result = await regenerateExchangeInvitation(exchangeId, user.id);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al renovar el enlace de invitación.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(
+        err,
+        "Error al renovar el enlace de invitación.",
+      ),
+    };
   }
 }
 
-export async function getMyExchangesAction(): Promise<ActionResult<Awaited<ReturnType<typeof getMyExchanges>>>> {
+export async function getMyExchangesAction(): Promise<
+  ActionResult<Awaited<ReturnType<typeof getMyExchanges>>>
+> {
   try {
     const user = await requireConsentedUser();
     const exchanges = await getMyExchanges(user.id);
     return { success: true, data: exchanges };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al obtener tus intercambios.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al obtener tus intercambios."),
+    };
+  }
+}
+
+export async function getAppSnapshotAction(
+  exchangeId?: string,
+): Promise<ActionResult<Awaited<ReturnType<typeof readAppSnapshot>>>> {
+  try {
+    if (
+      exchangeId !== undefined &&
+      (typeof exchangeId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          exchangeId,
+        ))
+    ) {
+      return {
+        success: false,
+        error: "Ese intercambio no es válido. Volvé a tu lista.",
+      };
+    }
+    const user = await requireAuth();
+    const consent = await consumePendingConsentIntent(user.id, await cookies());
+    return {
+      success: true,
+      data: await readAppSnapshot(user.id, consent, exchangeId),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: sanitizeErrorMessage(
+        err,
+        "No pudimos actualizar tus intercambios. Volvé a intentar cuando tengas conexión.",
+      ),
+    };
   }
 }
 
 export async function getExchangeDetailsAction(
-  exchangeId: string
+  exchangeId: string,
 ): Promise<ActionResult<Awaited<ReturnType<typeof getExchangeDetails>>>> {
   try {
-    if (!exchangeId || typeof exchangeId !== 'string') {
-      return { success: false, error: 'Identificador de intercambio inválido.' };
+    if (!exchangeId || typeof exchangeId !== "string") {
+      return {
+        success: false,
+        error: "Identificador de intercambio inválido.",
+      };
     }
     const user = await requireConsentedUser();
     const details = await getExchangeDetails(exchangeId, user.id);
     return { success: true, data: details };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al consultar el intercambio.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al consultar el intercambio."),
+    };
   }
 }
 
 export async function manageMemberStatusAction(
   exchangeId: string,
   targetUserId: string,
-  newStatus: 'approved' | 'rejected'
+  newStatus: "approved" | "rejected",
 ): Promise<ActionResult> {
   try {
-    if (newStatus !== 'approved' && newStatus !== 'rejected') {
-      return { success: false, error: 'Estado de participante inválido.' };
+    if (newStatus !== "approved" && newStatus !== "rejected") {
+      return { success: false, error: "Estado de participante inválido." };
     }
     const user = await requireConsentedUser();
     await manageMemberStatus(exchangeId, targetUserId, newStatus, user.id);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al gestionar el estado del participante.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(
+        err,
+        "Error al gestionar el estado del participante.",
+      ),
+    };
   }
 }
 
 export async function updateExchangeThemeAction(
   exchangeId: string,
-  newTheme: 'navidad' | 'amistad' | 'cumpleanos' | 'general'
+  newTheme: "navidad" | "amistad" | "cumpleanos" | "general",
 ): Promise<ActionResult> {
   try {
-    if (!exchangeId || typeof exchangeId !== 'string') {
-      return { success: false, error: 'Identificador de intercambio inválido.' };
+    if (!exchangeId || typeof exchangeId !== "string") {
+      return {
+        success: false,
+        error: "Identificador de intercambio inválido.",
+      };
     }
     if (!VALID_THEMES.has(newTheme)) {
-      return { success: false, error: 'Tema festivo inválido.' };
+      return { success: false, error: "Tema festivo inválido." };
     }
     const user = await requireConsentedUser();
     await updateExchangeTheme(exchangeId, user.id, newTheme);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al cambiar el tema del intercambio.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(
+        err,
+        "Error al cambiar el tema del intercambio.",
+      ),
+    };
   }
 }
 
 export async function setExchangeExclusionsAction(
   exchangeId: string,
-  rules: Array<{ giverUserId: string; excludedReceiverUserId: string }>
+  rules: Array<{ giverUserId: string; excludedReceiverUserId: string }>,
 ): Promise<ActionResult> {
   try {
-    if (!exchangeId || typeof exchangeId !== 'string' || !Array.isArray(rules)) {
-      return { success: false, error: 'Datos de restricciones inválidos.' };
+    if (
+      !exchangeId ||
+      typeof exchangeId !== "string" ||
+      !Array.isArray(rules)
+    ) {
+      return { success: false, error: "Datos de restricciones inválidos." };
     }
     for (const r of rules) {
-      if (!r || typeof r.giverUserId !== 'string' || typeof r.excludedReceiverUserId !== 'string') {
-        return { success: false, error: 'Formato de restricción inválido.' };
+      if (
+        !r ||
+        typeof r.giverUserId !== "string" ||
+        typeof r.excludedReceiverUserId !== "string"
+      ) {
+        return { success: false, error: "Formato de restricción inválido." };
       }
     }
     const user = await requireConsentedUser();
     await setExchangeExclusions(exchangeId, user.id, rules);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al guardar las restricciones del sorteo.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(
+        err,
+        "Error al guardar las restricciones del sorteo.",
+      ),
+    };
   }
 }
 
 export async function triggerDrawAction(
   exchangeId: string,
   expectedVersion: number,
-  invalidationReason?: string
+  invalidationReason?: string,
 ): Promise<ActionResult<{ version: number; count: number }>> {
   try {
-    if (typeof expectedVersion !== 'number' || !Number.isInteger(expectedVersion) || expectedVersion < 0) {
-      return { success: false, error: 'Versión esperada del sorteo inválida.' };
+    if (
+      typeof expectedVersion !== "number" ||
+      !Number.isInteger(expectedVersion) ||
+      expectedVersion < 0
+    ) {
+      return { success: false, error: "Versión esperada del sorteo inválida." };
     }
     const user = await requireConsentedUser();
-    const result = await executeAndCommitDraw(exchangeId, user.id, expectedVersion, invalidationReason);
-    revalidatePath('/');
-    return { success: true, data: { version: result.version, count: result.count } };
+    const result = await executeAndCommitDraw(
+      exchangeId,
+      user.id,
+      expectedVersion,
+      invalidationReason,
+    );
+    revalidatePath("/");
+    return {
+      success: true,
+      data: { version: result.version, count: result.count },
+    };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al realizar el sorteo.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al realizar el sorteo."),
+    };
   }
 }
 
 export async function getMyAssignmentAction(
-  exchangeId: string
+  exchangeId: string,
 ): Promise<ActionResult<Awaited<ReturnType<typeof getMyAssignment>>>> {
   try {
     const user = await requireConsentedUser();
     const assignment = await getMyAssignment(exchangeId, user.id);
     return { success: true, data: assignment };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al consultar tu asignación.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al consultar tu asignación."),
+    };
   }
 }
 
-export async function revealAssignmentAction(exchangeId: string): Promise<ActionResult> {
+export async function revealAssignmentAction(
+  exchangeId: string,
+): Promise<ActionResult> {
   try {
     const user = await requireConsentedUser();
     await revealAssignment(exchangeId, user.id);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al revelar tu asignación.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al revelar tu asignación."),
+    };
   }
 }
 
 export async function toggleWishPurchaseAction(
   exchangeId: string,
   wishId: string,
-  purchased: boolean
+  purchased: boolean,
 ): Promise<ActionResult> {
   try {
-    if (typeof purchased !== 'boolean') {
-      return { success: false, error: 'Indicador de compra inválido.' };
+    if (typeof purchased !== "boolean") {
+      return { success: false, error: "Indicador de compra inválido." };
     }
     const user = await requireConsentedUser();
     await toggleWishPurchase(exchangeId, user.id, wishId, purchased);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al actualizar el estado de compra.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(
+        err,
+        "Error al actualizar el estado de compra.",
+      ),
+    };
   }
 }
 
-export async function getMyWishesAction(): Promise<ActionResult<Awaited<ReturnType<typeof getMyWishes>>>> {
+export async function getMyWishesAction(): Promise<
+  ActionResult<Awaited<ReturnType<typeof getMyWishes>>>
+> {
   try {
     const user = await requireConsentedUser();
     const wishes = await getMyWishes(user.id);
     return { success: true, data: wishes };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al obtener tus deseos.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al obtener tus deseos."),
+    };
   }
 }
 
-export async function saveWishAction(input: SaveWishInput): Promise<ActionResult<{ wishId: string }>> {
+export async function saveWishAction(
+  input: SaveWishInput,
+): Promise<ActionResult<{ wishId: string }>> {
   try {
     const validationErr = validateSaveWish(input);
     if (validationErr) return { success: false, error: validationErr };
 
     const user = await requireConsentedUser();
     const result = await saveWish(user.id, input);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al guardar el deseo.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al guardar el deseo."),
+    };
   }
 }
 
@@ -388,42 +543,63 @@ export async function deleteWishAction(wishId: string): Promise<ActionResult> {
   try {
     const user = await requireConsentedUser();
     await deleteWish(user.id, wishId);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al eliminar el deseo.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al eliminar el deseo."),
+    };
   }
 }
 
 export async function toggleWishInExchangeAction(
   exchangeId: string,
   wishId: string,
-  selected: boolean
+  selected: boolean,
 ): Promise<ActionResult> {
   try {
-    if (typeof selected !== 'boolean') {
-      return { success: false, error: 'Indicador de selección inválido.' };
+    if (typeof selected !== "boolean") {
+      return { success: false, error: "Indicador de selección inválido." };
     }
     const user = await requireConsentedUser();
     await toggleWishInExchange(user.id, exchangeId, wishId, selected);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al actualizar la selección del deseo.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(
+        err,
+        "Error al actualizar la selección del deseo.",
+      ),
+    };
   }
 }
 
-export async function updateProfileAliasAction(newAlias: string): Promise<ActionResult> {
+export async function updateProfileAliasAction(
+  newAlias: string,
+): Promise<ActionResult> {
   try {
-    if (typeof newAlias !== 'string' || newAlias.trim().length < 2 || newAlias.trim().length > 40) {
-      return { success: false, error: 'El alias debe tener entre 2 y 40 caracteres.' };
+    if (
+      typeof newAlias !== "string" ||
+      newAlias.trim().length < 2 ||
+      newAlias.trim().length > 40
+    ) {
+      return {
+        success: false,
+        error: "El alias debe tener entre 2 y 40 caracteres.",
+      };
     }
     const user = await requireConsentedUser();
     await updateProfileAlias(user.id, newAlias);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al actualizar tu alias.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al actualizar tu alias."),
+    };
   }
 }
 
@@ -437,7 +613,13 @@ export async function getConsentStatusAction(): Promise<
     const status = await getLatestConsentStatus(user.id);
     return { success: true, data: status };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al consultar el estado de consentimiento.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(
+        err,
+        "Error al consultar el estado de consentimiento.",
+      ),
+    };
   }
 }
 
@@ -447,11 +629,22 @@ export async function recordConsentAction(input: {
   version: string;
 }): Promise<ActionResult> {
   try {
-    if (!input || input.termsAccepted !== true || input.privacyAccepted !== true) {
-      return { success: false, error: 'Debes aceptar explícitamente tanto los términos como el consentimiento de datos.' };
+    if (
+      !input ||
+      input.termsAccepted !== true ||
+      input.privacyAccepted !== true
+    ) {
+      return {
+        success: false,
+        error:
+          "Debes aceptar explícitamente tanto los términos como el consentimiento de datos.",
+      };
     }
     if (input.version !== LEGAL_CONSTANTS.VERSION) {
-      return { success: false, error: `Versión legal desactualizada. Versión requerida: ${LEGAL_CONSTANTS.VERSION}.` };
+      return {
+        success: false,
+        error: `Versión legal desactualizada. Versión requerida: ${LEGAL_CONSTANTS.VERSION}.`,
+      };
     }
     const user = await requireAuth();
     await recordConsent(user.id, input.version, input.version);
@@ -461,10 +654,13 @@ export async function recordConsentAction(input: {
     } catch {
       // Ignore if cookies cannot be mutated
     }
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al registrar el consentimiento.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al registrar el consentimiento."),
+    };
   }
 }
 
@@ -473,128 +669,186 @@ export async function revokeConsentAction(): Promise<ActionResult> {
     const user = await requireAuth();
     const cookieStore = await cookies();
     await revokeConsentAndClearCookie(user.id, cookieStore);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al revocar el consentimiento.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al revocar el consentimiento."),
+    };
   }
 }
 
 export async function submitPrivacyRequestAction(
-  requestType: 'export' | 'delete',
-  notes?: string
+  requestType: "export" | "delete",
+  notes?: string,
 ): Promise<ActionResult<{ requestId: string }>> {
   try {
-    if (requestType !== 'export' && requestType !== 'delete') {
-      return { success: false, error: 'Tipo de solicitud inválido.' };
+    if (requestType !== "export" && requestType !== "delete") {
+      return { success: false, error: "Tipo de solicitud inválido." };
     }
-    if (requestType === 'delete') {
-      return { success: false, error: 'Usá la confirmación de eliminación en Mi cuenta para solicitar la baja.' };
+    if (requestType === "delete") {
+      return {
+        success: false,
+        error:
+          "Usá la confirmación de eliminación en Mi cuenta para solicitar la baja.",
+      };
     }
-    if (notes !== undefined && (typeof notes !== 'string' || notes.length > 500)) {
-      return { success: false, error: 'Las notas no pueden exceder 500 caracteres.' };
+    if (
+      notes !== undefined &&
+      (typeof notes !== "string" || notes.length > 500)
+    ) {
+      return {
+        success: false,
+        error: "Las notas no pueden exceder 500 caracteres.",
+      };
     }
     const user = await requireAuth();
     const id = await submitPrivacyRequest(user.id, requestType, notes);
     return { success: true, data: { requestId: id } };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al enviar la solicitud.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al enviar la solicitud."),
+    };
   }
 }
 
-export async function exportUserDataAction(): Promise<ActionResult<Awaited<ReturnType<typeof exportUserData>>>> {
+export async function exportUserDataAction(): Promise<
+  ActionResult<Awaited<ReturnType<typeof exportUserData>>>
+> {
   try {
     const user = await requireAuth();
     const data = await exportUserData(user.id);
     return { success: true, data };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al exportar los datos.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al exportar los datos."),
+    };
   }
 }
 
 export async function acceptInvitationAction(
-  token: string
-): Promise<ActionResult<{ exchangeId: string; status: 'approved' | 'pending' | 'rejected'; alreadyMember: boolean }>> {
+  token: string,
+): Promise<
+  ActionResult<{
+    exchangeId: string;
+    status: "approved" | "pending" | "rejected";
+    alreadyMember: boolean;
+  }>
+> {
   try {
-    if (!token || typeof token !== 'string' || token.trim().length < 8) {
-      return { success: false, error: 'Token de invitación inválido.' };
+    if (!token || typeof token !== "string" || token.trim().length < 8) {
+      return { success: false, error: "Token de invitación inválido." };
     }
     const user = await requireConsentedUser();
     const result = await acceptInvitationAtomic(token.trim(), user.id);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al unirse al intercambio.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al unirse al intercambio."),
+    };
   }
 }
 
 export async function getInvitationPreviewAction(
-  token: string
+  token: string,
 ): Promise<ActionResult<Awaited<ReturnType<typeof getInvitationPreview>>>> {
   try {
     if (!isDatabaseConfigured()) {
       return {
         success: false,
-        error: 'El servicio de base de datos no está configurado en este entorno.',
+        error:
+          "El servicio de base de datos no está configurado en este entorno.",
       };
     }
-    if (!token || typeof token !== 'string') {
-      return { success: false, error: 'Token de invitación inválido.' };
+    if (!token || typeof token !== "string") {
+      return { success: false, error: "Token de invitación inválido." };
     }
     const preview = await getInvitationPreview(token.trim());
     return { success: true, data: preview };
   } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err, 'Error al previsualizar la invitación.') };
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Error al previsualizar la invitación."),
+    };
   }
 }
 
 export async function updateExchangeLifecycleStatusAction(
   exchangeId: string,
-  nextStatus: 'finalizado' | 'cancelado'
-): Promise<ActionResult<{ status: 'finalizado' | 'cancelado'; closedAt: string }>> {
+  nextStatus: "finalizado" | "cancelado",
+): Promise<
+  ActionResult<{ status: "finalizado" | "cancelado"; closedAt: string }>
+> {
   try {
-    if (!exchangeId || typeof exchangeId !== 'string') {
-      return { success: false, error: 'Identificador de intercambio inválido.' };
+    if (!exchangeId || typeof exchangeId !== "string") {
+      return {
+        success: false,
+        error: "Identificador de intercambio inválido.",
+      };
     }
-    if (nextStatus !== 'finalizado' && nextStatus !== 'cancelado') {
-      return { success: false, error: 'Estado de cierre inválido.' };
+    if (nextStatus !== "finalizado" && nextStatus !== "cancelado") {
+      return { success: false, error: "Estado de cierre inválido." };
     }
     const user = await requireConsentedUser();
-    const res = await updateExchangeLifecycleStatus(exchangeId, user.id, nextStatus);
-    revalidatePath('/');
+    const res = await updateExchangeLifecycleStatus(
+      exchangeId,
+      user.id,
+      nextStatus,
+    );
+    revalidatePath("/");
     return { success: true, data: res };
   } catch (err: unknown) {
     return {
       success: false,
-      error: sanitizeErrorMessage(err, 'Error al actualizar el estado del intercambio.'),
+      error: sanitizeErrorMessage(
+        err,
+        "Error al actualizar el estado del intercambio.",
+      ),
     };
   }
 }
 
 export async function transferExchangeOrganizerAction(
   exchangeId: string,
-  newOrganizerUserId: string
+  newOrganizerUserId: string,
 ): Promise<ActionResult> {
   try {
-    if (!exchangeId || typeof exchangeId !== 'string') {
-      return { success: false, error: 'Identificador de intercambio inválido.' };
+    if (!exchangeId || typeof exchangeId !== "string") {
+      return {
+        success: false,
+        error: "Identificador de intercambio inválido.",
+      };
     }
-    if (!newOrganizerUserId || typeof newOrganizerUserId !== 'string') {
-      return { success: false, error: 'Selecciona el participante aprobado a quien transferir la organización.' };
+    if (!newOrganizerUserId || typeof newOrganizerUserId !== "string") {
+      return {
+        success: false,
+        error:
+          "Selecciona el participante aprobado a quien transferir la organización.",
+      };
     }
     const user = await requireConsentedUser();
     await transferExchangeOrganizer(exchangeId, user.id, newOrganizerUserId);
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
       success: false,
-      error: sanitizeErrorMessage(err, 'Error al transferir la organización del intercambio.'),
+      error: sanitizeErrorMessage(
+        err,
+        "Error al transferir la organización del intercambio.",
+      ),
     };
   }
 }
 
-export async function getAccountDeletionImpactAction(): Promise<ActionResult<AccountDeletionImpact>> {
+export async function getAccountDeletionImpactAction(): Promise<
+  ActionResult<AccountDeletionImpact>
+> {
   try {
     const user = await requireAuth();
     const impact = await getAccountDeletionImpact(user.id);
@@ -602,7 +856,10 @@ export async function getAccountDeletionImpactAction(): Promise<ActionResult<Acc
   } catch (err: unknown) {
     return {
       success: false,
-      error: sanitizeErrorMessage(err, 'Error al consultar el impacto de baja de la cuenta.'),
+      error: sanitizeErrorMessage(
+        err,
+        "Error al consultar el impacto de baja de la cuenta.",
+      ),
     };
   }
 }
@@ -614,14 +871,22 @@ export async function requestAccountDeletionAction(input: {
   notes?: string;
 }): Promise<ActionResult<RequestAccountDeletionResult>> {
   try {
-    if (!input || typeof input.confirmPhrase !== 'string' ||
-        (input.notes !== undefined && (typeof input.notes !== 'string' || input.notes.length > 500))) {
-      return { success: false, error: 'Revisá la confirmación y las notas (máximo 500 caracteres).' };
+    if (
+      !input ||
+      typeof input.confirmPhrase !== "string" ||
+      (input.notes !== undefined &&
+        (typeof input.notes !== "string" || input.notes.length > 500))
+    ) {
+      return {
+        success: false,
+        error: "Revisá la confirmación y las notas (máximo 500 caracteres).",
+      };
     }
     if (!isDatabaseConfigured()) {
       return {
         success: false,
-        error: 'El almacenamiento en la nube no está configurado en este entorno.',
+        error:
+          "El almacenamiento en la nube no está configurado en este entorno.",
       };
     }
 
@@ -629,7 +894,8 @@ export async function requestAccountDeletionAction(input: {
     if (!freshSession || !freshSession.user) {
       return {
         success: false,
-        error: 'Debes iniciar sesión con una sesión activa verificada para solicitar la baja de tu cuenta.',
+        error:
+          "Debes iniciar sesión con una sesión activa verificada para solicitar la baja de tu cuenta.",
       };
     }
 
@@ -637,7 +903,7 @@ export async function requestAccountDeletionAction(input: {
       freshSession.user.id,
       freshSession.user.email,
       freshSession.user.name,
-      freshSession.user.avatarColor
+      freshSession.user.avatarColor,
     );
 
     const result = await requestAccountDeletion(freshSession.user.id, {
@@ -648,12 +914,15 @@ export async function requestAccountDeletionAction(input: {
       sessionAuthenticatedAt: freshSession.authenticatedAt,
     });
 
-    revalidatePath('/');
+    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
       success: false,
-      error: sanitizeErrorMessage(err, 'Error al registrar la solicitud de eliminación de cuenta.'),
+      error: sanitizeErrorMessage(
+        err,
+        "Error al registrar la solicitud de eliminación de cuenta.",
+      ),
     };
   }
 }

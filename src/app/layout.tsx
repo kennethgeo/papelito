@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./paper.css";
+import "./workshop.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
   title: "Papelito — Un pequeño gran secreto",
-  description: "Organiza intercambios de amigos secretos con total confidencialidad, temas festivos y listas de deseos.",
+  description:
+    "Organiza intercambios de amigos secretos con total confidencialidad, temas festivos y listas de deseos.",
   manifest: "/manifest.webmanifest",
   applicationName: "Papelito",
   appleWebApp: {

@@ -1,7 +1,7 @@
 // Papelito — Service Worker de alcance público limitado
 // Regla crítica: NUNCA almacena datos de API, autenticación, deseos ni asignaciones privadas.
 
-const CACHE_NAME = 'papelito-public-v2';
+const CACHE_NAME = 'papelito-public-v3';
 const PRECACHE_ASSETS = [
   '/offline.html',
   '/manifest.webmanifest',
@@ -15,8 +15,12 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_ASSETS);
-    }).then(() => self.skipWaiting())
+    })
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'ACTIVATE_UPDATE') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -24,7 +28,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key.startsWith('papelito-public-') && key !== CACHE_NAME) {
             return caches.delete(key);
           }
         })

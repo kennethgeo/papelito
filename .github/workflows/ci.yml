@@ -40,8 +40,31 @@ jobs:
       - name: Backend integration tests (PGlite PostgreSQL)
         run: npm run test:backend
 
+      - name: Calendar and connection tests
+        run: npm run test:ux
+
+      - name: Public-only PWA caching and update lifecycle
+        run: npm run test:pwa
+
+      - name: Four-person repository journey and snapshot privacy
+        run: npm run test:journey
+
       - name: Production build (without external secrets)
         run: npm run build
 
       - name: Lifecycle, deletion and retention integration tests
         run: npm run test:lifecycle
+
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Desktop and mobile browser regression
+        run: npm run test:e2e
+
+      - name: Keep browser evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: browser-failure-evidence
+          path: test-results/
+          retention-days: 7

@@ -14,7 +14,12 @@
     "test:draw": "node --experimental-strip-types scripts/test-draw.mjs",
     "test:lifecycle": "node --conditions=react-server --experimental-strip-types scripts/test-lifecycle.mjs",
     "test:backend": "node --conditions=react-server --experimental-strip-types scripts/test-backend.mjs",
-    "test:neon": "node --conditions=react-server --experimental-strip-types scripts/test-neon.mjs"
+    "test:neon": "node --conditions=react-server --experimental-strip-types scripts/test-neon.mjs",
+    "test:ux": "node --experimental-strip-types scripts/test-ux.mjs",
+    "test:journey": "node --conditions=react-server --experimental-strip-types scripts/test-journey.mjs",
+    "test:e2e": "playwright test",
+    "test:neon:e2e": "node --conditions=react-server --experimental-strip-types scripts/test-neon-journey.mjs",
+    "test:pwa": "node scripts/test-pwa.mjs"
   },
   "dependencies": {
     "@neon/config": "^1.9.2",
@@ -28,6 +33,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.10",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

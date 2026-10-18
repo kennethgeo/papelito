@@ -10,6 +10,8 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".netlify/**",
+    "test-results/**",
+    "playwright-report/**",
     ".codex-remote-attachments/**",
     "out/**",
     "build/**",
