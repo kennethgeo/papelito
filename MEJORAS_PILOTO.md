@@ -43,17 +43,32 @@ El titular realizará el piloto con personas reales. Esta entrega cubre creació
 | `npm run test:pwa` | Solo recursos públicos; API/auth/invitaciones excluidas; navegación privada nunca almacenada; activación de actualización explícita. |
 | `npm run test:e2e` | **9 pruebas aprobadas** en Chromium, escritorio 1280 px y teléfonos emulados de 390 y 320 px. Creación, validación, persistencia de demo, edición, selección, borrado confirmado, guía de instalación y conexión interrumpida. |
 | `npm run test:neon` | Conexión real, esquema 12/12, CRUD y rollback: **0 filas residuales**. No prueba OAuth. |
+| `npm run test:neon:e2e -- --sanitized-clone` | **1 recorrido real aprobado en 57,4 s**, con cuatro sesiones independientes, navegador móvil y Neon Auth/Postgres. Rama y cuentas eliminadas al terminar. |
 | `npm audit --omit=dev` | Sin vulnerabilidades reportadas en dependencias de producción al comprobar esta entrega. |
 
 CI ejecuta las comprobaciones locales sin secretos y guarda evidencia de navegador si hay fallos. Las pruebas de interfaz usan un puerto separado, servicios externos deshabilitados y contextos de navegador aislados. El localhost del titular permanece en 3040.
 
-### Comprobación remota adicional pendiente
+### Recorrido remoto completado — 18 de octubre de 2026
 
-Se preparó `scripts/test-neon-journey.mjs` y `tests/neon.spec.ts` para repetir el recorrido de navegador con cuatro cuentas ficticias y Neon real. La rama schema-only copia la estructura de `neon_auth`, pero no habilita su servicio ni conserva el permiso necesario de creación de esquema. La provisión devolvió `permission denied for database neondb`.
+`npm run test:neon:e2e -- --sanitized-clone` crea una rama nueva `codex-e2e-*` del proyecto exclusivo de Papelito. Antes de abrir la app, elimina las cuentas copiadas mediante la API de Auth limitada a esa rama, vacía explícitamente las 12 tablas de la aplicación y verifica cero filas en cada una y cero cuentas, sesiones e identidades Auth copiadas. Después crea cuatro identidades ficticias sin enviar correos y registros de consentimiento sintéticos, exclusivamente para la prueba.
 
-La revisión automática rechazó conceder `CREATE` al propietario del esquema. Se comprobó mediante una consulta de solo lectura que ese rol es `neon_auth`. **No se ejecutó ese GRANT ni se cambiaron los permisos de producción.** Todas las ramas temporales creadas se eliminaron y se verificó que solo permanece `production`.
+Se comprobaron en un navegador móvil de 390 px: ingreso real con correo/contraseña, creación en dos pasos, enlace preparado para WhatsApp (sin enviar mensaje), ingreso pendiente, aprobación, deseos personales seleccionados por grupo, sorteo, cuatro destinatarios únicos sin autorregalos, revelación, marcas de compra y desconexión/reconexión conservando el borrador. La privacidad de deseos y marcas también está cubierta por el recorrido de repositorios de cuatro participantes, pendiente y externo. Google OAuth conserva la configuración verificada anteriormente; no se hizo una nueva autorización humana de Google en esta entrega.
 
-El preparador se detiene antes de crear recursos si falta la autorización explícita `--authorize-neon-auth-create`. Su alcance está limitado al proyecto exclusivo de Papelito, una rama nueva descartable `codex-e2e-*`, base `neondb` y rol `neon_auth`. Tiene guardas contra la rama de producción, caducidad de dos horas y limpieza final. Este recorrido remoto sigue **sin aprobarse** y no debe contarse entre las pruebas exitosas.
+Salida final:
+
+```text
+PASS copia temporal vaciada: cero cuentas y datos personales antes de iniciar la app.
+PASS cuatro identidades ficticias creadas; sin correos ni cuentas reales.
+PASS navegador + Neon: 4 cuentas reales aisladas, creación/adhesión/aprobación/pistas/sorteo/revelación y reconexión sin perder borrador.
+1 passed (57.4s)
+PASS rama temporal y sus cuentas/datos eliminados: br-dawn-night-b4g47m8f
+```
+
+El preparador se detiene si no recibe `--sanitized-clone`. Rechaza la rama y el endpoint de producción, valida nombre/proyecto/padre de la rama, tiene caducidad de dos horas y limpieza final incluso al fallar. No carga las variables locales de producción ni deja credenciales en el repositorio. Los servicios y permisos de producción no se modifican.
+
+Los intentos iniciales con ramas schema-only fallaron al provisionar Auth (`permission denied for database neondb`), incluso después del `CREATE` que el titular autorizó únicamente para una rama descartable. Se eliminaron esas ramas. La ruta final conserva la configuración de Auth de una copia normal y la sanea antes de usarla; **no necesita GRANT ni reprovisionar Auth**. Se retiró la ruta experimental fallida del preparador. La prueba remota también detectó dos botones con el mismo nombre en la pantalla vacía: el botón central ahora dice «Crear mi primer intercambio».
+
+La versión principal `bbd1d49` pasó CI y quedó publicada en Netlify (deploy `6ad44a29d535565a4ebf3da3`). Se comprobaron las páginas públicas con HTTP 200, la asignación sin sesión con 401 y la función programada sin acceso público con 403. El cierre de esta comprobación y la corrección del texto se sincronizan en un commit posterior.
 
 ## Piloto del titular
 

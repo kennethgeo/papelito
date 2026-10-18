@@ -4,16 +4,21 @@ import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
 import { Pool } from "@neondatabase/serverless";
+import {
+  EXPECTED_PAPELITO_SCHEMA,
+  EXPECTED_NEON_CONFIG,
+} from "./db-migrate.mjs";
 
-// Explicitly opt-in remote verification: schema-only child, fictional identities, no email, finally-delete.
+// Opt-in remote verification: a new child is completely sanitized before use, with fictional identities and finally-delete.
 const project = "spring-frog-51248337";
 const production = "br-royal-tooth-b4ru7kif";
 const origin = "http://127.0.0.2:3042";
 const fixturePath = path.resolve(".env.e2e-pilot.json");
 const branchName = `codex-e2e-${randomUUID()}`;
-if (!process.argv.includes("--authorize-neon-auth-create")) {
+const sanitizedClone = process.argv.includes("--sanitized-clone");
+if (!sanitizedClone) {
   console.error(
-    "Prueba remota pendiente: requiere autorización expresa para conceder CREATE al rol neon_auth únicamente en una nueva rama descartable codex-e2e-* de Papelito. No se creó ningún recurso.",
+    "Usá --sanitized-clone para autorizar una nueva rama descartable codex-e2e-* de Papelito: vacía sus 12 tablas y cuentas copiadas antes de probar y se elimina al terminar. No se creó ningún recurso.",
   );
   process.exit(1);
 }
@@ -54,7 +59,7 @@ function neon(args, json = true) {
       `Neon no pudo completar ${args[0]} ${args[1] ?? ""}. Revisá .netlify/e2e-cli-error.log.`,
     );
   }
-  return json ? JSON.parse(output) : output.trim();
+  return json ? (output.trim() ? JSON.parse(output) : {}) : output.trim();
 }
 function isolated() {
   assert.ok(branchId?.startsWith("br-") && branchId !== production);
@@ -70,26 +75,6 @@ function api(suffix, method = "GET", fields = []) {
     "-o",
     "json",
   ]);
-}
-function authUrlIn(value) {
-  if (typeof value === "string" && value.startsWith("https://")) {
-    const url = new URL(value);
-    if (
-      url.hostname.endsWith(".neon.tech") &&
-      url.hostname.includes(".neonauth.") &&
-      url.pathname.endsWith("/auth")
-    )
-      return value;
-  }
-  if (typeof value === "string" && value.startsWith("https://")) {
-    const url = new URL(value);
-    if (
-      url.hostname.endsWith(".neon.tech") &&
-      url.hostname.includes(".neonauth.") &&
-      url.pathname.endsWith("/auth")
-    )
-      return value;
-  }
 }
 async function waitForServer() {
   for (let i = 0; i < 90; i++) {
@@ -134,7 +119,6 @@ try {
     branchName,
     "--parent",
     production,
-    "--schema-only",
     "--expires-at",
     new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
     "--no-secrets",
@@ -145,48 +129,99 @@ try {
   branchId = branch.id;
   isolated();
   assert.equal(branch.name, branchName);
-  console.log("PASS rama temporal schema-only creada:", branchId);
+  assert.equal(branch.project_id, project);
+  assert.equal(branch.default, false);
+  assert.equal(branch.primary, false);
+  if (sanitizedClone) assert.equal(branch.parent_id, production);
+  console.log("PASS rama temporal aislada creada:", branchId);
   const url = neon(
     ["connection-string", branchId, "--project-id", project],
     false,
   );
-  assert.ok(new URL(url).hostname.endsWith(".neon.tech"));
+  const parsedDbUrl = new URL(url);
+  assert.ok(parsedDbUrl.hostname.endsWith(".neon.tech"));
+  assert.notEqual(
+    parsedDbUrl.hostname.replace("-pooler.", "."),
+    EXPECTED_NEON_CONFIG.directHost,
+    "La conexión no puede apuntar al endpoint de producción",
+  );
+  assert.equal(parsedDbUrl.pathname, "/neondb");
   pool = new Pool({ connectionString: url, max: 1 });
   pool.on("error", () => {
     /* The disposable compute may restart during Auth provisioning. Never log the client. */
   });
+  if (sanitizedClone) {
+    // Only the newly created child is addressed. Never start the app with copied personal records.
+    assert.equal(branch.parent_id, production);
+    const copied = await pool.query('SELECT id FROM neon_auth."user"');
+    for (const row of copied.rows) {
+      assert.match(row.id, /^[0-9a-f-]{36}$/i);
+      api(`/auth/users/${row.id}`, "DELETE");
+    }
+    const tables = Object.keys(EXPECTED_PAPELITO_SCHEMA);
+    const actual = await pool.query(
+      "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",
+    );
+    assert.deepEqual(
+      actual.rows.map((r) => r.tablename),
+      [...tables].sort(),
+      "La copia debe contener solo las 12 tablas de Papelito",
+    );
+    await pool.query(
+      `TRUNCATE TABLE ${tables.map((table) => `public."${table}"`).join(", ")} CASCADE`,
+    );
+    for (const table of tables) {
+      assert.equal(
+        Number(
+          (await pool.query(`SELECT count(*) AS n FROM public."${table}"`))
+            .rows[0].n,
+        ),
+        0,
+        `Quedan datos copiados en ${table}`,
+      );
+    }
+    assert.equal(
+      Number(
+        (await pool.query('SELECT count(*) AS n FROM neon_auth."user"')).rows[0]
+          .n,
+      ),
+      0,
+    );
+    assert.equal(
+      Number(
+        (await pool.query('SELECT count(*) AS n FROM neon_auth."session"'))
+          .rows[0].n,
+      ),
+      0,
+    );
+    assert.equal(
+      Number(
+        (await pool.query('SELECT count(*) AS n FROM neon_auth."account"'))
+          .rows[0].n,
+      ),
+      0,
+    );
+    console.log(
+      "PASS copia temporal vaciada: cero cuentas y datos personales antes de iniciar la app.",
+    );
+  }
   assert.equal(
     Number((await pool.query("SELECT count(*) AS n FROM profiles")).rows[0].n),
     0,
     "La rama debe empezar sin perfiles de producción",
   );
-  // Schema-only copies Auth's empty schema but does not enable its service. Reprovision it only here.
-  isolated();
-  const ownerRow = await pool.query(
-    "SELECT r.rolname FROM pg_namespace n JOIN pg_roles r ON r.oid=n.nspowner WHERE n.nspname='neon_auth'",
+  // The normal child inherits working Managed Auth; do not reprovision it or grant database privileges.
+  const auth = api("/auth");
+  assert.equal(auth.branch_id, branchId);
+  const authUrl = auth.base_url;
+  assert.equal(typeof authUrl, "string", "Auth no devolvió base_url");
+  const parsedAuthUrl = new URL(authUrl);
+  assert.ok(
+    parsedAuthUrl.protocol === "https:" &&
+      parsedAuthUrl.hostname.endsWith(".neon.tech") &&
+      parsedAuthUrl.hostname.includes(".neonauth.") &&
+      parsedAuthUrl.pathname === "/neondb/auth",
   );
-  const authOwner = ownerRow.rows[0]?.rolname;
-  if (authOwner) {
-    assert.equal(authOwner, "neon_auth");
-    await pool.query(`GRANT CREATE ON DATABASE neondb TO "${authOwner}"`);
-    console.log(
-      "Preparación de Auth schema-only: permiso CREATE del propietario del esquema restaurado.",
-    );
-  }
-  await pool.query("DROP SCHEMA IF EXISTS neon_auth CASCADE");
-  await pool.end();
-  pool = null;
-  let auth;
-  try {
-    auth = api("/auth");
-  } catch {
-    auth = api("/auth", "POST", [
-      ["auth_provider", "better_auth"],
-      ["database_name", "neondb"],
-    ]);
-  }
-  const authUrl = authUrlIn(auth) ?? authUrlIn(api("/auth"));
-  assert.ok(authUrl, "No se encontró la URL de Auth de la rama");
   api("/auth/email_and_password", "PATCH", [
     ["enabled", true],
     ["require_email_verification", false],
@@ -199,8 +234,10 @@ try {
     ["domain", origin],
     ["auth_provider", "better_auth"],
   ]);
-  pool = new Pool({ connectionString: url, max: 1 });
-  pool.on("error", () => {});
+  if (!pool) {
+    pool = new Pool({ connectionString: url, max: 1 });
+    pool.on("error", () => {});
+  }
   const out = fs.openSync(logPath, "w");
   server = spawn(
     process.execPath,
@@ -313,7 +350,8 @@ try {
       const branch = info.branch ?? info;
       assert.equal(branch.name, branchName);
       assert.equal(branch.project_id, project);
-      assert.equal(branch.init_source, "parent-schema");
+      assert.equal(branch.init_source, "parent-data");
+      if (sanitizedClone) assert.equal(branch.parent_id, production);
       assert.equal(branch.default, false);
       assert.equal(branch.primary, false);
       neon(

@@ -62,7 +62,7 @@ export function PaperDashboard() {
             <span className="paper-invitation-body"><span className="paper-invitation-occasion">{occasionNames[e.selectedTheme]}<span className="paper-status-inline">{statusNames[e.status]}</span></span><strong>{e.name}</strong><span>{money(e.budgetAmount, e.currency)}<span className="paper-dot-separator" />{e.participantCount ?? e.participants.length} personas{e.isCurrentUserOrganizer && <span className="paper-organizer">Organizás vos</span>}</span></span>
             <svg className="paper-invitation-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
           </button>; })}
-          {filtered.length === 0 && <div className="paper-empty"><h3>Aquí cabe una nueva celebración.</h3><p>Reuní a tu gente y dejá que la sorpresa empiece.</p><button className="paper-button" onClick={() => navigate?.('intercambio_crear')}>Crear intercambio</button></div>}
+          {filtered.length === 0 && <div className="paper-empty"><h3>Aquí cabe una nueva celebración.</h3><p>Reuní a tu gente y dejá que la sorpresa empiece.</p><button className="paper-button" onClick={() => navigate?.('intercambio_crear')}>{exchanges.length === 0 ? 'Crear mi primer intercambio' : 'Crear otro intercambio'}</button></div>}
         </div>
       </section>
       <p className="paper-closing-note">Hecho para regalar con ganas.</p>

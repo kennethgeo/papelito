@@ -174,4 +174,13 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Las pruebas de navegador arrancan una instancia de producción separada en 3041 sin conexión a servicios reales. Cubren escritorio y teléfonos emulados de 320/390 px. El recorrido de cuatro participantes usa repositorios reales sobre PostgreSQL aislado; la prueba SQL de Neon continúa disponible por separado con rollback. Ver alcance, resultados y la comprobación adicional de Auth que requiere autorización en [MEJORAS_PILOTO.md](MEJORAS_PILOTO.md). El piloto con personas y teléfonos físicos lo realiza el titular.
+Las pruebas de navegador arrancan una instancia de producción separada en 3041 sin conexión a servicios reales. Cubren escritorio y teléfonos emulados de 320/390 px. El recorrido de cuatro participantes usa repositorios reales sobre PostgreSQL aislado; la prueba SQL de Neon continúa disponible por separado con rollback. Ver alcance, resultados y el recorrido remoto completado con cuentas ficticias de Auth en [MEJORAS_PILOTO.md](MEJORAS_PILOTO.md). El piloto con personas y teléfonos físicos lo realiza el titular.
+
+
+Prueba remota opcional (requiere CLI Neon autenticada y la compilación ya generada):
+
+```bash
+npm run test:neon:e2e -- --sanitized-clone
+```
+
+Crea una copia temporal de Papelito, elimina de ella las cuentas y los datos copiados antes de abrir la app, verifica que quede vacía, ejecuta el recorrido con cuatro cuentas ficticias y elimina la rama. El puerto de esa prueba es 3042; no usa el localhost de trabajo en 3040. No se debe interrumpir el proceso durante la limpieza; la rama también caduca en dos horas.
