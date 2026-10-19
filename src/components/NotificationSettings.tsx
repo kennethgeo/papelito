@@ -45,7 +45,9 @@ export function NotificationSettings() {
       if (result !== 'granted') { setStatus('No activamos avisos. Podés cambiar el permiso en los ajustes del navegador.'); return; }
       const settings = await callServerAction(() => pushSettingsAction());
       if (!settings.success || !settings.data?.publicKey) throw new Error('No pudimos preparar los recordatorios.');
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (!registration?.active) throw new Error('La app todavía se está preparando. Recargá e intentá de nuevo.');
+      if (registration.waiting) throw new Error('Hay una nueva versión pendiente. Pulsá «Actualizar ahora» antes de activar los recordatorios.');
       const key = settings.data.publicKey.replace(/-/g, '+').replace(/_/g, '/');
       const bytes = Uint8Array.from(atob(key), c => c.charCodeAt(0));
       const sub = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
