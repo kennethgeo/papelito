@@ -1,8 +1,9 @@
 import 'server-only';
 import { connection } from 'next/server';
 import { unstable_rethrow } from 'next/navigation';
-import { isNeonAuthConfigured } from './config';
-import { createNeonAuth } from '@neondatabase/auth/next/server';
+import { getNeonAuth } from './neon';
+export { getNeonAuth } from './neon';
+import { getPasskeySession, neonSessionIsRevoked } from './passkey-session';
 
 export interface AuthUser {
   id: string;
@@ -11,32 +12,10 @@ export interface AuthUser {
   avatarColor: string;
 }
 
-let authInstance: ReturnType<typeof createNeonAuth> | null = null;
-let cachedConfigKey: string | null = null;
-
-export function getNeonAuth() {
-  if (!isNeonAuthConfigured()) {
-    authInstance = null;
-    cachedConfigKey = null;
-    return null;
-  }
-  const baseUrl = process.env.NEON_AUTH_BASE_URL!;
-  const secret = process.env.NEON_AUTH_COOKIE_SECRET!;
-  const configKey = `${baseUrl}|${secret}`;
-  if (!authInstance || cachedConfigKey !== configKey) {
-    authInstance = createNeonAuth({
-      baseUrl,
-      cookies: {
-        secret,
-        sessionDataTtl: 300,
-      },
-    });
-    cachedConfigKey = configKey;
-  }
-  return authInstance;
-}
-
 export async function getServerSession(): Promise<{ user: AuthUser } | null> {
+  await connection();
+  const own = await getPasskeySession();
+  if (own) return { user: own.user };
   const auth = getNeonAuth();
   if (!auth) {
     return null;
@@ -52,6 +31,7 @@ export async function getServerSession(): Promise<{ user: AuthUser } | null> {
     if (!session || !session.user) {
       return null;
     }
+    if (await neonSessionIsRevoked(session.session.id)) return null;
     return {
       user: {
         id: session.user.id,
@@ -70,6 +50,9 @@ export async function getFreshServerSession(): Promise<{
   user: AuthUser;
   authenticatedAt: string | null;
 } | null> {
+  await connection();
+  const own = await getPasskeySession();
+  if (own) return { user: own.user, authenticatedAt: own.authenticatedAt };
   const auth = getNeonAuth();
   if (!auth) {
     return null;
@@ -85,6 +68,7 @@ export async function getFreshServerSession(): Promise<{
       return null;
     }
 
+    if (await neonSessionIsRevoked(session.session.id)) return null;
     const rawCreated = session.session?.createdAt;
     const createdMs = rawCreated ? new Date(rawCreated).getTime() : NaN;
 

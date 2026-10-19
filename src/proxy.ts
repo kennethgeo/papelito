@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getNeonAuth } from '@/lib/auth/server';
+import { getNeonAuth } from '@/lib/auth/neon';
 
 function applyPrivateNoStoreHeaders(response: NextResponse) {
   response.headers.set('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0');
@@ -10,7 +10,8 @@ function applyPrivateNoStoreHeaders(response: NextResponse) {
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const hasVerifier = request.nextUrl.searchParams.has('neon_auth_session_verifier');
-  const hasAuthCookie = Boolean(request.headers.get('cookie')?.includes('__Secure-neon-auth'));
+  const cookieHeader = request.headers.get('cookie') || '';
+  const hasAuthCookie = cookieHeader.includes('__Secure-neon-auth') || cookieHeader.includes('papelito_passkey');
   const isAuthOrApiPath = pathname.startsWith('/auth') || pathname.startsWith('/api');
 
   const auth = getNeonAuth();

@@ -39,6 +39,7 @@ import type {
 import { callServerAction } from "@/lib/client-actions";
 import type { AppSnapshot } from "@/lib/repositories/app-snapshot";
 import { LEGAL_CONSTANTS } from "@/lib/legal/constants";
+import { clearOfflineCopy } from '../../public/offline-vault.js';
 import {
   Exchange,
   Wish,
@@ -734,6 +735,7 @@ export function RealDataProvider({
     clearClientPendingConsentCookie();
     const res = await callServerAction(() => revokeConsentAction());
     if (res.success) {
+      await clearOfflineCopy().catch(() => setErrorMessage('El consentimiento se retiró. No pudimos borrar la copia local; borrá los datos de este sitio en tu navegador.'));
       setHasConsented(false);
       setConsentVersion(null);
       setExchanges([]);

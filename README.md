@@ -4,7 +4,7 @@ Aplicación web progresiva en español diseñada para organizar intercambios de 
 
 [![CI](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml/badge.svg)](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml)
 
-**Estado: integración con Neon y despliegue en Netlify.** Se comprobaron las 12 tablas en PostgreSQL 18, el acceso real con Google y correo/contraseña, la sesión al recargar, deseos, invitaciones y cierre de sesión. Los informes de [Neon](NEON_VERIFICACION.md) y [acceso por correo](ACCESO_VERIFICACION.md) detallan las pruebas y sus límites. [papelitocr.netlify.app](https://papelitocr.netlify.app) está vinculado a este repositorio, con las cuatro variables del backend guardadas como secretos de producción y su dominio autorizado en Neon Auth. La configuración actual del titular indica producción pública y previews privados. Las credenciales propias de Google para producción, la prueba de entrega de correos y la identidad/contacto de los borradores legales siguen pendientes.
+**Estado: integración con Neon y despliegue en Netlify.** Producción en [papelitocr.netlify.app](https://papelitocr.netlify.app), con Google, correo verificado y passkeys vinculadas a la misma cuenta. La base exclusiva tiene 24 tablas de aplicación; las migraciones se verifican antes de ejecutarse. Las funciones seleccionadas y sus límites están en [SIGUIENTE_TANDA.md](SIGUIENTE_TANDA.md); las recomendaciones restantes se conservan en [PENDIENTES_PRODUCTO.md](PENDIENTES_PRODUCTO.md). El titular realiza el piloto con dispositivos reales. Dominio propio, remitente propio y revisión jurídica general siguen pendientes.
 
 Para probar la demo con **Node.js 24**:
 
@@ -47,6 +47,7 @@ npm run test:draw
 
 # Ejecutar pruebas de integración de backend contra PostgreSQL real (PGlite, NODE_ENV=test)
 npm run test:backend
+npm run test:selected
 
 # Aplicar o verificar de forma segura el esquema public en Neon usando DATABASE_URL_UNPOOLED
 npm run db:migrate

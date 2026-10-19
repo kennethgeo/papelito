@@ -1,4 +1,75 @@
 import { test, expect } from "@playwright/test";
+import fs from 'node:fs';
+
+test('calendario privado y presupuesto acordado con confirmación',async({page})=>{
+  await page.getByRole('button',{name:'Crear intercambio',exact:true}).click();
+  await page.getByLabel('¿Cómo se llama el intercambio?').fill('Fiesta de presupuesto');
+  await page.getByLabel('¿Cuándo se entregan los regalos?').fill('2099-12-24');
+  await page.getByRole('button',{name:'Revisar mi intercambio',exact:true}).click();
+  await page.getByRole('button',{name:'Crear intercambio',exact:true}).click();
+  await page.getByText('Guardar la fecha en mi calendario',{exact:true}).click();
+  const download=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Descargar para mi calendario',exact:true}).click();
+  const file=await download;const content=fs.readFileSync((await file.path())!,'utf8');
+  expect(content).toContain('DTSTART;VALUE=DATE:20991224');
+  expect(content).toContain('SUMMARY:Fiesta de presupuesto');
+  expect(content).not.toMatch(/unirse\/|receiver|Kenneth/);
+  await expect(page.getByRole('link',{name:'Preparar en Google Calendar ↗',exact:true})).toHaveAttribute('href',/^https:\/\/calendar.google.com\/calendar\/render\?/);
+  await page.getByText('Acordar el presupuesto',{exact:true}).click();
+  const poll=page.locator('.budget-sheet');
+  await poll.getByRole('button',{name:'Abrir encuesta',exact:true}).click();
+  await poll.getByRole('button',{name:/10.*000.*0 votos/}).click();
+  await expect(poll.getByRole('button',{name:/Tu voto/})).toHaveAttribute('aria-pressed','true');
+  await poll.getByRole('combobox',{name:'Presupuesto que se aplicará',exact:true}).selectOption('10000');
+  await poll.getByRole('button',{name:'Cerrar encuesta',exact:true}).click();
+  await expect(poll.getByRole('status')).toHaveCount(0);
+  await poll.getByRole('button',{name:'Confirmar presupuesto',exact:true}).click();
+  await expect(poll.getByRole('status')).toContainText('Presupuesto acordado:');
+  await noOverflow(page);
+});
+
+test('preferencias, guía, ayuda y copia cifrada de lectura sin conexión', async ({page,context})=>{
+  await page.getByRole('button',{name:'Mi cuenta',exact:true}).click();
+  await page.getByText('Verlo a tu manera',{exact:true}).click();
+  await page.getByLabel('Texto más grande',{exact:true}).check();
+  await page.getByLabel('Mayor contraste',{exact:true}).check();
+  await page.getByLabel('Reducir animaciones',{exact:true}).check();
+  await noOverflow(page);
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-large-text','true');
+  await expect(page.locator('html')).toHaveAttribute('data-high-contrast','true');
+  await page.getByRole('button',{name:'Mi cuenta',exact:true}).click();
+  await page.getByText('Guía y ayuda',{exact:true}).click();
+  await page.getByRole('button',{name:'Ver guía inicial',exact:true}).click();
+  await expect(page.getByRole('complementary',{name:'Guía de Papelito'})).toBeVisible();
+  await page.getByRole('button',{name:'Omitir guía',exact:true}).click();
+  await page.getByLabel('Buscar ayuda',{exact:true}).fill('passkey');
+  await expect(page.getByText('Entrar a mi cuenta',{exact:true})).toBeVisible();
+  await page.getByText('Reportar un problema',{exact:true}).click();
+  await page.getByLabel('¿Qué estabas intentando hacer y qué ocurrió?',{exact:true}).fill('Reporte ficticio que no se envía desde la demo.');
+  await page.getByRole('button',{name:'Revisar reporte',exact:true}).click();
+  await expect(page.getByText('Estás en la demo. No se envía este reporte.',{exact:true})).toBeVisible();
+  await page.getByText('Mi copia privada sin conexión',{exact:true}).click();
+  await page.getByLabel('Elegí una clave local',{exact:true}).fill('Solo para prueba E2E');
+  await page.getByLabel('Repetí la clave local',{exact:true}).fill('Solo para prueba E2E');
+  await page.getByLabel('Quiero guardar esta copia cifrada y entiendo que puede haber cambios posteriores.',{exact:true}).check();
+  await page.getByRole('button',{name:'Guardar copia privada',exact:true}).click();
+  await expect(page.getByRole('link',{name:'Abrir copia de lectura',exact:true})).toBeVisible();
+  await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise<void>(resolve=>navigator.serviceWorker.addEventListener('controllerchange',()=>resolve(),{once:true}));});
+  await page.getByRole('link',{name:'Abrir copia de lectura',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Tu papelito, a mano.',exact:true})).toBeVisible();
+  await context.setOffline(true);
+  await page.reload();
+  await page.getByLabel('Clave local de la copia',{exact:true}).fill('Solo para prueba E2E');
+  await page.getByRole('button',{name:'Abrir mi copia',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Tu copia de lectura',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Mis deseos',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Bloquear copia',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Tu copia de lectura',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Eliminar copia local',exact:true}).click();
+  await expect(page.getByRole('status')).toHaveText('Copia eliminada de este navegador.');
+  await context.setOffline(false);
+});
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/?mode=demo");

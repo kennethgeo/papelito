@@ -1,9 +1,9 @@
 "use client";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { Assignment } from "@/types";
-import { PaperIllustration } from "./PaperIllustration";
 import { formatMoney as money } from "@/lib/event-dates";
 import { GIFT_FIELDS } from '@/lib/gift-preferences';
+import { WishPhoto } from './WishPhoto';
 
 interface RibbonRevealProps {
   assignment: Assignment;
@@ -21,19 +21,31 @@ export function RibbonReveal({
   onBack,
 }: RibbonRevealProps) {
   const [opening, setOpening] = useState(false);
+  const [animating, setAnimating] = useState(false);
+  const [showReveal, setShowReveal] = useState(assignment.revealed);
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const inFlight = useRef(false);
+  const [style, setStyle] = useState<'envelope' | 'fold'>('envelope');
+  useEffect(() => { if (assignment.revealed && !opening) queueMicrotask(() => setShowReveal(true)); }, [assignment.revealed, opening]);
+  useEffect(() => { queueMicrotask(() => { try { if (localStorage.getItem('papelito-reveal-style') === 'fold') setStyle('fold'); } catch {} }); }, []);
+  function chooseStyle(value: 'envelope' | 'fold') { setStyle(value); try { localStorage.setItem('papelito-reveal-style', value); } catch {} }
   async function openPaper() {
     if (inFlight.current) return;
     inFlight.current = true;
     setOpening(true);
     setError("");
     try {
-      if ((await onReveal()) === false)
+      if ((await onReveal()) === false) {
         setError(
           "No se pudo abrir el papelito. Revisá tu conexión e intentá de nuevo.",
         );
+      } else {
+        setAnimating(true);
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.reducedMotion === 'true';
+        if (!reduce) await new Promise(resolve => setTimeout(resolve, 320));
+        setShowReveal(true);
+      }
     } catch {
       setError(
         "No pudimos confirmar la apertura. Intentá actualizar el intercambio.",
@@ -41,6 +53,7 @@ export function RibbonReveal({
     } finally {
       inFlight.current = false;
       setOpening(false);
+      setAnimating(false);
     }
   }
   async function purchase(id: string, selected: boolean) {
@@ -72,9 +85,9 @@ export function RibbonReveal({
           {error}
         </p>
       )}
-      {!assignment.revealed ? (
+      {!showReveal ? (
         <section
-          className={`paper-reveal-closed ${opening ? "is-opening" : ""}`}
+          className={`paper-reveal-closed reveal-${style} ${animating ? "is-opening" : ""}`}
         >
           <p>{exchangeName}</p>
           <h1>
@@ -82,7 +95,8 @@ export function RibbonReveal({
             <br />
             en tu papelito.
           </h1>
-          <PaperIllustration />
+          <div className="reveal-choices" role="group" aria-label="Cómo abrir mi papelito"><button className="paper-text-button" disabled={opening} aria-pressed={style === 'envelope'} onClick={() => chooseStyle('envelope')}>Sobre</button><button className="paper-text-button" disabled={opening} aria-pressed={style === 'fold'} onClick={() => chooseStyle('fold')}>Papel doblado</button></div>
+          <div className={`reveal-letter letter-${style}`} aria-hidden="true"><span>Un pequeño<br />gran secreto.</span><i /></div>
           <p className="paper-reveal-hint">
             Guardá el secreto.
             <br />
@@ -98,7 +112,7 @@ export function RibbonReveal({
         </section>
       ) : (
         <>
-          <section className="paper-name-note">
+          <section className="paper-name-note paper-secret-card">
             <span className="paper-name-tab">Este nombre es solo para vos</span>
             <p>Te toca sorprender a</p>
             <h1>{assignment.receiverAlias || assignment.receiverName}</h1>
@@ -156,6 +170,7 @@ export function RibbonReveal({
                       : "Otra pista"}
                 </span>
                 <h3>{wish.title}</h3>
+                <WishPhoto wishId={wish.id} hasPhoto={wish.hasPhoto} />
                 {wish.description && <p>{wish.description}</p>}
                 {typeof wish.approximatePrice === "number" && (
                   <span className="paper-wish-price">

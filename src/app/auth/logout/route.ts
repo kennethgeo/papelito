@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isNeonAuthConfigured } from '@/lib/auth/config';
 import { getNeonAuth } from '@/lib/auth/server';
 import { resolveLogoutRedirectUrl } from '@/lib/security/urls';
+import { clearPasskeySession, passkeyCookie } from '@/lib/auth/passkey-session';
 
 export async function POST(request: NextRequest) {
+  if (request.cookies.get(passkeyCookie().name)?.value) await clearPasskeySession();
   if (isNeonAuthConfigured()) {
     try {
       const auth = getNeonAuth();

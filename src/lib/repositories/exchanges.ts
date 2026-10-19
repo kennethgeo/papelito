@@ -518,6 +518,7 @@ export async function manageMemberStatus(
        WHERE exchange_id = $3 AND user_id = $4`,
       [newStatus, actorUserId, exchangeId, targetUserId]
     );
+    if (newStatus === 'rejected') await client.query(`UPDATE memberships SET status = 'rejected' WHERE exchange_id = $1 AND user_id IN (SELECT user_id FROM profiles WHERE guardian_user_id = $2 AND represented_exchange_id = $1)`, [exchangeId, targetUserId]);
     return res.rowCount > 0;
   });
 }

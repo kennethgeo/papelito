@@ -60,6 +60,7 @@ assert.ok(
     (url) =>
       url === "/offline.html" ||
       url === "/manifest.webmanifest" ||
+      ["/offline-vault.js", "/offline-reader.js", "/preferences.js"].includes(url) ||
       url.startsWith("/fonts/") ||
       /^\/icon-/.test(url),
   ),
@@ -117,10 +118,10 @@ function navigation() {
   return result;
 }
 assert.equal(await navigation(), network);
-assert.equal(cached.length, 6);
+assert.equal(cached.length, 9);
 networkFails = true;
 assert.equal(await navigation(), offline);
-assert.equal(cached.length, 6);
+assert.equal(cached.length, 9);
 console.log(
   "PASS PWA: precarga solo pública, nunca cachea HTML privado/API/auth/invitaciones, actualización consentida y limpieza limitada a sus propias cachés",
 );

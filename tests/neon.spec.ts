@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { test, expect, type BrowserContext } from "@playwright/test";
+import sharp from 'sharp';
 
 test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconexión", async ({
   browser,
@@ -23,7 +24,7 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
   expect(config.project).toBe("spring-frog-51248337");
   expect(config.branchId).not.toBe("br-royal-tooth-b4ru7kif");
   expect(config.branchName).toMatch(/^codex-e2e-/);
-  expect(config.origin).toBe("http://127.0.0.2:3042");
+  expect(config.origin).toBe("http://localhost:3042");
   const contexts: BrowserContext[] = [];
   try {
     for (const person of config.fixtures) {
@@ -45,6 +46,55 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       contexts.map((context) => context.newPage()),
     );
     const owner = pages[0];
+    await owner.goto("/");
+    // A synthetic authenticator proves the real browser -> actions -> Neon flow.
+    const cdp=await contexts[0].newCDPSession(owner);
+    await cdp.send('WebAuthn.enable');
+    await cdp.send('WebAuthn.addVirtualAuthenticator',{options:{protocol:'ctap2',transport:'internal',hasResidentKey:true,hasUserVerification:true,isUserVerified:true,automaticPresenceSimulation:true}});
+    await owner.getByRole('button',{name:'Mi cuenta',exact:true}).click();
+    await owner.getByText('Seguridad y métodos de acceso',{exact:true}).click();
+    await owner.getByLabel('Nombre de esta passkey',{exact:true}).fill('Dispositivo ficticio E2E');
+    await expect(owner.getByText('Correo y contraseña',{exact:true})).toBeVisible();
+    const linking = await contexts[0].request.post('/api/auth/link-social', {headers:{origin:config.origin},data:{provider:'google',callbackURL:config.origin+'/',disableRedirect:true},maxRedirects:0});
+    expect(linking.status()).toBe(200);
+    const linkingData=await linking.json();expect(new URL(linkingData.url).hostname).toBe('accounts.google.com');
+    console.log('PASS inicio autenticado de vinculación Google mediante la API oficial; sin visitar ni autorizar una cuenta de Google.');
+    await owner.getByRole('button',{name:'Registrar una passkey',exact:true}).click();
+    await expect(owner.getByRole('status').filter({hasText:'Passkey registrada'})).toBeVisible();
+    console.log('PASS registro de passkey con autenticador virtual.');
+    await owner.getByRole('button',{name:/Cerrar sesión/}).click();
+    await expect(owner.getByRole('button',{name:'Entrar con passkey',exact:true})).toBeVisible();
+    await owner.getByRole('button',{name:'Entrar con passkey',exact:true}).click();
+    await expect(owner.getByRole('button',{name:'Crear intercambio',exact:true})).toBeVisible();
+    console.log('PASS ingreso con passkey.');
+    await owner.reload();
+    await owner.getByRole('button',{name:'Mi cuenta',exact:true}).click();
+    await owner.getByText('Seguridad y métodos de acceso',{exact:true}).click();
+    await expect(owner.getByText('Dispositivo ficticio E2E',{exact:true})).toBeVisible();
+    // Close a second browser's access from the passkey session.
+    const second=await browser.newContext({baseURL:config.origin});contexts.push(second);
+    expect((await second.request.post('/api/auth/sign-in/email',{headers:{origin:config.origin},data:{email:config.fixtures[0].email,password:config.fixtures[0].password}})).status()).toBe(200);
+    const secondSession=await (await second.request.get('/api/auth/get-session')).json();
+    expect(secondSession.session.id).toMatch(/^[0-9a-f-]{36}$/i);
+    const secondPage=await second.newPage();await secondPage.goto('/');
+    await expect(secondPage.getByRole('button',{name:'Crear intercambio',exact:true})).toBeVisible();
+    await owner.getByRole('button',{name:'Actualizar mis accesos',exact:true}).click();
+    const otherAccess=owner.locator(`[data-session-id="${secondSession.session.id}"]`);
+    await otherAccess.getByRole('button',{name:'Cerrar este acceso',exact:true}).click();
+    await otherAccess.getByRole('button',{name:'Confirmar cierre de acceso',exact:true}).click();
+    await expect(owner.getByRole('status').filter({hasText:'Cerramos ese acceso'})).toBeVisible();
+    await secondPage.reload();
+    await expect(secondPage.getByRole('button',{name:'Continuar con Google',exact:true})).toBeVisible();
+    await expect(secondPage.getByRole('button',{name:'Crear intercambio',exact:true})).toHaveCount(0);
+    await owner.getByRole('button',{name:'Quitar Dispositivo ficticio E2E',exact:true}).click();
+    await owner.getByRole('button',{name:'Confirmar quitar passkey',exact:true}).click();
+    await expect(owner).toHaveURL(/auth\/confirmar/);
+    await owner.goto('/');
+    await expect(owner.getByRole('button',{name:'Continuar con Google',exact:true})).toBeVisible();
+    // Existing verified email/password remains a recovery method.
+    expect((await contexts[0].request.post('/api/auth/sign-in/email',{headers:{origin:config.origin},data:{email:config.fixtures[0].email,password:config.fixtures[0].password}})).status()).toBe(200);
+    await owner.goto('/');await expect(owner.getByRole('button',{name:'Crear intercambio',exact:true})).toBeVisible();
+    console.log('PASS passkeys + Neon: registro WebAuthn, ingreso, persistencia, cierre de otra sesión, revocación de llave y recuperación con la misma cuenta.');
     const group = "Fiesta técnica de cuatro papelitos";
     await owner.goto("/");
     await owner
@@ -117,6 +167,14 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       await expect(
         page.getByText("Idea compartida en ese intercambio.", { exact: true }),
       ).toBeVisible();
+      if (i === 0) {
+        const photo = await sharp({create:{width:40,height:30,channels:3,background:'#7043a2'}}).png().toBuffer();
+        await card.locator('input[type=file]').setInputFiles({name:'foto-ficticia.png',mimeType:'image/png',buffer:photo});
+        await expect(card.getByRole('img',{name:'Referencia visual del regalo'})).toBeVisible();
+        const imageURL=await card.getByRole('img',{name:'Referencia visual del regalo'}).getAttribute('src');
+        expect((await contexts[1].request.get(imageURL!)).status()).toBe(404);
+        expect((await contexts[0].request.get(imageURL!)).status()).toBe(200);
+      }
     }
     await owner
       .getByRole("button", { name: "Intercambios", exact: true })

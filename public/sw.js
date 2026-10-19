@@ -1,9 +1,12 @@
 // Papelito — Service Worker de alcance público limitado
 // Regla crítica: NUNCA almacena datos de API, autenticación, deseos ni asignaciones privadas.
 
-const CACHE_NAME = 'papelito-public-v4';
+const CACHE_NAME = 'papelito-public-v5';
 const PRECACHE_ASSETS = [
   '/offline.html',
+  '/offline-vault.js',
+  '/offline-reader.js',
+  '/preferences.js',
   '/manifest.webmanifest',
   '/icon-192.svg',
   '/icon-512.svg',
@@ -88,7 +91,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname.endsWith('.woff2') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.png') ||
-    url.pathname === '/manifest.webmanifest'
+    url.pathname === '/manifest.webmanifest' || ['/offline-vault.js', '/offline-reader.js', '/preferences.js'].includes(url.pathname)
   ) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {

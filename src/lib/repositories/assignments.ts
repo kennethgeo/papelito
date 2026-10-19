@@ -93,6 +93,7 @@ export async function getMyAssignment(
     priority: 'alta' | 'media' | 'baja';
     created_at: string;
     is_purchased_by_giver: boolean;
+    has_photo: boolean;
   }>(
     `SELECT
        w.id,
@@ -103,6 +104,7 @@ export async function getMyAssignment(
        w.currency,
        w.priority,
        w.created_at::text,
+       EXISTS(SELECT 1 FROM wish_photos f WHERE f.wish_id = w.id) AS has_photo,
        EXISTS(
          SELECT 1 FROM gift_purchases gp
          WHERE gp.exchange_id = $1 AND gp.wish_id = w.id AND gp.buyer_id = $2
@@ -116,6 +118,7 @@ export async function getMyAssignment(
 
   const wishes: Wish[] = wishesRes.rows.map((w) => ({
     id: w.id,
+    hasPhoto: w.has_photo,
     exchangeId,
     title: w.title,
     description: w.description || '',

@@ -1,0 +1,16 @@
+export const HELP_ITEMS = [
+  ['Entrar a mi cuenta', 'Podés usar Google, correo y contraseña o una passkey que hayas registrado en Mi cuenta. Una passkey usa el desbloqueo del dispositivo. Para recuperar el acceso, conservá Google o tu correo.'],
+  ['Invitar a mi gente', 'Quien organiza comparte el enlace o QR del intercambio. Si requiere aprobación, esperá a que confirme tu ingreso. Renovar el enlace invalida el enlace y QR anteriores.'],
+  ['Preparar mi lista de deseos', 'Guardá tus ideas y elegí en cuáles intercambios compartirlas. La lista de deseos y el perfil de gustos son opcionales. Las tallas solo las ve quien te regala.'],
+  ['Realizar el sorteo', 'Hacen falta al menos tres personas aprobadas y una combinación compatible con las restricciones. Si abriste una encuesta de presupuesto, cerrala antes. Repetir un sorteo requiere un motivo y reemplaza las asignaciones vigentes.'],
+  ['Abrir mi asignación', 'Entrá al intercambio y abrí tu papelito. Cada persona ve únicamente a quién debe regalarle. Quien organiza no puede consultar los resultados de los demás.'],
+  ['Enviar mensajes anónimos', 'En el intercambio sorteado elegí «A quien le regalo» o «Quien me regala». No incluyás tu nombre si querés conservar el secreto. Usá «Actualizar mensajes» para consultar respuestas.'],
+  ['Instalar Papelito', 'Usá «Instalar Papelito». Si el navegador no ofrece instalación directa, la app muestra instrucciones. En iPhone/iPad abrila en Safari y agregala a la pantalla de inicio desde Compartir.'],
+  ['Activar notificaciones', 'En Mi cuenta activá los recordatorios y aceptá el permiso del navegador. Podés enviar un aviso de prueba y apagarlos en ese dispositivo. En iPhone/iPad usá una versión compatible y abrí la app instalada.'],
+  ['Representar a un familiar', 'Desde el intercambio, una persona adulta aprobada puede agregar hasta cinco personas con autorización. Cada alias participa por separado. El adulto conoce sus asignaciones y gestiona sus deseos; no se crea una cuenta independiente para la persona representada.'],
+  ['Repetir un intercambio', 'Creá una nueva edición desde el detalle del grupo y compartí la invitación nueva. El sorteo evita destinatarios de ediciones vinculadas mientras se conserve el historial. Si no hay una combinación válida, te avisará.'],
+  ['Fotos y referencias de regalos', 'Primero guardá el deseo; después podés adjuntar una foto. Se comprime y se elimina su metadata. Las fotos son privadas. La vista previa de enlaces puede fallar si la tienda bloquea consultas; podés completar la referencia manualmente.'],
+  ['Consultar sin conexión', 'La copia offline es voluntaria, de solo lectura y se protege con una clave local. Puede estar desactualizada; consultá su fecha y reconectá antes de tomar decisiones. No permite enviar mensajes ni guardar cambios.'],
+  ['Controlar mis datos', 'Mi cuenta permite exportar tus datos y solicitar una eliminación administrativa. Registrar la solicitud no borra la cuenta inmediatamente. Las personas e intercambios afectados se explican antes de confirmarla.'],
+  ['No puedo entrar o llegó un error', 'Revisá tu conexión y usá la recuperación por correo si olvidaste la contraseña. Si persiste, enviá un reporte con lo que estabas intentando hacer, sin contraseñas ni asignaciones privadas.'],
+] as const;

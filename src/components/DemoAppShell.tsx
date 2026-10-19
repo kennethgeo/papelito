@@ -12,6 +12,7 @@ import { RibbonReveal } from "@/components/RibbonReveal";
 import { WishesListView } from "@/views/WishesListView";
 import { AccountView } from "@/views/AccountView";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
+import { ContextualGuide } from './ContextualGuide';
 
 export function DemoAppShell() {
   const {
@@ -67,6 +68,7 @@ export function DemoAppShell() {
       <ConnectionStatus />
 
       <main style={{ flex: 1 }}>
+        <ContextualGuide />
         {activeView === "intercambios_lista" && <ExchangesListView />}
         {activeView === "intercambio_crear" && <CreateExchangeWizard />}
         {activeView === "intercambio_detalle" && <ExchangeDetailView />}

@@ -5,6 +5,8 @@ import { useOptionalDemoData } from "@/context/DemoDataContext";
 import { useOptionalRealData } from "@/context/RealDataContext";
 import { formatMoney } from "@/lib/event-dates";
 import type { Currency, Wish } from "@/types";
+import { WishPhoto } from '@/components/WishPhoto';
+import { LinkPreview } from '@/components/LinkPreview';
 
 const emptyDraft = {
   title: "",
@@ -258,6 +260,7 @@ export function WishesListView() {
                   disabled={busy}
                 />
               </label>
+              <LinkPreview url={draft.url} demo={!real} onTitle={title => setDraft({ ...draft, title })} />
               <div className="workshop-fields-row">
                 <label className="workshop-field" htmlFor="wish-price">
                   Precio aproximado
@@ -382,6 +385,7 @@ export function WishesListView() {
                     )}
                   </div>
                   {wish.description && <p>{wish.description}</p>}
+                  <WishPhoto wishId={wish.id} hasPhoto={wish.hasPhoto} editable demo={!real} />
                   <div className="wish-meta">
                     {wish.approximatePrice !== undefined && (
                       <span>

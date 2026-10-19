@@ -11,6 +11,7 @@ import { ExchangeDetailView } from "@/views/ExchangeDetailView";
 import { AccountView } from "@/views/AccountView";
 import { ConsentGateCard } from "@/components/ConsentGateCard";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
+import { ContextualGuide } from './ContextualGuide';
 
 export function RealAppShell() {
   const data = useRealData();
@@ -59,6 +60,7 @@ export function RealAppShell() {
         </div>
       )}
       <main id="app-content" className="app-content">
+        {data.hasConsented && <ContextualGuide />}
         {activeView === "cuenta_perfil" ? (
           <AccountView />
         ) : !data.hasConsented ? (

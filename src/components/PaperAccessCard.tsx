@@ -3,6 +3,8 @@
 import React, { useEffect, useId, useState } from 'react';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth/client';
+import { clearPasskeyLoginAction } from '@/lib/data/passkey-actions';
+import { PasskeyLoginButton } from './PasskeyLoginButton';
 import {
   MIN_PASSWORD_LENGTH,
   OTP_RESEND_COOLDOWN_SECONDS,
@@ -107,6 +109,8 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
 
     setLoadingAction('google');
     try {
+      const cleared = await clearPasskeyLoginAction();
+      if (!cleared.success) throw new Error(cleared.error || 'No pudimos preparar el acceso.');
       const callbackURL = buildAbsoluteCallbackUrl(window.location.origin, safeNext);
       const res = await authClient.signIn.social({
         provider: 'google',
@@ -151,6 +155,8 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
     setLoadingAction('email');
 
     try {
+      const cleared = await clearPasskeyLoginAction();
+      if (!cleared.success) throw new Error(cleared.error || 'No pudimos preparar el acceso.');
       const res = await authClient.signIn.email({
         email: normalizedEmail,
         password, // Never trim password
@@ -462,6 +468,7 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
       )}
 
       {/* MODE 1: SIGN IN */}
+      {mode === 'signin' && <PasskeyLoginButton next={safeNext} />}
       {mode === 'signin' && (
         <form onSubmit={handleEmailSignIn} className="paper-auth-form" noValidate>
           <div className="paper-auth-field">

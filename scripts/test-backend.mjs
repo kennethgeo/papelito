@@ -66,6 +66,7 @@ async function runTests() {
   await pg.exec(migrationSql);
   await pg.exec(fs.readFileSync(path.join(rootDir, 'neon/migrations/20261017_retention_and_lifecycle.sql'), 'utf8'));
   await pg.exec(fs.readFileSync(path.join(rootDir, 'neon/migrations/20261018_social_and_reminders.sql'), 'utf8'));
+  await pg.exec(fs.readFileSync(path.join(rootDir, 'neon/migrations/20261018_z_selected_features.sql'), 'utf8'));
   console.log('✓ 1. Esquema SQL de Neon ejecutado limpiamente en PostgreSQL (PGlite, gen_random_uuid nativo)');
 
   // 2. Verificar guardia NODE_ENV==='test' en setTestDbAdapter e inyectar adaptador PGlite

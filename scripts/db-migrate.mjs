@@ -72,11 +72,23 @@ export const SOCIAL_SCHEMA = {
   push_subscriptions: ['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'created_at'],
   notification_deliveries: ['subscription_id', 'event_key', 'claimed_at', 'delivered_at'],
 };
+export const SELECTED_SCHEMA = {
+  budget_polls: ['exchange_id', 'options', 'closed_at', 'chosen_amount', 'created_at'],
+  budget_votes: ['exchange_id', 'user_id', 'amount'],
+  app_locks: ['name'],
+  wish_photos: ['wish_id', 'image', 'updated_at'],
+  support_reports: ['id', 'user_id', 'description', 'area', 'created_at'],
+  app_passkeys: ['credential_id', 'user_id', 'public_key', 'counter', 'transports', 'rp_id', 'label', 'created_at', 'last_used_at'],
+  app_passkey_sessions: ['id', 'token_hash', 'user_id', 'credential_id', 'browser', 'created_at', 'expires_at'],
+  webauthn_challenges: ['token_hash', 'challenge', 'kind', 'user_id', 'origin', 'rp_id', 'expires_at'],
+  app_session_revocations: ['session_id', 'user_id', 'expires_at'],
+};
 export const ALL_PAPELITO_SCHEMA = {
   ...EXPECTED_PAPELITO_SCHEMA,
-  profiles: [...EXPECTED_PAPELITO_SCHEMA.profiles, 'gift_preferences'],
+  profiles: [...EXPECTED_PAPELITO_SCHEMA.profiles, 'gift_preferences', 'guardian_user_id', 'represented_exchange_id', 'preview_checked_at', 'representation_authorized_at'],
   exchanges: [...EXPECTED_PAPELITO_SCHEMA.exchanges, 'previous_exchange_id'],
   ...SOCIAL_SCHEMA,
+  ...SELECTED_SCHEMA,
 };
 
 /**
@@ -262,7 +274,7 @@ async function inspectCoreSchema(client, migrationSql, incrementalSqlOverride) {
 
   const allTables = tablesRes.rows.map((r) => r.table_name);
   const existingTables = allTables.filter(t => expectedTableSet.has(t));
-  const foreignTables = allTables.filter((t) => !expectedTableSet.has(t) && !(t in SOCIAL_SCHEMA));
+  const foreignTables = allTables.filter((t) => !expectedTableSet.has(t) && !(t in SOCIAL_SCHEMA) && !(t in SELECTED_SCHEMA));
 
   if (foreignTables.length > 0) {
     throw new Error(
@@ -354,6 +366,8 @@ export async function inspectAndMigratePublicSchema(client, migrationSql, increm
     try {
       const sql = fs.readFileSync(path.join(rootDir, 'neon/migrations/20261018_social_and_reminders.sql'), 'utf8');
       if (typeof client.exec === 'function') await client.exec(sql); else await client.query(sql);
+      const selectedSQL = fs.readFileSync(path.join(rootDir, 'neon/migrations/20261018_z_selected_features.sql'), 'utf8');
+      if (typeof client.exec === 'function') await client.exec(selectedSQL); else await client.query(selectedSQL);
       await verifyExpectedColumns(client, ALL_PAPELITO_SCHEMA);
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; }
@@ -387,7 +401,7 @@ async function runCliMigration() {
   try {
     client = await pool.connect();
     const result = await inspectAndMigratePublicSchema(client, migrationSql);
-    if (result.socialUpgrade) console.log('✓ Ampliación social aplicada: gustos, historial, mensajes y recordatorios (15 tablas verificadas).');
+    if (result.socialUpgrade) console.log(`✓ Ampliación aditiva aplicada: ${Object.keys(ALL_PAPELITO_SCHEMA).length} tablas verificadas.`);
     if (result.socialUpgrade && result.coreStatus === 'noop') {
       console.log('✓ Esquema base existente conservado. Ampliación aditiva completada sin eliminar datos.');
     } else if (result.status === 'migrated' && result.incremental) {

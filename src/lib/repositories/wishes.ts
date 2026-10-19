@@ -2,6 +2,7 @@ import 'server-only';
 import { dbQuery } from '@/lib/db/client';
 
 export interface WishRow {
+  has_photo: boolean;
   id: string;
   user_id: string;
   title: string;
@@ -27,7 +28,7 @@ export interface SaveWishInput {
 export async function getMyWishes(userId: string) {
   // 1. Fetch all user wishes
   const wishesRes = await dbQuery<WishRow>(
-    `SELECT id, user_id, title, description, url, approximate_price::text, currency, priority, created_at::text, updated_at::text
+    `SELECT id, user_id, title, description, url, approximate_price::text, currency, priority, created_at::text, updated_at::text, EXISTS(SELECT 1 FROM wish_photos f WHERE f.wish_id = wishes.id) AS has_photo
      FROM wishes
      WHERE user_id = $1
      ORDER BY created_at DESC`,
@@ -51,6 +52,7 @@ export async function getMyWishes(userId: string) {
 
   return wishesRes.rows.map((w) => ({
     id: w.id,
+    hasPhoto: w.has_photo,
     title: w.title,
     description: w.description || '',
     url: w.url || '',

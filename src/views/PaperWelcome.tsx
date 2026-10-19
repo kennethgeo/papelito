@@ -63,6 +63,7 @@ export function PaperWelcome() {
 
           <p className="paper-privacy-note">
             <Link href="/privacidad">Privacidad</Link>
+            <Link href="/ayuda">Ayuda</Link>
             <span>Tu sorpresa merece discreción.</span>
           </p>
         </section>

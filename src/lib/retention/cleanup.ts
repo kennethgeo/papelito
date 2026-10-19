@@ -55,6 +55,11 @@ export async function purgeExpiredClosedExchangesWithClient(
 
   const dryRun = Boolean(options.dryRun);
   const referenceIso = referenceNow.toISOString();
+  if (!dryRun) {
+    for (const table of ['webauthn_challenges', 'app_passkey_sessions', 'app_session_revocations']) {
+      await client.query(`DELETE FROM ${table} WHERE expires_at <= $1::timestamptz`, [referenceIso]);
+    }
+  }
 
   const cutoffRes = await client.query<{ cutoff_iso: string }>(
     `SELECT ($1::timestamptz - make_interval(months => $2))::text AS cutoff_iso`,

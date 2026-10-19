@@ -52,6 +52,9 @@ jobs:
       - name: Private messages, tastes, history and push delivery
         run: npm run test:social
 
+      - name: Selected features, permissions, photos and offline encryption
+        run: npm run test:selected
+
       - name: Production build (without external secrets)
         run: npm run build
 

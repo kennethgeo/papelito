@@ -22,6 +22,7 @@ export interface Participant {
 }
 
 export interface Wish {
+  hasPhoto?: boolean;
   id: string;
   exchangeId?: string; // Optional if wish is in user's global pool or specific exchange
   title: string;

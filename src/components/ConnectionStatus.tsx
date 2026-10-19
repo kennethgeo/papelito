@@ -27,7 +27,7 @@ export function ConnectionStatus() {
     return (
       <div className="connection-banner" role="status">
         Sin conexión. Podés seguir escribiendo; esperá a reconectarte para
-        guardar cambios.
+        guardar cambios. Si guardaste una copia privada, podés abrirla desde <a href="/offline.html">tu copia de lectura</a>.
       </div>
     );
   if (returned)

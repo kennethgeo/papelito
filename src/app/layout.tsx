@@ -37,6 +37,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <head>
+        <script src="/preferences.js" defer />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body>

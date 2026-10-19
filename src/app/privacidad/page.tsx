@@ -87,7 +87,7 @@ export default function PrivacidadPage() {
           <ul>
             <li>Tu cuenta conserva el registro de aceptación de los documentos legales con su versión y fecha.</li>
             <li>Los demás miembros solo ven tu alias y avatar en la lista del evento.</li>
-            <li>Tu asignación secreta solo la ves tú.</li>
+            <li>Tu asignación secreta solo la ves tú; si participás mediante una persona adulta que te representa, esa persona también puede consultarla.</li>
             <li>
               Tus deseos seleccionados solo son accesibles para la persona a quien le tocó regalarte.
             </li>
@@ -97,6 +97,20 @@ export default function PrivacidadPage() {
           </ul>
 
           <h3>4. Ejercicio de derechos ARCO y eliminación</h3>
+          <p>
+            Si elegís adjuntar una foto a un deseo, se comprime, se eliminan sus metadatos y se guarda
+            en la base privada de Papelito en Neon. Solo acceden su propietario, su representante autorizado
+            y quien le regala mediante una asignación vigente. Las encuestas guardan un voto por persona;
+            la aplicación muestra únicamente los totales y tu propio voto. La representación conserva un alias,
+            su vínculo con la cuenta adulta y la fecha de autorización, sin solicitar correo ni fecha de nacimiento.
+          </p>
+          <p>
+            Al registrar una passkey guardamos su clave pública, contador, dominio y nombre elegido;
+            no recibimos tu huella, rostro, PIN ni la clave privada. Conservamos identificadores de sesión,
+            fechas y una descripción aproximada del navegador para administrar tus accesos. Los reportes
+            de soporte guardan tu cuenta, el área y la descripción que revisaste antes de enviar.
+            Estos datos se incluyen en la exportación personal y se eliminan con la cuenta en la base activa.
+          </p>
           <p>
             Si completás tu perfil de gustos, guardamos las preferencias opcionales para mostrarlas solo
             a quien te regala en un sorteo vigente. Las conversaciones entre ambas personas se guardan

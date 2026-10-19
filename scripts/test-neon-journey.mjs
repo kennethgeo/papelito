@@ -13,7 +13,7 @@ import {
 // Opt-in remote verification: a new child is completely sanitized before use, with fictional identities and finally-delete.
 const project = "spring-frog-51248337";
 const production = "br-royal-tooth-b4ru7kif";
-const origin = "http://127.0.0.2:3042";
+const origin = "http://localhost:3042";
 const fixturePath = path.resolve(".env.e2e-pilot.json");
 const branchName = `codex-e2e-${randomUUID()}`;
 const sanitizedClone = process.argv.includes("--sanitized-clone");
@@ -171,7 +171,9 @@ try {
     );
     // Additive migration only after all copied application rows are removed.
     await pool.query(fs.readFileSync(path.resolve('neon/migrations/20261018_social_and_reminders.sql'), 'utf8'));
+    await pool.query(fs.readFileSync(path.resolve('neon/migrations/20261018_z_selected_features.sql'), 'utf8'));
     for (const table of tables) {
+      if (table === 'app_locks') continue; // Two fixed lock names contain no copied personal data.
       assert.equal(
         Number(
           (await pool.query(`SELECT count(*) AS n FROM public."${table}"`))
@@ -246,7 +248,7 @@ try {
       "node_modules/next/dist/bin/next",
       "start",
       "--hostname",
-      "127.0.0.2",
+      "127.0.0.1",
       "--port",
       "3042",
     ],
@@ -261,6 +263,7 @@ try {
         NEON_AUTH_COOKIE_SECRET: randomBytes(32).toString("hex"),
         INVITATION_TOKEN_SECRET: randomBytes(32).toString("hex"),
         NEXT_PUBLIC_APP_URL: origin,
+        PAPELITO_APP_URL: origin,
       },
     },
   );
@@ -304,6 +307,8 @@ try {
     fixturePath,
     JSON.stringify({ project, branchId, branchName, origin, fixtures }),
   );
+  const localIdentities = await pool.query('SELECT count(*)::int AS n FROM neon_auth."user" WHERE id::text = ANY($1::text[])', [fixtures.map(f => f.id)]);
+  assert.equal(localIdentities.rows[0].n, 4, 'Las identidades Auth deben pertenecer a la misma base de la rama aislada.');
   console.log(
     "PASS cuatro identidades ficticias creadas; sin correos ni cuentas reales.",
   );

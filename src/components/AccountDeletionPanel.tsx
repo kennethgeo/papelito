@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import type { AccountDeletionImpact } from '@/lib/repositories/profiles';
 import { LEGAL_CONSTANTS } from '@/lib/legal/constants';
+import { clearOfflineCopy } from '../../public/offline-vault.js';
 
 export function AccountDeletionPanel() {
   const real = useOptionalRealData();
@@ -48,7 +49,10 @@ export function AccountDeletionPanel() {
         confirmOrganizerImpact: organizerConfirmed,
         notes,
       });
-      if (result.success) setReceived(true);
+      if (result.success) {
+        setReceived(true);
+        await clearOfflineCopy().catch(() => setError('La solicitud está registrada. No pudimos borrar la copia local; podés quitarla desde «Copia sin conexión».'));
+      }
       else setError(result.error || 'No se pudo registrar la solicitud.');
     } catch {
       setError('Se perdió la conexión. Revisá el estado antes de volver a enviar.');

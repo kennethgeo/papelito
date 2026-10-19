@@ -52,6 +52,7 @@ export default function AlmacenamientoPage() {
           <ul>
             <li>Mantener activa y renovar la sesión, tanto al acceder con Google como con correo y contraseña.</li>
             <li>Proteger el inicio de sesión frente a solicitudes no autorizadas.</li>
+            <li>Al usar passkeys, mantener un identificador de sesión protegido y un desafío temporal de cinco minutos para verificar el acceso.</li>
           </ul>
           <p>
             La aceptación de los términos y el consentimiento informado se guardan en tu cuenta, en el
@@ -64,7 +65,20 @@ export default function AlmacenamientoPage() {
             En el modo de demostración para evaluación de interfaz, se utiliza <code>localStorage</code> del
             navegador para guardar temporalmente datos ficticios. En el modo de producción conectado, las
             sesiones, asignaciones y deseos privados <strong>nunca se almacenan en cachés públicas ni en el
-            service worker</strong>, requiriendo siempre conexión segura y autorización de servidor.
+            service worker</strong>. Las consultas nuevas y las modificaciones requieren conexión y autorización de servidor.
+          </p>
+          <p>
+            Si activás «Mi copia privada sin conexión», se guarda en IndexedDB una copia cifrada de hasta
+            50 deseos y de la última asignación que hayas abierto. No incluye fotos. La clave local que elegís
+            no se guarda ni se envía al servidor. La copia vence a las 24 horas, es de solo lectura y puede
+            quedar desactualizada. Se bloquea al salir del visor y podés borrarla manualmente; al cerrar
+            sesión, retirar el consentimiento o solicitar la eliminación se intenta quitarla de ese navegador.
+            Una revocación remota no puede borrar inmediatamente un dispositivo desconectado.
+          </p>
+          <p>
+            El tamaño de texto, contraste, movimiento, estilo de apertura y estado de la guía se conservan
+            como preferencias locales. El service worker guarda únicamente archivos públicos necesarios
+            para la pantalla de lectura sin conexión, los iconos y las fuentes.
           </p>
 
           <h3>3. Sin rastreadores de terceros</h3>

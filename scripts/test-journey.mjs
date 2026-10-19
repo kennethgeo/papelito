@@ -32,6 +32,7 @@ for (const file of [
   "20261016_init_papelito_neon.sql",
   "20261017_retention_and_lifecycle.sql",
   "20261018_social_and_reminders.sql",
+  "20261018_z_selected_features.sql",
 ])
   await pg.exec(
     fs.readFileSync(

@@ -150,6 +150,16 @@ export async function submitPrivacyRequest(
 }
 
 export async function exportUserData(userId: string) {
+  const [reports, votes, passkeys, sessions, represented, photos] = await Promise.all([
+    dbQuery('SELECT id, description, area, created_at::text FROM support_reports WHERE user_id = $1 ORDER BY created_at', [userId]),
+    dbQuery('SELECT exchange_id, amount::text FROM budget_votes WHERE user_id = $1', [userId]),
+    dbQuery('SELECT label, rp_id, created_at::text, last_used_at::text FROM app_passkeys WHERE user_id = $1', [userId]),
+    dbQuery('SELECT browser, created_at::text, expires_at::text FROM app_passkey_sessions WHERE user_id = $1', [userId]),
+    dbQuery(`SELECT p.user_id, p.alias, p.represented_exchange_id, p.representation_authorized_at::text,
+      COALESCE((SELECT jsonb_agg(jsonb_build_object('title', w.title, 'description', w.description, 'url', w.url)) FROM wishes w WHERE w.user_id = p.user_id), '[]'::jsonb) AS wishes
+      FROM profiles p WHERE p.guardian_user_id = $1`, [userId]),
+    dbQuery<{ wish_id: string; image: Uint8Array }>('SELECT f.wish_id, f.image FROM wish_photos f JOIN wishes w ON w.id = f.wish_id JOIN profiles p ON p.user_id = w.user_id WHERE w.user_id = $1 OR p.guardian_user_id = $1', [userId]),
+  ]);
   const tastesRes = await dbQuery('SELECT gift_preferences FROM profiles WHERE user_id = $1', [userId]);
   const messagesRes = await dbQuery(`SELECT msg.id, a.exchange_id, msg.body, msg.created_at::text
     FROM anonymous_messages msg JOIN assignments a ON a.id = msg.assignment_id
@@ -224,6 +234,12 @@ export async function exportUserData(userId: string) {
 
   return {
     exportedAt: new Date().toISOString(),
+    supportReports: reports.rows,
+    myBudgetVotes: votes.rows,
+    passkeys: passkeys.rows,
+    passkeySessions: sessions.rows,
+    peopleIRepresent: represented.rows,
+    myPhotos: photos.rows.map(p => ({ wishId: p.wish_id, contentType: 'image/jpeg', base64: Buffer.from(p.image).toString('base64') })),
     giftPreferences: tastesRes.rows[0] || {},
     mySentMessages: messagesRes.rows,
     notificationDevices: notificationsRes.rows,

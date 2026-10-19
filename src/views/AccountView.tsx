@@ -8,6 +8,11 @@ import { AccountDeletionPanel } from "@/components/AccountDeletionPanel";
 import { InstallGuide } from "@/components/InstallGuide";
 import { GiftPreferencesForm } from '@/components/GiftPreferencesForm';
 import { NotificationSettings } from '@/components/NotificationSettings';
+import { PersonalHistory } from '@/components/PersonalHistory';
+import { PersonalTools } from '@/components/PersonalTools';
+import { OfflineCopy } from '@/components/OfflineCopy';
+import { AccountSecurity } from '@/components/AccountSecurity';
+import { clearOfflineCopy } from '../../public/offline-vault.js';
 
 export function AccountView() {
   const real = useOptionalRealData();
@@ -142,6 +147,10 @@ export function AccountView() {
       <InstallGuide />
       <NotificationSettings />
       {(!real || real.hasConsented) && <GiftPreferencesForm />}
+      {(!real || real.hasConsented) && <PersonalHistory />}
+      <PersonalTools />
+      {(!real || real.hasConsented) && <OfflineCopy />}
+      {(!real || real.hasConsented) && <AccountSecurity />}
       {real && (
         <section className="workshop-sheet">
           <h2>Tus papelitos, al día.</h2>
@@ -251,7 +260,7 @@ export function AccountView() {
         </details>
       </section>
       {real ? (
-        <form action="/auth/logout" method="POST">
+        <form action="/auth/logout" method="POST" onSubmit={e => { e.preventDefault(); const form = e.currentTarget; void clearOfflineCopy().then(() => form.submit()).catch(() => form.submit()); }}>
           <button type="submit" className="paper-outline-button logout-button">
             Cerrar sesión de {user?.email}
           </button>

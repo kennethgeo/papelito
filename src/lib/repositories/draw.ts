@@ -34,6 +34,8 @@ export async function executeAndCommitDraw(
     if (ex.organizer_id !== actorUserId) {
       throw new Error('Solo el organizador puede realizar el sorteo.');
     }
+    const poll = await client.query('SELECT exchange_id FROM budget_polls WHERE exchange_id = $1 AND closed_at IS NULL', [exchangeId]);
+    if (poll.rowCount) throw new Error('Cerrá la encuesta de presupuesto antes de realizar el sorteo.');
 
     // Strict expected version check for idempotency / concurrency conflict prevention
     if (ex.current_draw_version !== expectedVersion) {
