@@ -83,10 +83,22 @@ export async function executeAndCommitDraw(
       excludedReceiverId: e.receiver_user_id,
     }));
 
+    // Only follow explicitly linked editions, never unrelated groups or arbitrary user history.
+    const history = await client.query<{ giver_id: string; receiver_id: string }>(`WITH RECURSIVE editions AS (
+      SELECT previous_exchange_id AS id, ARRAY[id] AS visited, 0 AS depth FROM exchanges WHERE id = $1
+      UNION ALL SELECT e.previous_exchange_id, h.visited || e.id, h.depth + 1
+      FROM editions h JOIN exchanges e ON e.id = h.id
+      WHERE h.depth < 20 AND NOT e.id = ANY(h.visited)
+    ) SELECT DISTINCT a.giver_id, a.receiver_id FROM editions h
+      JOIN exchanges e ON e.id = h.id
+      JOIN draw_versions dv ON dv.exchange_id = e.id AND dv.version_number = e.current_draw_version
+      JOIN assignments a ON a.draw_version_id = dv.id`, [exchangeId]);
+    for (const pair of history.rows) exclusions.push({ giverId: pair.giver_id, excludedReceiverId: pair.receiver_id });
+
     // 4. Calculate secret santa matching via polynomial Kuhn algorithm & Hall theorem
     const drawResult = computeSecretSantaDraw(participantIds, exclusions);
     if (!drawResult.success) {
-      throw new Error(drawResult.reason || 'No fue posible encontrar una combinación válida con las restricciones.');
+      throw new Error(history.rowCount > 0 ? 'No hay una combinación que respete las restricciones y evite destinatarios de las ediciones anteriores. Revisá las restricciones o creá un intercambio independiente; no repetimos parejas sin avisar.' : drawResult.reason || 'No fue posible encontrar una combinación válida con las restricciones.');
     }
 
     // 5. Invariants verification: bijection and no self-assignments

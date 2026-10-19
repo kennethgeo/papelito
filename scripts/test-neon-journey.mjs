@@ -6,6 +6,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { Pool } from "@neondatabase/serverless";
 import {
   EXPECTED_PAPELITO_SCHEMA,
+  ALL_PAPELITO_SCHEMA,
   EXPECTED_NEON_CONFIG,
 } from "./db-migrate.mjs";
 
@@ -158,18 +159,18 @@ try {
       assert.match(row.id, /^[0-9a-f-]{36}$/i);
       api(`/auth/users/${row.id}`, "DELETE");
     }
-    const tables = Object.keys(EXPECTED_PAPELITO_SCHEMA);
+    const tables = Object.keys(ALL_PAPELITO_SCHEMA);
     const actual = await pool.query(
       "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",
     );
-    assert.deepEqual(
-      actual.rows.map((r) => r.tablename),
-      [...tables].sort(),
-      "La copia debe contener solo las 12 tablas de Papelito",
-    );
+    const actualTables = actual.rows.map(r => r.tablename);
+    assert(actualTables.every(t => tables.includes(t)), 'La copia debe contener solo tablas de Papelito');
+    assert(Object.keys(EXPECTED_PAPELITO_SCHEMA).every(t => actualTables.includes(t)), 'Debe existir el esquema base completo');
     await pool.query(
-      `TRUNCATE TABLE ${tables.map((table) => `public."${table}"`).join(", ")} CASCADE`,
+      `TRUNCATE TABLE ${actualTables.map((table) => `public."${table}"`).join(", ")} CASCADE`,
     );
+    // Additive migration only after all copied application rows are removed.
+    await pool.query(fs.readFileSync(path.resolve('neon/migrations/20261018_social_and_reminders.sql'), 'utf8'));
     for (const table of tables) {
       assert.equal(
         Number(

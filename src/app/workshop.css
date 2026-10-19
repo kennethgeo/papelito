@@ -974,3 +974,29 @@
     transition: none !important;
   }
 }
+.install-shortcut { max-width: 680px; margin: 0 0 1.5rem auto; text-align: right; }
+.install-shortcut > .paper-button { background: transparent; color: var(--color-tinta); border: 1.5px solid currentColor; box-shadow: none; font-size: .95rem; min-height: 44px; }
+.install-shortcut details { background: #FFFEFC; text-align: left; padding: 1rem; margin-top: .75rem; border: 1px solid #46245D; border-radius: 8px; }
+.tastes-sheet textarea, .anonymous-sheet textarea { width: 100%; resize: vertical; min-height: 76px; }
+.message-tabs { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1.25rem 0; }
+.message-tabs button { flex: 1; }
+.message-tabs button[aria-pressed="true"] { background: #46245D; color: #FFFEFC; }
+.message-list { display: flex; flex-direction: column; gap: .75rem; max-height: 380px; overflow: auto; padding: .75rem 0 1.5rem; }
+.message-bubble { align-self: flex-start; max-width: 88%; background: #EDE5F5; padding: .9rem 1rem; border-radius: 3px 16px 16px 16px; overflow-wrap: anywhere; }
+.message-bubble.mine { align-self: flex-end; background: #FEF3D6; border-radius: 16px 3px 16px 16px; }
+.message-bubble p { white-space: pre-wrap; margin: .45rem 0; }
+.message-bubble time { font-size: .75rem; }
+.message-bubble strong { font-size: .85rem; }
+.message-empty { border-left: 3px solid #F7D85B; padding: .75rem 1rem; }
+.anonymous-sheet { margin-top: 1.5rem; }
+.invitation-qr { margin: 1rem 0; }
+.qr-paper { background: #FFF; color: #46245D; border: 1px dashed #7043A2; padding: 1rem; margin-top: 1rem; text-align: center; display: grid; justify-items: center; gap: .65rem; overflow-wrap: anywhere; }
+.qr-paper img { width: 100%; max-width: 280px; height: auto; }
+.qr-paper p { margin: 0; font-weight: 700; }
+.qr-paper small { max-width: 28ch; }
+.repeat-sheet { margin-top: 1rem; }
+.repeat-sheet summary { cursor: pointer; min-height: 44px; padding: .6rem 0; font-weight: 700; }
+.receiver-tastes { background: #FEF3D6; padding: 1.25rem; border-left: 3px solid #F7D85B; margin-bottom: 1.5rem; }
+.receiver-tastes dl { margin: 0; }
+.receiver-tastes dt { font-weight: 700; margin-top: .75rem; }
+.receiver-tastes dd { margin: .25rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }

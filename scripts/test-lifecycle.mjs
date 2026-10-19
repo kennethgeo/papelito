@@ -14,7 +14,7 @@ const { getMyAssignment } = await import('../src/lib/repositories/assignments.ts
 const { purgeExpiredClosedExchangesWithClient, runNetlifyScheduledRetentionEvent } = await import('../src/lib/retention/cleanup.ts');
 const { parsePrivacyDeleteArgs, processPrivacyDeletion } = await import('./privacy-delete.mjs');
 const pg = new PGlite();
-for (const file of ['20261016_init_papelito_neon.sql', '20261017_retention_and_lifecycle.sql']) {
+for (const file of ['20261016_init_papelito_neon.sql', '20261017_retention_and_lifecycle.sql', '20261018_social_and_reminders.sql']) {
   await pg.exec(fs.readFileSync(new URL(`../neon/migrations/${file}`, import.meta.url), 'utf8'));
 }
 const client = { async query(sql, params = []) {

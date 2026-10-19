@@ -5,6 +5,7 @@ import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import type { ExchangeStatus } from '@/types';
 import { PaperIllustration } from '@/components/PaperIllustration';
+import { InstallGuide } from '@/components/InstallGuide';
 
 const statusNames: Record<ExchangeStatus, string> = {
   sorteado: 'Sorteo listo', inscripcion_abierta: 'Sumando personas', inscripcion_cerrada: 'Inscripción cerrada',
@@ -31,6 +32,7 @@ export function PaperDashboard() {
 
   return (
     <div className="paper-dashboard">
+      <InstallGuide compact />
       <div className="paper-page-heading">
         <div><p className="paper-greeting">Hola, {alias?.split(' ')[0] || 'qué gusto verte'}.</p><h1>Qué lindo tener<br />a quién sorprender.</h1></div>
         <button className="paper-button paper-button--create" onClick={() => navigate?.('intercambio_crear')}><span aria-hidden="true">+</span> Crear intercambio</button>

@@ -165,6 +165,16 @@ Ver la evidencia y los límites de la comprobación en [CIERRE_FUNCIONAL_VERIFIC
 
 La creación usa dos pasos y fechas dinámicas. La app agrupa sus lecturas, actualiza al volver o recuperar conexión y permite compartir cada deseo en intercambios específicos. La PWA ofrece ayuda de instalación y actualización sin cachear información privada.
 
+La ampliación del 18 de octubre añade mensajes anónimos entre las personas de una asignación vigente, gustos opcionales, nuevas ediciones con exclusiones del historial vinculado y QR local. Mi cuenta permite activar/desactivar Web Push por dispositivo y enviar un aviso de prueba. El panel y la entrada pública tienen un botón de instalación con alternativa guiada. El registro completo de ideas se conserva en [PENDIENTES_PRODUCTO.md](PENDIENTES_PRODUCTO.md).
+
+`npm run db:migrate` aplica la migración aditiva `20261018_social_and_reminders.sql`, conservando datos y verificando 15 tablas. Web Push utiliza VAPID con claves opcionales propias o derivación HKDF con propósito separado del secreto de invitaciones existente. La clave privada solo se usa en el servidor. `push-reminders` es una función programada de Netlify cada hora, sin endpoint público; envía entre 09:00 y 17:00 de Costa Rica, deduplica y retira suscripciones vencidas. Las notificaciones no contienen nombres ni mensajes. En iPhone/iPad es necesario abrir una PWA instalada en una versión compatible. La entrega final depende del servicio push y los permisos del dispositivo.
+
+```bash
+npm run test:social
+```
+
+Esta prueba usa PostgreSQL aislado, comprobación de cifrado Web Push y un transporte simulado: no envía avisos a personas. Comprueba confidencialidad de conversaciones, gustos, tres ediciones sin repetir parejas, fallo explícito ante imposibilidad, límites, consentimiento, deduplicación, retirada de suscripciones vencidas y calendario de recordatorios.
+
 ```bash
 npm run test:ux
 npm run test:journey

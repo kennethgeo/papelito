@@ -49,6 +49,9 @@ jobs:
       - name: Four-person repository journey and snapshot privacy
         run: npm run test:journey
 
+      - name: Private messages, tastes, history and push delivery
+        run: npm run test:social
+
       - name: Production build (without external secrets)
         run: npm run build
 

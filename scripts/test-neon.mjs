@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
-  EXPECTED_PAPELITO_SCHEMA,
+  ALL_PAPELITO_SCHEMA as EXPECTED_PAPELITO_SCHEMA,
   loadEnvFiles,
   verifyNeonLinkFile,
   validateMigrationUrls,
@@ -78,7 +78,7 @@ export async function runNeonSmokeTest() {
       `Se esperaban las 12 tablas de Papelito en public (encontradas: ${actualTables.length}). Ejecuta primero npm run db:migrate.`
     );
     await verifyExpectedColumns({ query: dbQuery });
-    console.log('✓ 3. Esquema public verificado (12/12 tablas y todas las columnas esperadas presentes)');
+    console.log(`✓ 3. Esquema public verificado (${expectedTables.length}/${expectedTables.length} tablas y todas las columnas esperadas presentes)`);
 
     // 3. Ejecutar CRUD de perfil y deseo dentro de dbTransaction y forzar ROLLBACK con error marcador
     const runUuid = crypto.randomUUID();

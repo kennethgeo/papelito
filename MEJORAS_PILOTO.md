@@ -1,5 +1,17 @@
 # Papelito — preparación del piloto festivo
 
+## Ampliación social — 18 de octubre de 2026
+
+Se incorporan conversaciones anónimas bidireccionales, gustos opcionales, QR local, repetición de ediciones con historial privado y recordatorios Web Push optativos. La instalación tiene un botón visible tanto en el panel como en la entrada pública, además de la guía de Mi cuenta. Se mantienen la paleta, tipografía y forma de papel aprobadas.
+
+Comprobaciones de esta ampliación: `build`, `type-check`, `lint`, suites anteriores, `test:social`, 12 pruebas de navegador (1280/390/320 px), migración aditiva verificada en PostgreSQL y recorrido real con cuatro cuentas Neon. El recorrido remoto terminó en 1,3 minutos: guardó gustos, mostró solo los del destinatario correcto, intercambió mensajes anónimos entre sesiones independientes, generó QR y creó una edición vinculada. La rama `br-noisy-hat-b4g607bg` y las cuentas se eliminaron al terminar. La prueba SQL en producción usa rollback y no deja filas residuales. Las dependencias de producción reportaron cero vulnerabilidades al comprobarlas.
+
+Web Push tiene pruebas del cifrado, las restricciones de destino, deduplicación, suscripciones vencidas, consentimiento y horario de Costa Rica con transporte simulado. **Eso no demuestra recepción física en Android/iPhone**: cada persona debe activar el permiso en su dispositivo y puede pulsar «Enviar aviso de prueba». El piloto físico sigue a cargo del titular. No se solicitaron ni se aceptaron permisos de notificación del navegador del titular durante la implementación.
+
+El secreto VAPID se deriva mediante HKDF del secreto existente de invitaciones con un contexto separado; también admite pareja VAPID independiente. No se añadieron secretos al repositorio ni fue necesario contratar servicios. Rotar el secreto de invitaciones requiere prever la renovación de suscripciones push si se usa esa derivación. La función programada de Netlify no ofrece invocación HTTP pública. Las notificaciones no muestran nombres, asignaciones ni contenido de mensajes. Los textos de privacidad ahora describen estas funciones optativas, sin reabrir el trabajo jurídico pospuesto.
+
+La lista de las 60 recomendaciones y su estado se conserva en [PENDIENTES_PRODUCTO.md](PENDIENTES_PRODUCTO.md).
+
 El titular realizará el piloto con personas reales. Esta entrega cubre creación, coherencia visual, organización, deseos, rendimiento, PWA y comprobación técnica. Se posponen cambios legales, dominio y remitente propio.
 
 ## Dirección visual

@@ -1,4 +1,6 @@
 import 'server-only';
+import { EMPTY_GIFT_PREFERENCES } from '@/lib/gift-preferences';
+import { getGiftPreferences } from './social';
 import { dbQuery, dbTransaction } from '@/lib/db/client';
 import type { Assignment, Wish, Currency } from '@/types';
 
@@ -133,6 +135,7 @@ export async function getMyAssignment(
     receiverId: assignment.receiver_id,
     receiverName: receiver.full_name,
     receiverAlias: receiver.alias,
+    receiverPreferences: { ...EMPTY_GIFT_PREFERENCES, ...await getGiftPreferences(assignment.receiver_id) },
     receiverAvatarColor: receiver.avatar_color,
     budgetAmount: Number(ex.budget_amount),
     currency: ex.currency,

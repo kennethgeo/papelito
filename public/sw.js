@@ -1,7 +1,7 @@
 // Papelito — Service Worker de alcance público limitado
 // Regla crítica: NUNCA almacena datos de API, autenticación, deseos ni asignaciones privadas.
 
-const CACHE_NAME = 'papelito-public-v3';
+const CACHE_NAME = 'papelito-public-v4';
 const PRECACHE_ASSETS = [
   '/offline.html',
   '/manifest.webmanifest',
@@ -21,6 +21,22 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'ACTIVATE_UPDATE') self.skipWaiting();
+});
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data?.json() || {}; } catch { /* Fall back to a generic private notice. */ }
+  const url = typeof payload.url === 'string' && /^\/\?intercambio=[0-9a-f-]{36}$/i.test(payload.url) ? payload.url : '/';
+  event.waitUntil(self.registration.showNotification('Papelito', {
+    body: typeof payload.body === 'string' ? payload.body.slice(0, 250) : 'Tenés novedades en Papelito.',
+    icon: '/icon-192.png', badge: '/icon-192.png', tag: payload.tag || 'papelito', data: { url },
+  }));
+});
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const raw = event.notification.data?.url;
+  const path = typeof raw === 'string' && /^\/\?intercambio=[0-9a-f-]{36}$/i.test(raw) ? raw : '/';
+  event.waitUntil(self.clients.openWindow(new URL(path, self.location.origin).href));
 });
 
 self.addEventListener('activate', (event) => {

@@ -90,6 +90,7 @@ function validateIsoDate(dateStr: unknown): dateStr is string {
 function validateCreateExchange(input: CreateExchangeInput): string | null {
   if (!input || typeof input !== "object")
     return "Datos de intercambio inválidos.";
+  if (input.previousExchangeId !== undefined && !/^[0-9a-f-]{36}$/i.test(input.previousExchangeId)) return 'Intercambio anterior inválido.';
   if (
     typeof input.name !== "string" ||
     input.name.trim().length < 2 ||

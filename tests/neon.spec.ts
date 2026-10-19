@@ -61,6 +61,8 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
     await expect(
       owner.getByRole("heading", { name: group, exact: true }),
     ).toBeVisible();
+    await owner.getByRole('button', { name: 'Mostrar QR de invitación' }).click();
+    await expect(owner.getByRole('img', { name: `Código QR para unirse a ${group}` })).toHaveAttribute('src', /^data:image\/png;base64,/);
     await owner.getByRole("button", { name: "Preparar para WhatsApp" }).click();
     const href = await owner
       .getByRole("link", { name: "Abrir WhatsApp" })
@@ -93,6 +95,10 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
     for (const [i, page] of pages.entries()) {
       if (i)
         await page.getByRole("button", { name: "Revisar mi ingreso" }).click();
+      await page.getByRole('button', { name: 'Mi cuenta', exact: true }).click();
+      await page.getByLabel('Mis gustos y pasatiempos', { exact: true }).fill(`Gustos de Prueba ${i + 1}`);
+      await page.getByRole('button', { name: 'Guardar mis gustos' }).click();
+      await expect(page.getByRole('status').filter({ hasText: 'Tus pistas quedaron guardadas' })).toBeVisible();
       await page
         .getByRole("button", { name: "Mis deseos", exact: true })
         .click();
@@ -150,6 +156,8 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       const name = (await recipient.textContent())!.trim();
       expect(name).not.toBe(config.fixtures[i].name);
       receivers.push(name);
+      await expect(page.getByRole('heading', { name: 'Pistas sobre sus gustos.' })).toBeVisible();
+      await expect(page.getByText(`Gustos de ${name}`, { exact: true })).toBeVisible();
       await expect(
         page.getByRole("heading", { name: `Pista de ${name}`, exact: true }),
       ).toBeVisible();
@@ -162,6 +170,25 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
         .click();
     }
     expect(new Set(receivers).size).toBe(4);
+    for (const [i, page] of pages.entries()) {
+      const chat = page.locator('.anonymous-sheet');
+      await chat.getByLabel('Tu mensaje', { exact: true }).fill(`Pregunta anónima ${i + 1}`);
+      await chat.getByRole('button', { name: 'Enviar mensaje', exact: true }).click();
+      await expect(chat.getByRole('status')).toHaveText('Mensaje enviado.');
+    }
+    for (const [i, page] of pages.entries()) {
+      const giverIndex = receivers.indexOf(`Prueba ${i + 1}`);
+      const chat = page.locator('.anonymous-sheet');
+      await chat.getByRole('button', { name: 'Quien me regala', exact: true }).click();
+      await chat.getByRole('button', { name: 'Actualizar mensajes', exact: true }).click();
+      await expect(chat.getByText(`Pregunta anónima ${giverIndex + 1}`, { exact: true })).toBeVisible();
+      await expect(chat.locator('.message-bubble strong')).toHaveText('Tu amigo secreto');
+    }
+    await owner.getByText('Repetir este intercambio', { exact: true }).click();
+    await owner.getByLabel('Nombre de la nueva edición').fill('Nueva edición técnica');
+    await owner.getByLabel('Nueva fecha de entrega').fill('2099-12-25');
+    await owner.getByRole('button', { name: 'Crear nueva edición' }).click();
+    await expect(owner.getByRole('heading', { name: 'Nueva edición técnica', exact: true })).toBeVisible();
     await owner
       .getByRole("button", { name: "Mis deseos", exact: true })
       .click();
@@ -185,7 +212,7 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       owner.getByLabel("Idea de regalo", { exact: true }),
     ).toHaveValue("Borrador sin conexión");
     console.log(
-      "PASS navegador + Neon: 4 cuentas reales aisladas, creación/adhesión/aprobación/pistas/sorteo/revelación y reconexión sin perder borrador.",
+      "PASS navegador + Neon: 4 cuentas aisladas, gustos privados, QR, mensajes anónimos entre sesiones, nueva edición y reconexión sin perder borrador.",
     );
   } finally {
     for (const context of contexts) await context.close();

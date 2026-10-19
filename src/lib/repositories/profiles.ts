@@ -150,6 +150,12 @@ export async function submitPrivacyRequest(
 }
 
 export async function exportUserData(userId: string) {
+  const tastesRes = await dbQuery('SELECT gift_preferences FROM profiles WHERE user_id = $1', [userId]);
+  const messagesRes = await dbQuery(`SELECT msg.id, a.exchange_id, msg.body, msg.created_at::text
+    FROM anonymous_messages msg JOIN assignments a ON a.id = msg.assignment_id
+    WHERE (msg.from_giver = true AND a.giver_id = $1) OR (msg.from_giver = false AND a.receiver_id = $1)
+    ORDER BY msg.created_at`, [userId]);
+  const notificationsRes = await dbQuery('SELECT id, created_at::text FROM push_subscriptions WHERE user_id = $1', [userId]);
   // Complete authorized server export of user's own data
   const profileRes = await dbQuery<UserProfileRow>(
     `SELECT user_id, alias, full_name, avatar_color, created_at::text, updated_at::text
@@ -218,6 +224,9 @@ export async function exportUserData(userId: string) {
 
   return {
     exportedAt: new Date().toISOString(),
+    giftPreferences: tastesRes.rows[0] || {},
+    mySentMessages: messagesRes.rows,
+    notificationDevices: notificationsRes.rows,
     confidentialityNotice:
       'Por diseño de confidencialidad de Papelito, esta exportación incluye tus datos, deseos, selecciones, compras propias y personas a quienes regalas. La identidad de quien te regala y los datos privados de terceros permanecen reservados.',
     profile: profileRes.rows[0] || null,

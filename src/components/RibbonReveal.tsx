@@ -3,6 +3,7 @@ import React, { useRef, useState } from "react";
 import type { Assignment } from "@/types";
 import { PaperIllustration } from "./PaperIllustration";
 import { formatMoney as money } from "@/lib/event-dates";
+import { GIFT_FIELDS } from '@/lib/gift-preferences';
 
 interface RibbonRevealProps {
   assignment: Assignment;
@@ -130,6 +131,10 @@ export function RibbonReveal({
             </svg>
           </section>
           <div className="paper-wish-heading">
+            {assignment.receiverPreferences && GIFT_FIELDS.some(([key]) => assignment.receiverPreferences?.[key]) && <section className="receiver-tastes">
+              <h2>Pistas sobre sus gustos.</h2>
+              <dl>{GIFT_FIELDS.map(([key, label]) => assignment.receiverPreferences?.[key] ? <div key={key}><dt>{label}</dt><dd>{assignment.receiverPreferences[key]}</dd></div> : null)}</dl>
+            </section>}
             <h2>Unas pistas para acertar.</h2>
             <p>
               Las ideas que{" "}

@@ -37,6 +37,7 @@ export interface Wish {
 }
 
 export interface Assignment {
+  receiverPreferences?: import('@/lib/gift-preferences').GiftPreferences;
   id?: string;
   exchangeId: string;
   giverId: string;

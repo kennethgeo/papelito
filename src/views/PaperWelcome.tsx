@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { PaperBrand } from '@/components/PaperBrand';
 import { PaperIllustration } from '@/components/PaperIllustration';
 import { PaperAccessCard } from '@/components/PaperAccessCard';
+import { InstallGuide } from '@/components/InstallGuide';
 
 export function PaperWelcome() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export function PaperWelcome() {
         <PaperBrand />
         <span>Un pequeño gran secreto.</span>
       </header>
+      <InstallGuide compact />
 
       <div className="paper-welcome-grid">
         <section className="paper-welcome-story">

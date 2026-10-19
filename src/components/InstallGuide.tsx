@@ -7,7 +7,7 @@ import {
   subscribeInstallPrompt,
 } from "@/lib/pwa-install";
 
-export function InstallGuide() {
+export function InstallGuide({ compact = false }: { compact?: boolean }) {
   const prompt = useSyncExternalStore(
     subscribeInstallPrompt,
     getInstallPrompt,
@@ -16,6 +16,7 @@ export function InstallGuide() {
   const [installed, setInstalled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [help, setHelp] = useState(false);
   useEffect(() => {
     const media = window.matchMedia("(display-mode: standalone)");
     const update = () =>
@@ -34,7 +35,8 @@ export function InstallGuide() {
   }, []);
   async function install() {
     const event = prompt;
-    if (!event || busy) return;
+    if (busy) return;
+    if (!event) { setHelp(true); return; }
     setBusy(true);
     setMessage("");
     try {
@@ -55,7 +57,8 @@ export function InstallGuide() {
     }
   }
   return (
-    <section className="workshop-sheet install-guide">
+    <section className={compact ? 'install-shortcut' : 'workshop-sheet install-guide'}>
+      {!compact && <>
       <p className="workshop-step">Siempre a mano</p>
       <h2>
         {installed
@@ -67,13 +70,14 @@ export function InstallGuide() {
           ? "Ya estás usando la app instalada. Necesitás conexión para guardar cambios y consultar tu asignación."
           : "Abrila como una app y volvé a consultar tu intercambio cuando querás."}
       </p>
-      {prompt && !installed && (
+      </>}
+      {!installed && (
         <button className="paper-button" onClick={install} disabled={busy}>
           {busy ? "Abriendo instalación…" : "Instalar Papelito"}
         </button>
       )}
-      {!installed && (
-        <details>
+      {!installed && (!compact || help) && (
+        <details open={help} onToggle={e => setHelp(e.currentTarget.open)}>
           <summary>Cómo agregarla en mi teléfono</summary>
           <h3>iPhone o iPad</h3>
           <ol>

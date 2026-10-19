@@ -18,6 +18,7 @@ export interface CreateExchangeInput {
   suggestedTheme: 'navidad' | 'amistad' | 'cumpleanos' | 'general';
   selectedTheme: 'navidad' | 'amistad' | 'cumpleanos' | 'general';
   requiresApproval: boolean;
+  previousExchangeId?: string;
 }
 
 function hashInviteToken(rawToken: string): string {
@@ -90,6 +91,11 @@ export async function createExchangeWithInvitation(
   }
 
   return await dbTransaction(async (client) => {
+    if (input.previousExchangeId) {
+      const source = await client.query<{ organizer_id: string }>(
+        'SELECT organizer_id FROM exchanges WHERE id = $1 FOR SHARE', [input.previousExchangeId]);
+      if (source.rows[0]?.organizer_id !== organizerId) throw new Error('Solo podés repetir un intercambio que organizás.');
+    }
     // 1. Insert exchange
     const exRes = await client.query<{ id: string }>(
       `INSERT INTO exchanges (
@@ -112,6 +118,7 @@ export async function createExchangeWithInvitation(
     );
 
     const exchangeId = exRes.rows[0].id;
+    if (input.previousExchangeId) await client.query('UPDATE exchanges SET previous_exchange_id = $2 WHERE id = $1', [exchangeId, input.previousExchangeId]);
 
     // 2. Insert organizer membership (automatically approved)
     await client.query(

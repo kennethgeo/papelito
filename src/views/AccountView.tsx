@@ -6,6 +6,8 @@ import { useOptionalDemoData } from "@/context/DemoDataContext";
 import { useOptionalRealData } from "@/context/RealDataContext";
 import { AccountDeletionPanel } from "@/components/AccountDeletionPanel";
 import { InstallGuide } from "@/components/InstallGuide";
+import { GiftPreferencesForm } from '@/components/GiftPreferencesForm';
+import { NotificationSettings } from '@/components/NotificationSettings';
 
 export function AccountView() {
   const real = useOptionalRealData();
@@ -138,6 +140,8 @@ export function AccountView() {
         </form>
       </section>
       <InstallGuide />
+      <NotificationSettings />
+      {(!real || real.hasConsented) && <GiftPreferencesForm />}
       {real && (
         <section className="workshop-sheet">
           <h2>Tus papelitos, al día.</h2>

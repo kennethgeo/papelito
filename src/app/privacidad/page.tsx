@@ -98,6 +98,16 @@ export default function PrivacidadPage() {
 
           <h3>4. Ejercicio de derechos ARCO y eliminación</h3>
           <p>
+            Si completás tu perfil de gustos, guardamos las preferencias opcionales para mostrarlas solo
+            a quien te regala en un sorteo vigente. Las conversaciones entre ambas personas se guardan
+            en la base de datos; se oculta la identidad de quien regala dentro de la aplicación, pero no
+            existe cifrado de extremo a extremo. Un sorteo nuevo deja inaccesibles sus conversaciones anteriores.
+            Para recordatorios optativos guardamos la suscripción y las claves técnicas del dispositivo.
+            El proveedor push de tu navegador (por ejemplo, Google, Apple o Mozilla) participa en la entrega.
+            Los avisos no incluyen nombres, destinatarios del sorteo ni el contenido de los mensajes.
+            Podés desactivarlos en Mi cuenta; los registros de entrega se conservan hasta 30 días.
+          </p>
+          <p>
             Todo titular puede exportar una copia estructurada de sus datos en formato JSON desde su perfil
             o remitir una solicitud de eliminación. Las solicitudes de eliminación se procesan
             administrativamente. El{' '}

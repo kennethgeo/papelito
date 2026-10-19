@@ -8,6 +8,9 @@ import { formatEventDate, formatMoney } from "@/lib/event-dates";
 import type { ThemeKey } from "@/types";
 import { ExchangeLifecycleControls } from "@/components/ExchangeLifecycleControls";
 import { PaperIllustration } from "@/components/PaperIllustration";
+import { AnonymousMessages } from '@/components/AnonymousMessages';
+import { InvitationQR } from '@/components/InvitationQR';
+import { RepeatExchange } from '@/components/RepeatExchange';
 
 export function ExchangeDetailView() {
   const real = useOptionalRealData();
@@ -527,6 +530,8 @@ export function ExchangeDetailView() {
                 <section className="workshop-sheet invite-sheet">
                   <p className="workshop-step">El siguiente paso</p>
                   <h2>Pasá la invitación.</h2>
+                  {!shareUnavailable && <InvitationQR url={real ? `/unirse/${ex.inviteCode}` : '/?mode=demo'} name={ex.name} />}
+                  {!real && <p className="field-help">El QR de ejemplo abre la demo; las invitaciones reales se crean con tu cuenta.</p>}
                   <p>
                     Compartí el enlace con tu familia o tus amigos.
                     {ex.requiresApproval && " Vos decidís quién entra."}
@@ -749,10 +754,12 @@ export function ExchangeDetailView() {
                 </section>
               )}
               <ExchangeLifecycleControls exchange={ex} />
+              {ex.isCurrentUserOrganizer && <RepeatExchange key={ex.id} exchange={ex} />}
             </aside>
           </div>
         </>
       )}
+      {ex.status === 'sorteado' && <AnonymousMessages key={`${ex.id}:${ex.currentDrawVersion}`} exchangeId={ex.id} version={ex.currentDrawVersion || 1} />}
     </div>
   );
 }

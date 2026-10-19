@@ -67,6 +67,18 @@ const INCREMENTAL_MIGRATION_20261017_PATH = path.join(
   '20261017_retention_and_lifecycle.sql'
 );
 
+export const SOCIAL_SCHEMA = {
+  anonymous_messages: ['id', 'assignment_id', 'from_giver', 'body', 'created_at'],
+  push_subscriptions: ['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'created_at'],
+  notification_deliveries: ['subscription_id', 'event_key', 'claimed_at', 'delivered_at'],
+};
+export const ALL_PAPELITO_SCHEMA = {
+  ...EXPECTED_PAPELITO_SCHEMA,
+  profiles: [...EXPECTED_PAPELITO_SCHEMA.profiles, 'gift_preferences'],
+  exchanges: [...EXPECTED_PAPELITO_SCHEMA.exchanges, 'previous_exchange_id'],
+  ...SOCIAL_SCHEMA,
+};
+
 /**
  * Loads .env.local and .env into process.env without overwriting existing variables
  * and without printing any secret values.
@@ -237,7 +249,7 @@ export async function verifyExpectedColumns(client, schemaOverride = EXPECTED_PA
  * or validates all 12 tables and expected columns before no-op.
  * Never executes DROP, TRUNCATE, or DELETE.
  */
-export async function inspectAndMigratePublicSchema(client, migrationSql, incrementalSqlOverride) {
+async function inspectCoreSchema(client, migrationSql, incrementalSqlOverride) {
   const expectedTableNames = Object.keys(EXPECTED_PAPELITO_SCHEMA);
   const expectedTableSet = new Set(expectedTableNames);
 
@@ -248,8 +260,9 @@ export async function inspectAndMigratePublicSchema(client, migrationSql, increm
      ORDER BY table_name ASC`
   );
 
-  const existingTables = tablesRes.rows.map((r) => r.table_name);
-  const foreignTables = existingTables.filter((t) => !expectedTableSet.has(t));
+  const allTables = tablesRes.rows.map((r) => r.table_name);
+  const existingTables = allTables.filter(t => expectedTableSet.has(t));
+  const foreignTables = allTables.filter((t) => !expectedTableSet.has(t) && !(t in SOCIAL_SCHEMA));
 
   if (foreignTables.length > 0) {
     throw new Error(
@@ -332,6 +345,23 @@ export async function inspectAndMigratePublicSchema(client, migrationSql, increm
   return { status: 'migrated', incremental: false, tablesCount: expectedTableNames.length };
 }
 
+export async function inspectAndMigratePublicSchema(client, migrationSql, incrementalSqlOverride) {
+  const result = await inspectCoreSchema(client, migrationSql, incrementalSqlOverride);
+  const columns = await fetchColumnsByTable(client);
+  const complete = Object.entries(ALL_PAPELITO_SCHEMA).every(([name, cols]) => cols.every(c => columns.get(name)?.has(c)));
+  if (!complete) {
+    await client.query('BEGIN');
+    try {
+      const sql = fs.readFileSync(path.join(rootDir, 'neon/migrations/20261018_social_and_reminders.sql'), 'utf8');
+      if (typeof client.exec === 'function') await client.exec(sql); else await client.query(sql);
+      await verifyExpectedColumns(client, ALL_PAPELITO_SCHEMA);
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    return { ...result, status: 'migrated', coreStatus: result.status, socialUpgrade: true };
+  }
+  return result;
+}
+
 async function runCliMigration() {
   console.log('=== Papelito — Migración Segura de Esquema en Neon PostgreSQL ===');
   loadEnvFiles(rootDir);
@@ -357,7 +387,10 @@ async function runCliMigration() {
   try {
     client = await pool.connect();
     const result = await inspectAndMigratePublicSchema(client, migrationSql);
-    if (result.status === 'migrated' && result.incremental) {
+    if (result.socialUpgrade) console.log('✓ Ampliación social aplicada: gustos, historial, mensajes y recordatorios (15 tablas verificadas).');
+    if (result.socialUpgrade && result.coreStatus === 'noop') {
+      console.log('✓ Esquema base existente conservado. Ampliación aditiva completada sin eliminar datos.');
+    } else if (result.status === 'migrated' && result.incremental) {
       console.log(
         `✓ Migración incremental (${result.appliedMigration}) aplicada exitosamente dentro de transacción (${result.tablesCount}/12 tablas verificadas en public).`
       );
@@ -367,7 +400,7 @@ async function runCliMigration() {
       );
     } else {
       console.log(
-        `✓ Esquema Papelito ya presente y verificado (${result.tablesCount}/12 tablas y columnas esperadas íntegras). No-op sin cambios.`
+        `✓ Esquema Papelito ya presente y verificado (${Object.keys(ALL_PAPELITO_SCHEMA).length} tablas y columnas esperadas íntegras). No-op sin cambios.`
       );
     }
   } finally {

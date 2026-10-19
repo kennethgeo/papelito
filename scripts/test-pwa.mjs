@@ -13,12 +13,14 @@ const offline = { publicOffline: true },
 const context = {
   URL,
   self: {
+    registration: { showNotification: async (title, options) => { context.notification = { title, ...options }; } },
     location: { origin: "https://paper.example" },
     addEventListener: (name, handler) => handlers.set(name, handler),
     skipWaiting: async () => {
       skipped++;
     },
     clients: {
+      openWindow: async (url) => { context.opened = url; },
       claim: async () => {
         claimed++;
       },
@@ -75,8 +77,15 @@ handlers.get("activate")({
   },
 });
 await waiting;
-assert.deepEqual(deleted, ["papelito-public-v2"]);
+assert.deepEqual(deleted, ["papelito-public-v2", "papelito-public-v3"]);
 assert.equal(claimed, 1);
+handlers.get('push')({ data: { json: () => ({ body: 'Tenés novedades.', url: 'https://evil.example/' }) }, waitUntil: promise => { waiting = promise; } });
+await waiting;
+assert.equal(context.notification.title, 'Papelito');
+assert.equal(context.notification.data.url, '/');
+handlers.get('notificationclick')({ notification: { close() {}, data: { url: '//evil.example/' } }, waitUntil: promise => { waiting = promise; } });
+await waiting;
+assert.equal(context.opened, 'https://paper.example/');
 for (const [url, method] of [
   ["/api/exchanges/private/my-assignment", "GET"],
   ["/api/auth/get-session", "GET"],
