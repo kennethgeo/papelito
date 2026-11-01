@@ -1,6 +1,7 @@
 import 'server-only';
 import { dbQuery, dbTransaction, type TransactionClient } from '@/lib/db/client';
 import { LEGAL_CONSTANTS } from '@/lib/legal/constants';
+import { wishPhotoContentType } from './photos';
 
 export interface UserProfileRow {
   user_id: string;
@@ -239,7 +240,7 @@ export async function exportUserData(userId: string) {
     passkeys: passkeys.rows,
     passkeySessions: sessions.rows,
     peopleIRepresent: represented.rows,
-    myPhotos: photos.rows.map(p => ({ wishId: p.wish_id, contentType: 'image/jpeg', base64: Buffer.from(p.image).toString('base64') })),
+    myPhotos: photos.rows.map(p => ({ wishId: p.wish_id, contentType: wishPhotoContentType(p.image), base64: Buffer.from(p.image).toString('base64') })),
     giftPreferences: tastesRes.rows[0] || {},
     mySentMessages: messagesRes.rows,
     notificationDevices: notificationsRes.rows,

@@ -881,6 +881,49 @@ export async function updateExchangeLifecycleStatus(
   });
 }
 
+/** Permanently removes one exchange and its dependent rows, never personal wish lists. */
+export async function deleteExchange(
+  exchangeId: string,
+  actorUserId: string,
+  input: {
+    name: string;
+    status: string;
+    memberCount: number;
+    confirmIrreversible: boolean;
+    sessionAuthenticatedAt: string | null;
+  },
+  referenceNow: Date = new Date()
+): Promise<void> {
+  if (!input.confirmIrreversible || !Number.isSafeInteger(input.memberCount) || input.memberCount < 1) {
+    throw new Error('Confirmá expresamente la eliminación y actualizá el intercambio.');
+  }
+  const authenticatedAt = input.sessionAuthenticatedAt ? new Date(input.sessionAuthenticatedAt).getTime() : NaN;
+  if (!Number.isFinite(authenticatedAt) || authenticatedAt > referenceNow.getTime() ||
+      referenceNow.getTime() - authenticatedAt > 15 * 60 * 1000) {
+    throw new Error('Por seguridad, volvé a iniciar sesión antes de eliminar el intercambio (máximo 15 minutos).');
+  }
+
+  await dbTransaction(async (client) => {
+    const result = await client.query<{ organizer_id: string; name: string; status: string }>(
+      'SELECT organizer_id, name, status FROM exchanges WHERE id = $1 FOR UPDATE', [exchangeId]
+    );
+    const exchange = result.rows[0];
+    if (!exchange) throw new Error('Este intercambio ya no existe. Actualizá la lista.');
+    if (exchange.organizer_id !== actorUserId) throw new Error('Solo quien organiza actualmente puede eliminar el intercambio.');
+    if (exchange.name !== input.name || exchange.status !== input.status) {
+      throw new Error('El intercambio cambió. Actualizá la página y revisá la eliminación nuevamente.');
+    }
+    const members = await client.query<{ count: number }>(
+      'SELECT count(*)::integer AS count FROM memberships WHERE exchange_id = $1', [exchangeId]
+    );
+    if (members.rows[0].count !== input.memberCount) {
+      throw new Error('Cambió la cantidad de participantes. Actualizá la página antes de eliminar.');
+    }
+    // All exchange-specific children use ON DELETE CASCADE. Linked future editions use SET NULL.
+    await client.query('DELETE FROM exchanges WHERE id = $1', [exchangeId]);
+  });
+}
+
 /**
  * Transfers the organizer role of an exchange to another approved member.
  */

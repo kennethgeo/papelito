@@ -7,7 +7,7 @@ import { PGlite } from '@electric-sql/pglite';
 register('./ts-loader.mjs', import.meta.url);
 process.env.NODE_ENV = 'test';
 const { setTestDbAdapter, dbTransaction } = await import('../src/lib/db/client.ts');
-const { updateExchangeLifecycleStatus, transferExchangeOrganizer } = await import('../src/lib/repositories/exchanges.ts');
+const { updateExchangeLifecycleStatus, transferExchangeOrganizer, deleteExchange } = await import('../src/lib/repositories/exchanges.ts');
 const { requestAccountDeletion, getAccountDeletionImpact, purgeUserAppDataWithClient } = await import('../src/lib/repositories/profiles.ts');
 const { executeAndCommitDraw } = await import('../src/lib/repositories/draw.ts');
 const { getMyAssignment } = await import('../src/lib/repositories/assignments.ts');
@@ -54,6 +54,31 @@ try {
   assert.equal((await client.query('SELECT id FROM invitations WHERE exchange_id=$1 AND revoked_at IS NULL', [a])).rowCount, 0);
   await assert.rejects(executeAndCommitDraw(a, users[1], 1, 'Intento tras cierre'), /estado/);
   console.log('PASS lifecycle: permisos, transferencia, sorteo privado de tres personas, cierre idempotente e invitaciones revocadas');
+
+  const toDelete = await group(users[4], [users[0], users[2]]);
+  const linkedEdition = await group(users[4]);
+  await client.query('UPDATE exchanges SET previous_exchange_id=$1 WHERE id=$2', [toDelete, linkedEdition]);
+  await client.query("INSERT INTO wishes(user_id,title) VALUES($1,'Deseo personal conservado')", [users[2]]);
+  const confirmation = { name: 'Prueba aislada', status: 'inscripcion_abierta', memberCount: 3,
+    confirmIrreversible: true, sessionAuthenticatedAt: now.toISOString() };
+  await assert.rejects(deleteExchange(toDelete, users[0], confirmation, now), /Solo quien organiza/);
+  await assert.rejects(deleteExchange(toDelete, users[4], { ...confirmation, confirmIrreversible: false }, now), /Confirmá/);
+  await assert.rejects(deleteExchange(toDelete, users[4], { ...confirmation, name: 'Otro' }, now), /cambió/);
+  await assert.rejects(deleteExchange(toDelete, users[4], { ...confirmation, memberCount: 2 }, now), /cantidad/);
+  await assert.rejects(deleteExchange(toDelete, users[4], { ...confirmation, sessionAuthenticatedAt: '2026-10-17T17:44:59Z' }, now), /15 minutos/);
+  await executeAndCommitDraw(toDelete, users[4], 0);
+  await assert.rejects(deleteExchange(toDelete, users[4], confirmation, now), /cambió/);
+  await deleteExchange(toDelete, users[4], { ...confirmation, status: 'sorteado' }, now);
+  assert.equal((await client.query('SELECT id FROM exchanges WHERE id=$1', [toDelete])).rowCount, 0);
+  for (const table of ['memberships', 'invitations', 'draw_versions', 'assignments']) {
+    assert.equal((await client.query(`SELECT id FROM ${table} WHERE exchange_id=$1`, [toDelete])).rowCount, 0);
+  }
+  assert.equal((await client.query('SELECT previous_exchange_id FROM exchanges WHERE id=$1', [linkedEdition])).rows[0].previous_exchange_id, null);
+  assert.equal((await client.query("SELECT id FROM wishes WHERE user_id=$1 AND title='Deseo personal conservado'", [users[2]])).rowCount, 1);
+  await assert.rejects(deleteExchange(toDelete, users[4], { ...confirmation, status: 'sorteado' }, now), /ya no existe/);
+  await updateExchangeLifecycleStatus(linkedEdition, users[4], 'cancelado', now);
+  await deleteExchange(linkedEdition, users[4], { ...confirmation, status: 'cancelado', memberCount: 1 }, now);
+  console.log('PASS eliminación: permisos, sesión reciente, confirmación, cambios concurrentes, cascada, edición vinculada y deseos personales');
 
   const b = await group(users[3], [users[0], users[2]]);
   await executeAndCommitDraw(b, users[3], 0);
