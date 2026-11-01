@@ -96,6 +96,10 @@ export default function TerminosPage() {
             se invalida y se borran sus asignaciones. El organizador deberá repetirlo con los miembros restantes.
             La organización puede transferirse a otro participante aprobado. Finalizar o cancelar un intercambio
             desactiva sus invitaciones y nuevos sorteos; el cierre no se puede deshacer.
+            La persona organizadora actual también puede eliminar definitivamente un intercambio,
+            incluso si ya se sorteó o cerró. La aplicación le muestra el impacto, exige una sesión reciente,
+            el nombre exacto del grupo y confirmación expresa. La eliminación retira el acceso de todas las
+            personas a los datos de ese intercambio; no elimina sus cuentas ni listas personales de deseos.
           </p>
 
           <h3>4. Enlaces a tiendas y deslinde de responsabilidad comercial</h3>
@@ -112,6 +116,8 @@ export default function TerminosPage() {
             al cumplir {LEGAL_CONSTANTS.RETENTION_MONTHS_AFTER_CLOSE} meses desde el cierre registrado, junto
             con sus asignaciones. La política de privacidad detalla los cierres anteriores a esta versión y
             el alcance de la eliminación en respaldos. Las cuentas y listas personales de deseos tienen un ciclo separado.
+            Un intercambio eliminado expresamente por quien lo organiza se borra de la base activa al confirmar,
+            sin esperar el período de conservación de los cierres.
           </p>
 
           <h3>6. Actualización de condiciones</h3>
