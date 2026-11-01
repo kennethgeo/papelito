@@ -29,6 +29,7 @@ import {
   exportUserDataAction,
   updateExchangeLifecycleStatusAction,
   transferExchangeOrganizerAction,
+  deleteExchangeAction,
   getAccountDeletionImpactAction,
   requestAccountDeletionAction,
 } from "@/lib/data/server-actions";
@@ -111,6 +112,10 @@ interface RealDataContextType {
   transferExchangeOrganizer: (
     exchangeId: string,
     newOrganizerUserId: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteExchange: (
+    exchangeId: string,
+    input: { name: string; status: string; memberCount: number; confirmIrreversible: boolean },
   ) => Promise<{ success: boolean; error?: string }>;
   saveExclusions: (
     exchangeId: string,
@@ -523,6 +528,23 @@ export function RealDataProvider({
     };
   };
 
+  const deleteExchangeHandler = async (
+    exchangeId: string,
+    input: { name: string; status: string; memberCount: number; confirmIrreversible: boolean },
+  ) => {
+    const res = await callServerAction(() => deleteExchangeAction(exchangeId, input));
+    if (!res.success) return { success: false, error: res.error || 'No se pudo eliminar el intercambio.' };
+    selectedRef.current = null;
+    setSelectedExchangeId(null);
+    setCurrentExchange(null);
+    setCurrentAssignment(null);
+    setActiveView('intercambios_lista');
+    const offlineError = await clearOfflineCopy().then(() => '', () => 'La copia privada de este navegador no se pudo borrar. Eliminá los datos del sitio desde tu navegador.');
+    await refreshApp(true);
+    if (offlineError) setErrorMessage(offlineError);
+    return { success: true };
+  };
+
   const saveExclusionsHandler = async (
     exchangeId: string,
     rules: Array<{ giverUserId: string; excludedReceiverUserId: string }>,
@@ -829,6 +851,7 @@ export function RealDataProvider({
         updateExchangeTheme: updateExchangeThemeHandler,
         updateExchangeLifecycle: updateExchangeLifecycleHandler,
         transferExchangeOrganizer: transferExchangeOrganizerHandler,
+        deleteExchange: deleteExchangeHandler,
         saveExclusions: saveExclusionsHandler,
         regenerateInviteLink: regenerateInviteLinkHandler,
         executeDraw: executeDrawHandler,
