@@ -1,6 +1,6 @@
 # Migración de Papelito a Cloudflare Workers
 
-Estado: código preparado y compilado localmente; el sitio en Netlify sigue en producción. En Cloudflare existen dos Workers privados y sus secretos: las conexiones de Neon se obtuvieron de la rama de producción y las claves de sesión e invitaciones del nuevo alojamiento son nuevas. El origen de Workers está permitido en Neon Auth. Aún no se desplegó la aplicación ni se ejecutaron los cron. No ejecutar el cambio de origen hasta completar los controles de esta guía. La base de datos y Neon Auth permanecen en el proyecto exclusivo de Papelito; moverlos a D1 exigiría rediseñar transacciones y autenticación, y no forma parte de este traslado de alojamiento.
+Estado: código preparado y compilado localmente; el sitio en Netlify sigue en producción. En Cloudflare existen dos Workers privados y sus secretos: las conexiones de Neon se obtuvieron de la rama de producción y las claves de sesión e invitaciones del nuevo alojamiento son nuevas. El origen de Workers está permitido en Neon Auth. El secreto de despliegue `CLOUDFLARE_API_TOKEN` ya está configurado en GitHub Actions; el siguiente push a esta rama publicará el Worker web privado para validación. Aún no se desplegó la aplicación ni se ejecutaron los cron. No ejecutar el cambio de origen hasta completar los controles de esta guía. La base de datos y Neon Auth permanecen en el proyecto exclusivo de Papelito; moverlos a D1 exigiría rediseñar transacciones y autenticación, y no forma parte de este traslado de alojamiento.
 
 ## Plataforma y límite gratuito
 
