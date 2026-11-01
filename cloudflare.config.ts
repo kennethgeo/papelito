@@ -14,6 +14,7 @@ export default defineConfig({
     env: {
       ASSETS: bindings.assets(),
       IMAGES: bindings.images(),
+      PAPELITO_APP_URL: bindings.text("https://papelitocr.papelitocr.workers.dev"),
     },
   }),
 });
