@@ -14,6 +14,7 @@ export default defineConfig({
     env: {
       ASSETS: bindings.assets(),
       IMAGES: bindings.images(),
+      VINEXT_KV_CACHE: bindings.kv({ id: "81a5f0bb5508436b86ff21fe6a59b6c5" }),
       DATABASE_URL: bindings.secret(),
       NEON_AUTH_BASE_URL: bindings.secret(),
       NEON_AUTH_COOKIE_SECRET: bindings.secret(),
