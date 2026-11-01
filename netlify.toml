@@ -5,13 +5,6 @@
 [build.environment]
   NODE_VERSION = "24"
 
-[functions."retention-cleanup"]
-  schedule = "@daily"
-
-[functions."push-reminders"]
-  schedule = "0 * * * *"
-
-# Prevención de caché en rutas de autenticación y API con cookies de sesión SSR
 [[headers]]
   for = "/api/*"
   [headers.values]
