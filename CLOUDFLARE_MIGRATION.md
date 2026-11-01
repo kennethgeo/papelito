@@ -1,6 +1,8 @@
 # Migración de Papelito a Cloudflare Workers
 
-Estado (1 de noviembre de 2026): `main` despliega la web en `https://papelitocr.papelitocr.workers.dev`; portada, demo, sesión anónima y CI comprobados. El Worker web tiene seis secretos (Neon, sesión, invitaciones y par VAPID) y caché KV. `papelitocr-jobs` está desplegado privado, con conexión a Neon y el mismo par VAPID, pero sin horarios. Netlify sigue publicando el commit anterior `51cd1cb`: sus despliegues recientes de `main` fueron omitidos con estado de error. Hasta verificar que los cron de Netlify están desactivados, no activar los horarios de Cloudflare. Quedan pendientes una prueba autenticada completa y medir CPU, Images y KV reales. Neon PostgreSQL y Neon Auth permanecen en el proyecto de Papelito.
+Estado (1 de noviembre de 2026): `main` despliega la web en el Worker `papelitocr`, con dirección pública corta `https://papelitocr.pages.dev` mediante un Pages Function y service binding. Portada, CSS, demo, sesión anónima y CI comprobados. El Worker web tiene seis secretos (Neon, sesión, invitaciones y par VAPID) y caché KV. `papelitocr-jobs` está desplegado privado, con conexión a Neon y el mismo par VAPID, pero sin horarios. Netlify sigue publicando el commit anterior `51cd1cb`: sus despliegues recientes de `main` fueron omitidos con estado de error. Hasta verificar que los cron de Netlify están desactivados, no activar los horarios de Cloudflare. Quedan pendientes una prueba autenticada completa y medir CPU, Images y KV reales. Neon PostgreSQL y Neon Auth permanecen en el proyecto de Papelito.
+
+La arquitectura y el mantenimiento del alias de Pages se describen en [CLOUDFLARE_PAGES.md](CLOUDFLARE_PAGES.md). La dirección técnica `https://papelitocr.papelitocr.workers.dev` queda disponible como respaldo.
 
 ## Plataforma y límite gratuito
 
