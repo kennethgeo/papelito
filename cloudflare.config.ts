@@ -23,7 +23,7 @@ export default defineConfig({
       INVITATION_TOKEN_SECRET: bindings.secret(),
       PUSH_VAPID_PUBLIC_KEY: bindings.secret(),
       PUSH_VAPID_PRIVATE_KEY: bindings.secret(),
-      PAPELITO_APP_URL: bindings.text("https://papelitocr.papelitocr.workers.dev"),
+      PAPELITO_APP_URL: bindings.text("https://papelitocr.pages.dev"),
     },
   }),
 });
