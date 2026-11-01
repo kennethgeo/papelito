@@ -143,6 +143,10 @@ export default function PrivacidadPage() {
             junto con sus invitaciones, participantes y asignaciones. Para cierres anteriores a esta versión,
             el plazo comienza con la migración del 17 de octubre de 2026. Los intercambios activos no se eliminan
             por antigüedad. Tu cuenta y tu lista personal de deseos se conservan hasta que solicites su eliminación.
+            La persona organizadora actual puede eliminar un intercambio antes de ese plazo; se borran de la base
+            activa sus invitaciones, miembros, sorteos, asignaciones, mensajes, selecciones y reservas de deseos,
+            incluidos los datos del grupo correspondientes a otras personas. Las cuentas y listas personales
+            permanecen. Una edición vinculada deja de apuntar al intercambio eliminado.
             Los respaldos de los proveedores siguen sus propios ciclos de expiración; una baja en la base activa
             no implica la eliminación instantánea de todas sus copias técnicas.
           </p>
