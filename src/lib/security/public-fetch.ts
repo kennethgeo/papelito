@@ -13,6 +13,11 @@ export function publicIP(address: string) {
   return isIP(address) === 6 && /^[23][0-9a-f]{3}:/i.test(address) && !blocked.check(address, 'ipv6');
 }
 export async function publicFetch(raw: string, accept: 'html' | 'image', redirects = 0): Promise<{ bytes: Buffer; url: string }> {
+  // Workers does not implement node:dns.lookup. Without DNS validation and a pinned
+  // connection, importing arbitrary URLs would remove the SSRF protection below.
+  if (navigator.userAgent === 'Cloudflare-Workers') {
+    throw new PublicError('La vista previa automática de enlaces no está disponible. Agregá la referencia manualmente.');
+  }
   if (typeof raw !== 'string' || raw.length > 2000) throw new PublicError('El enlace es demasiado largo.');
   const url = new URL(raw);
   if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443') || url.hostname.endsWith('.local') || !url.hostname.includes('.')) throw new PublicError('Usá un enlace público que comience con https://.');
