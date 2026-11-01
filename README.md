@@ -6,6 +6,8 @@ Aplicación web progresiva en español diseñada para organizar intercambios de 
 
 **Estado: integración con Neon y despliegue en Netlify.** Producción en [papelitocr.netlify.app](https://papelitocr.netlify.app), con Google, correo verificado y passkeys vinculadas a la misma cuenta. La base exclusiva tiene 24 tablas de aplicación; las migraciones se verifican antes de ejecutarse. Las funciones seleccionadas y sus límites están en [SIGUIENTE_TANDA.md](SIGUIENTE_TANDA.md); las recomendaciones restantes se conservan en [PENDIENTES_PRODUCTO.md](PENDIENTES_PRODUCTO.md). El titular realiza el piloto con dispositivos reales. Dominio propio, remitente propio y revisión jurídica general siguen pendientes.
 
+La preparación del alojamiento en Cloudflare Workers, sus comprobaciones, límites gratuitos y procedimiento de corte están en [CLOUDFLARE_MIGRATION.md](CLOUDFLARE_MIGRATION.md). Hasta completar la validación con secrets y mediciones reales, Netlify continúa como producción.
+
 Para probar la demo con **Node.js 24**:
 
 ```bash
@@ -145,6 +147,12 @@ El proyecto incluye `netlify.toml` preconfigurado con Node 24, servidor Next.js 
 La aplicación incluye borradores funcionales informativos accesibles públicamente en `/terminos`, `/privacidad`, `/consentimiento` y `/almacenamiento`, diseñados bajo los principios de separación de consentimiento, minimización de datos y derechos ARCO en Costa Rica. Antes de operar públicamente con usuarios reales, el titular del despliegue debe completar la identidad jurídica y el domicilio del responsable y revisar los textos. El nombre público es Papelito Costa Rica y el correo de soporte/privacidad es kennethgeo97@gmail.com. La configuración está en `src/lib/legal/constants.ts`. Estos textos constituyen borradores operativos y no representan una certificación legal.
 
 ## Operación de privacidad y retención
+
+### Eliminar un intercambio desde la aplicación
+
+La persona organizadora **actual** puede abrir el detalle → «Administrar este intercambio» → «Eliminar intercambio», tanto para grupos abiertos como sorteados o cerrados. La pantalla enumera el impacto, exige escribir el nombre exacto y marcar una confirmación irreversible. El servidor verifica una sesión iniciada en los últimos 15 minutos, la organización actual, el nombre, el estado y el número total de miembros dentro de una transacción. Si alguno cambió, se rechaza y hay que actualizar el detalle. La eliminación usa las claves foráneas `ON DELETE CASCADE` para datos del grupo; una edición vinculada queda con `previous_exchange_id = NULL`. Se conservan las cuentas y listas personales de deseos de otros participantes. Se intenta borrar la copia privada local del navegador del organizador. Las copias de otros dispositivos y los respaldos siguen sus propios plazos; ver `/privacidad`.
+
+**Diferencia con cerrar:** «Finalizar» y «Cancelar» revocan invitaciones y conservan el historial 12 meses. «Eliminar» quita inmediatamente el grupo de la base activa para todos sus miembros y no se puede deshacer. No se registra un inventario adicional de nombres o asignaciones tras eliminarlo. La versión legal `2026-10-31.1` vuelve a solicitar consentimiento vigente. `npm run test:lifecycle` verifica permiso, confirmación, sesión reciente, cambios entre vista y operación, cascadas, edición vinculada y conservación de deseos personales. El piloto debe comprobar la experiencia con usuarios y dispositivos reales antes de decidir si publicarla.
 
 El organizador puede finalizar un intercambio sorteado, cancelar uno activo o transferir la organización a otro participante aprobado. El cierre revoca invitaciones y registra `closed_at`. Una Scheduled Function privada de Netlify, `retention-cleanup`, elimina diariamente los grupos cerrados hace 12 meses (meses calendario), junto con sus datos dependientes. Las cuentas y listas personales tienen un ciclo separado. No hay un endpoint HTTP público para ejecutar esta tarea. Se puede comprobar desde Functions → retention-cleanup → Run now.
 
