@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "papelitocr",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-10-30",
+  "services": [
+    { "binding": "PAPELITO_WEB", "service": "papelitocr" }
+  ]
+}
