@@ -21,6 +21,8 @@ export default defineConfig({
       NEON_AUTH_BASE_URL: bindings.secret(),
       NEON_AUTH_COOKIE_SECRET: bindings.secret(),
       INVITATION_TOKEN_SECRET: bindings.secret(),
+      PUSH_VAPID_PUBLIC_KEY: bindings.secret(),
+      PUSH_VAPID_PRIVATE_KEY: bindings.secret(),
       PAPELITO_APP_URL: bindings.text("https://papelitocr.papelitocr.workers.dev"),
     },
   }),
