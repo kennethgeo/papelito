@@ -1,7 +1,7 @@
 'use server';
 import { requireUser, safeAction } from './access';
 import { PublicError } from './errors';
-import { storeWishPhoto, deleteWishPhoto, normalizeWishImage } from '@/lib/repositories/photos';
+import { storeWishPhoto, deleteWishPhoto, normalizeWishImage, wishPhotoContentType } from '@/lib/repositories/photos';
 import { publicFetch } from '@/lib/security/public-fetch';
 import { dbQuery } from '@/lib/db/client';
 export async function uploadWishPhotoAction(form: FormData) { return safeAction(async () => {
@@ -25,6 +25,6 @@ export async function linkPreviewAction(raw: string) { return safeAction(async (
     if (key === 'og:image' && content) image = content;
   }
   let imageData = '';
-  if (image) { try { const fetched = await publicFetch(new URL(image.replace(/&amp;/g, '&'), page.url).href, 'image'); imageData = `data:image/jpeg;base64,${(await normalizeWishImage(fetched.bytes)).toString('base64')}`; } catch { /* Title remains useful if the image is unavailable. */ } }
+  if (image) { try { const fetched = await publicFetch(new URL(image.replace(/&amp;/g, '&'), page.url).href, 'image'); const normalized = await normalizeWishImage(fetched.bytes); imageData = `data:${wishPhotoContentType(normalized)};base64,${normalized.toString('base64')}`; } catch { /* Title remains useful if the image is unavailable. */ } }
   return { title: decode(title).trim().slice(0, 150), site: new URL(page.url).hostname, imageData };
 }); }

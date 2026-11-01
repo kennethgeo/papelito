@@ -16,6 +16,7 @@ import {
   getInvitationPreview,
   updateExchangeLifecycleStatus,
   transferExchangeOrganizer,
+  deleteExchange,
   type CreateExchangeInput,
 } from "@/lib/repositories/exchanges";
 import { executeAndCommitDraw } from "@/lib/repositories/draw";
@@ -811,6 +812,33 @@ export async function updateExchangeLifecycleStatusAction(
         "Error al actualizar el estado del intercambio.",
       ),
     };
+  }
+}
+
+export async function deleteExchangeAction(exchangeId: string, input: {
+  name: string;
+  status: string;
+  memberCount: number;
+  confirmIrreversible: boolean;
+}): Promise<ActionResult> {
+  try {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(exchangeId) ||
+        !input || typeof input.name !== 'string' || input.name.length > 100 ||
+        typeof input.status !== 'string' || input.status.length > 40 ||
+        !Number.isSafeInteger(input.memberCount) || typeof input.confirmIrreversible !== 'boolean') {
+      return { success: false, error: 'Datos de confirmación inválidos.' };
+    }
+    const session = await getFreshServerSession();
+    if (!session?.user) return { success: false, error: 'Iniciá sesión para eliminar el intercambio.' };
+    const consent = await getLatestConsentStatus(session.user.id);
+    if (!consent.hasCurrentConsent) return { success: false, error: 'Aceptá los términos vigentes para continuar.' };
+    await deleteExchange(exchangeId, session.user.id, {
+      ...input, sessionAuthenticatedAt: session.authenticatedAt,
+    });
+    revalidatePath('/');
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: sanitizeErrorMessage(err, 'No se pudo eliminar el intercambio.') };
   }
 }
 
