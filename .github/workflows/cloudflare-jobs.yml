@@ -2,6 +2,11 @@ name: Cloudflare scheduled jobs
 
 on:
   workflow_dispatch:
+    inputs:
+      activate:
+        description: Activate cron only after Netlify schedules are confirmed off
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -21,5 +26,9 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - name: Deploy cron Worker after Netlify schedules are removed
+      - name: Deploy private cron Worker without schedules
+        if: ${{ !inputs.activate }}
+        run: npx wrangler deploy --config cloudflare/scheduler.bootstrap.wrangler.jsonc
+      - name: Activate cron after Netlify schedules are removed
+        if: ${{ inputs.activate }}
         run: npm run deploy:cloudflare:jobs
