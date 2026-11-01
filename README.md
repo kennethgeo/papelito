@@ -4,9 +4,9 @@ Aplicación web progresiva en español diseñada para organizar intercambios de 
 
 [![CI](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml/badge.svg)](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml)
 
-**Estado: integración con Neon y despliegue en Netlify.** Producción en [papelitocr.netlify.app](https://papelitocr.netlify.app), con Google, correo verificado y passkeys vinculadas a la misma cuenta. La base exclusiva tiene 24 tablas de aplicación; las migraciones se verifican antes de ejecutarse. Las funciones seleccionadas y sus límites están en [SIGUIENTE_TANDA.md](SIGUIENTE_TANDA.md); las recomendaciones restantes se conservan en [PENDIENTES_PRODUCTO.md](PENDIENTES_PRODUCTO.md). El titular realiza el piloto con dispositivos reales. Dominio propio, remitente propio y revisión jurídica general siguen pendientes.
+**Estado: web desplegada en Cloudflare Workers.** Nueva dirección: [papelitocr.papelitocr.workers.dev](https://papelitocr.papelitocr.workers.dev). La dirección anterior [papelitocr.netlify.app](https://papelitocr.netlify.app) permanece temporalmente activa durante el corte de las tareas programadas. El acceso con Google, correo y passkeys se mantiene; las passkeys se registran de nuevo en la dirección nueva. La base exclusiva tiene 24 tablas de aplicación; las migraciones se verifican antes de ejecutarse. Las funciones seleccionadas y sus límites están en [SIGUIENTE_TANDA.md](SIGUIENTE_TANDA.md); las recomendaciones restantes se conservan en [PENDIENTES_PRODUCTO.md](PENDIENTES_PRODUCTO.md). El titular realiza el piloto con dispositivos reales. Dominio propio, remitente propio y revisión jurídica general siguen pendientes.
 
-La preparación del alojamiento en Cloudflare Workers, sus comprobaciones, límites gratuitos y procedimiento de corte están en [CLOUDFLARE_MIGRATION.md](CLOUDFLARE_MIGRATION.md). Hasta completar la validación con secrets y mediciones reales, Netlify continúa como producción.
+El estado del corte, los límites gratuitos y el procedimiento de reversión están en [CLOUDFLARE_MIGRATION.md](CLOUDFLARE_MIGRATION.md). Netlify sigue publicado mientras se verifica el retiro de sus cron; no activar el cron de Cloudflare hasta entonces.
 
 Para probar la demo con **Node.js 24**:
 
