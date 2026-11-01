@@ -1,5 +1,4 @@
 import 'server-only';
-import sharp from 'sharp';
 import { dbQuery, dbTransaction } from '@/lib/db/client';
 import { PublicError } from '@/lib/data/errors';
 export async function normalizeWishImage(bytes: Uint8Array) {
@@ -8,10 +7,28 @@ export async function normalizeWishImage(bytes: Uint8Array) {
   const raster = (data[0] === 0xff && data[1] === 0xd8) || data.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) || (data.toString('ascii',0,4) === 'RIFF' && data.toString('ascii',8,12) === 'WEBP');
   if (!raster) throw new PublicError('Usá una imagen JPG, PNG o WebP.');
   try {
-    const photo = await sharp(data, { limitInputPixels: 20_000_000, animated: false }).rotate().resize(800, 800, { fit: 'inside', withoutEnlargement: true }).flatten({ background: '#ffffff' }).jpeg({ quality: 70 }).toBuffer();
+    let photo: Buffer;
+    if (navigator.userAgent === 'Cloudflare-Workers') {
+      const { env } = await import('cloudflare:workers');
+      if (!env.IMAGES) throw new Error('Falta el binding IMAGES.');
+      const stream = new Blob([new Uint8Array(bytes)]).stream();
+      const info = await env.IMAGES.info(stream);
+      if (info.width * info.height > 20_000_000) throw new PublicError('La imagen es demasiado grande.');
+      const optimized = await env.IMAGES.input(new Blob([new Uint8Array(bytes)]).stream())
+        .transform({ width: 800, height: 800, fit: 'scale-down' })
+        .output({ format: 'image/webp', quality: 70, anim: false });
+      photo = Buffer.from(await optimized.response().arrayBuffer());
+    } else {
+      const { default: sharp } = await import('sharp');
+      photo = await sharp(data, { limitInputPixels: 20_000_000, animated: false }).rotate().resize(800, 800, { fit: 'inside', withoutEnlargement: true }).flatten({ background: '#ffffff' }).jpeg({ quality: 70 }).toBuffer();
+    }
     if (photo.byteLength > 131072) throw new PublicError('Esta imagen tiene demasiado detalle. Elegí una más pequeña.');
     return photo;
   } catch (e) { if (e instanceof PublicError) throw e; throw new PublicError('No pudimos leer esta imagen. Probá con otra foto.'); }
+}
+export function wishPhotoContentType(bytes: Uint8Array): 'image/jpeg' | 'image/webp' {
+  return bytes.length >= 12 && Buffer.from(bytes).toString('ascii', 0, 4) === 'RIFF' &&
+    Buffer.from(bytes).toString('ascii', 8, 12) === 'WEBP' ? 'image/webp' : 'image/jpeg';
 }
 export async function storeWishPhoto(userId: string, wishId: string, image: Uint8Array) {
   const normalized = await normalizeWishImage(image);
