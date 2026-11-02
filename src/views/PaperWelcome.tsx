@@ -22,7 +22,6 @@ export function PaperWelcome() {
         <PaperBrand />
         <span>Un pequeño gran secreto.</span>
       </header>
-      <InstallGuide compact />
 
       <div className="paper-welcome-grid">
         <section className="paper-welcome-story">
@@ -74,6 +73,9 @@ export function PaperWelcome() {
           </p>
         </section>
       </div>
+
+      {/* Installing comes after knowing what Papelito is and how to get in. */}
+      <div className="paper-welcome-install"><InstallGuide compact /></div>
 
       <footer className="paper-welcome-footer">
         <span>Para regalar con ganas.</span>

@@ -13,12 +13,15 @@ import { callServerAction } from "@/lib/client-actions";
 interface JoinExchangeClientActionProps {
   token: string;
   userEmail: string;
+  /** How the group will see this person (profile alias). */
+  visibleName: string;
+  requiresApproval: boolean;
   initialHasConsented: boolean;
 }
 
 export const JoinExchangeClientAction: React.FC<
   JoinExchangeClientActionProps
-> = ({ token, userEmail, initialHasConsented }) => {
+> = ({ token, userEmail, visibleName, requiresApproval, initialHasConsented }) => {
   const router = useRouter();
   const [hasConsented, setHasConsented] = useState(initialHasConsented);
   const [joining, setJoining] = useState(false);
@@ -79,12 +82,12 @@ export const JoinExchangeClientAction: React.FC<
   };
 
   return (
-    <div style={{ textAlign: "left" }}>
+    <div className="join-action">
       {!hasConsented ? (
         <ConsentGateCard
           compact
           title="Antes de sumarte, un detalle."
-          description={`Entraste como ${userEmail}. Antes de unirte al intercambio, confirmá por única vez la versión vigente de nuestros documentos legales.`}
+          description={`Entraste como ${userEmail}. Antes de unirte, confirmá por única vez la versión vigente de los documentos de Papelito.`}
           submitLabel="Confirmar consentimiento"
           onConfirm={handleConfirmConsent}
           externalError={joinError}
@@ -92,75 +95,30 @@ export const JoinExchangeClientAction: React.FC<
       ) : (
         <div>
           {consentJustSaved && (
-            <div
-              role="status"
-              style={{
-                backgroundColor: "#F0FDF4",
-                border: "1px solid #BBF7D0",
-                color: "#166534",
-                padding: "0.65rem 0.85rem",
-                borderRadius: "12px",
-                fontSize: "0.82rem",
-                fontWeight: 600,
-                marginBottom: "0.85rem",
-                lineHeight: 1.4,
-              }}
-            >
-              Consentimiento registrado en tu cuenta. Ahora podés confirmar tu
-              ingreso al intercambio.
-            </div>
+            <p className="workshop-success" role="status">
+              Consentimiento registrado. Ahora podés confirmar tu ingreso.
+            </p>
           )}
-
           {joinError && (
-            <div
-              role="alert"
-              style={{
-                backgroundColor: "#FFF5F5",
-                border: "1px solid #FEB2B2",
-                color: "#9B1C1C",
-                padding: "0.65rem 0.85rem",
-                borderRadius: "12px",
-                fontSize: "0.82rem",
-                fontWeight: 600,
-                marginBottom: "0.85rem",
-                lineHeight: 1.4,
-              }}
-            >
+            <p className="workshop-error" role="alert">
               {joinError}
-            </div>
+            </p>
           )}
-
+          {visibleName && (
+            <p className="join-visible-name">
+              El grupo te va a ver como <strong>{visibleName}</strong>. Podés cambiar tu nombre visible en Mi cuenta.
+            </p>
+          )}
           <button
             type="button"
+            className="paper-button join-button"
             onClick={handleJoinExchange}
             disabled={joining}
-            style={{
-              width: "100%",
-              minHeight: "48px",
-              backgroundColor: "var(--color-frambuesa)",
-              color: "#FFFFFF",
-              border: "none",
-              borderRadius: "14px",
-              fontSize: "0.98rem",
-              fontWeight: 700,
-              fontFamily: "var(--font-heading)",
-              cursor: joining ? "wait" : "pointer",
-              padding: "0.75rem 1rem",
-            }}
+            aria-busy={joining}
           >
-            {joining ? "Uniéndote al intercambio..." : "Unirme al intercambio"}
+            {joining ? "Sumándote al intercambio…" : requiresApproval ? "Pedir mi lugar" : "Unirme al intercambio"}
           </button>
-          <p
-            style={{
-              margin: "0.65rem 0 0",
-              fontSize: "0.8rem",
-              color: "var(--text-secondary)",
-              overflowWrap: "anywhere",
-              textAlign: "center",
-            }}
-          >
-            Vas a unirte como {userEmail}.
-          </p>
+          <p className="field-help join-account">Vas a unirte como {userEmail}.</p>
         </div>
       )}
     </div>

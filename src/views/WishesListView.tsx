@@ -356,6 +356,7 @@ export function WishesListView() {
             <h2>Tu lista de ilusiones</h2>
             <span className="count-stamp">{wishes.length}</span>
           </div>
+          <p className="field-help wish-photo-note">Podés sumar una foto por idea: se comprime, se guarda sin metadatos y solo la ve quien te regala. Hasta 20 por cuenta durante el piloto.</p>
           <div aria-live="polite" aria-atomic="true">
             {message && <p className="workshop-success">{message}</p>}
           </div>

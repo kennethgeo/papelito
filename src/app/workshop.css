@@ -853,7 +853,7 @@
 }
 @media (max-width: 700px) {
   .workshop-page {
-    padding: 20px 20px 105px;
+    padding: 20px 20px calc(105px + env(safe-area-inset-bottom, 0px));
   }
   .workshop-heading {
     gap: 12px;
@@ -946,7 +946,7 @@
 }
 @media (max-width: 359px) {
   .workshop-page {
-    padding: 16px 14px 105px;
+    padding: 16px 14px calc(105px + env(safe-area-inset-bottom, 0px));
   }
   .workshop-sheet {
     padding: 22px 16px;
@@ -1009,8 +1009,10 @@
 .represented-person h3,.history-edition h3 { margin:.25rem 0; }
 .wish-photo img,.reference-paper img { max-width:100%;height:auto;max-height:280px;object-fit:contain;border-radius:8px; }
 .wish-photo figure { margin:.75rem 0; }
-.photo-upload { display:grid;gap:.5rem;font-weight:600;margin:.75rem 0; }
-.photo-upload input { width:100%;max-width:100%;font:inherit; }
+.photo-upload { position:relative;display:inline-flex;align-items:center;gap:.4rem;min-height:44px;padding:.4rem .9rem;margin:.5rem 0;border:1.5px solid var(--paper-ink);border-radius:9px;font-weight:600;cursor:pointer; }
+/* The native picker stays focusable and announced; only its English default text is hidden. */
+.photo-upload input { position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer; }
+.photo-upload:focus-within { outline:3px solid var(--paper-purple);outline-offset:3px; }
 .reference-paper { display:grid;gap:.65rem;padding:1rem;margin:.75rem 0;background:#FEF3D6;overflow-wrap:anywhere; }
 .reference-paper p { margin:0; }
 .reference-paper img { justify-self:center; }
@@ -1021,8 +1023,8 @@
 .help-search,.help-center textarea { width:100%;font:inherit;padding:.75rem;border:1px solid #7043A2;border-radius:7px; }
 .help-center .workshop-sheet { margin-top:1rem; }
 .preserve-lines { white-space:pre-wrap;overflow-wrap:anywhere; }
-.passkey-access { margin:1rem 0; }
-.passkey-access > button { width:100%; }
+.passkey-access { margin:1.25rem 0 0; padding-top:1rem; border-top:1px dashed #D5C8DF; text-align:center; }
+.passkey-access .field-help { margin:0 0 .25rem; }
 html[data-large-text=true] { font-size:19px; }
 html[data-large-text=true] body { font-size:20px; }
 html[data-large-text=true] :is(.workshop-page,.paper-dashboard,.paper-access) :is(p,li,label,input,textarea,select,button,summary,dt,dd) { font-size:1.05rem; }
@@ -1047,3 +1049,20 @@ html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[d
 .participant-list li > .participant-action { margin-left: auto; flex-shrink: 0; min-height: 44px; }
 .reauth-note { border-left: 4px solid var(--paper-yellow); background: #FEF3D6; padding: 14px 16px; margin: 12px 0; }
 .reauth-note p { margin: 0 0 8px; }
+
+/* Invitation page: the first screen most participants see. */
+.join-page { min-height: 100dvh; background: var(--bg-app); display: flex; justify-content: center; align-items: flex-start; padding: 28px 16px calc(32px + env(safe-area-inset-bottom, 0px)); }
+.join-invitation { width: 100%; max-width: 560px; background: var(--paper-white); border: 1.5px solid #cebed9; border-top: 6px solid var(--occasion, #7043a2); box-shadow: 5px 6px 0 var(--occasion-paper, #ede5f5); padding: 24px 22px 28px; position: relative; overflow: hidden; }
+.join-body h1 { font: 800 clamp(28px, 7vw, 38px)/1.08 var(--font-heading); letter-spacing: -1px; margin: 6px 0 4px; overflow-wrap: anywhere; }
+.join-body .event-facts { margin: 16px 0; }
+.join-art { width: 150px; margin: 4px auto 8px; }
+.join-steps { counter-reset: paso; list-style: none; padding: 0; margin: 18px 0; display: grid; gap: 8px; }
+.join-steps li { counter-increment: paso; display: flex; gap: 10px; align-items: baseline; }
+.join-steps li::before { content: counter(paso); flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--paper-ink); display: inline-grid; place-items: center; font-weight: 700; font-size: 14px; }
+.join-steps li.done::before { content: "✓"; background: var(--paper-green); }
+.join-privacy { border-left: 3px solid var(--paper-yellow); padding-left: 12px; font-size: 15px; color: var(--text-secondary); }
+.join-visible-name { font-size: 15px; }
+.join-button { width: 100%; }
+.join-footer { text-align: center; margin: 18px 0 0; font-size: 15px; }
+.event-countdown { display: block; font-size: 14px; font-weight: 600; color: var(--occasion, #7043a2); margin-top: 2px; }
+.invite-sheet { margin-bottom: 22px; }

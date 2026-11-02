@@ -14,6 +14,7 @@ import { AccountView } from "@/views/AccountView";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { ContextualGuide } from './ContextualGuide';
 import { useViewFocus } from "@/lib/use-view-focus";
+import { useKeyboardInset } from "@/lib/use-keyboard-inset";
 import { VIEW_TITLES } from "@/lib/view-history";
 
 export function DemoAppShell() {
@@ -28,6 +29,7 @@ export function DemoAppShell() {
     toggleWishPurchased,
     isHydrated,
   } = useDemoData();
+  useKeyboardInset();
   useViewFocus(activeView, activeView === "intercambio_detalle" && currentExchange ? currentExchange.name : activeView === "bienvenida" ? "Demo" : VIEW_TITLES[activeView]);
 
   if (!isHydrated) {
@@ -72,7 +74,7 @@ export function DemoAppShell() {
       <ConnectionStatus />
 
       <main id="app-content" style={{ flex: 1 }}>
-        <ContextualGuide />
+        <ContextualGuide view={activeView} role="organizer" />
         {activeView === "intercambios_lista" && <ExchangesListView />}
         {activeView === "intercambio_crear" && <CreateExchangeWizard />}
         {activeView === "intercambio_detalle" && <ExchangeDetailView />}

@@ -316,3 +316,45 @@ test('la vista previa de tiendas solo se ofrece donde el servidor puede consulta
   if (process.env.PAPELITO_E2E_WORKERD === '1') await expect(button).toHaveCount(0);
   else await expect(button).toBeVisible();
 });
+
+test('la navegación inferior se oculta solo con teclado en pantalla y no tapa campos', async ({ page }) => {
+  await page.getByRole('button', { name: 'Mis deseos', exact: true }).click();
+  const nav = page.getByRole('navigation', { name: 'Navegación principal' });
+  const field = page.getByLabel('Idea de regalo', { exact: true });
+  await field.focus();
+  await expect(nav).toBeVisible(); // focusing a field without a keyboard (desktop, emulation) keeps it
+  await page.evaluate(() => {
+    const viewport = window.visualViewport!;
+    Object.defineProperty(viewport, 'height', { configurable: true, get: () => window.innerHeight - 320 });
+    viewport.dispatchEvent(new Event('resize'));
+  });
+  await expect(nav).toBeHidden();
+  await page.getByRole('heading', { level: 1 }).first().focus();
+  await expect(nav).toBeVisible();
+  await page.evaluate(() => { const viewport = window.visualViewport!; Reflect.deleteProperty(viewport, 'height'); viewport.dispatchEvent(new Event('resize')); });
+  const layout = await page.evaluate(() => {
+    const navBox = document.querySelector('.paper-navigation')!.getBoundingClientRect();
+    return { navTop: navBox.top, scrollPadding: getComputedStyle(document.documentElement).scrollPaddingBottom };
+  });
+  expect(parseFloat(layout.scrollPadding)).toBeGreaterThanOrEqual(96);
+  expect(layout.navTop).toBeGreaterThan(0);
+});
+
+test('guía solo en la lista y página de error 404 en español', async ({ page }) => {
+  await expect(page.getByRole('complementary', { name: 'Guía de Papelito' })).toBeVisible();
+  await page.getByRole('button', { name: 'Mis deseos', exact: true }).click();
+  await expect(page.getByRole('complementary', { name: 'Guía de Papelito' })).toHaveCount(0);
+  await page.goto('/esta-pagina-no-existe');
+  await expect(page.getByRole('heading', { name: 'No encontramos esta página.' })).toBeVisible();
+});
+
+test('acceso: Google primero, luego correo y la passkey como opción secundaria', async ({ page }) => {
+  await page.goto('/');
+  const card = page.locator('.paper-access');
+  const google = card.getByRole('button', { name: 'Continuar con Google' });
+  const email = card.getByLabel('Correo electrónico');
+  await expect(google).toBeVisible();
+  const [googleBox, emailBox] = [await google.boundingBox(), await email.boundingBox()];
+  expect(googleBox!.y).toBeLessThan(emailBox!.y);
+  await noOverflow(page);
+});

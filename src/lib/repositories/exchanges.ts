@@ -619,6 +619,7 @@ export async function getInvitationPreview(token: string, referenceNow: Date = n
     currency: string;
     requires_approval: boolean;
     status: string;
+    selected_theme: string;
     organizer_alias: string;
   }>(
     `SELECT
@@ -635,6 +636,7 @@ export async function getInvitationPreview(token: string, referenceNow: Date = n
        e.currency,
        e.requires_approval,
        e.status,
+       e.selected_theme,
        p.alias as organizer_alias
      FROM invitations i
      JOIN exchanges e ON e.id = i.exchange_id
@@ -678,6 +680,7 @@ export async function getInvitationPreview(token: string, referenceNow: Date = n
     currency: row.currency,
     requiresApproval: row.requires_approval,
     organizerAlias: row.organizer_alias,
+    theme: row.selected_theme,
   };
 }
 

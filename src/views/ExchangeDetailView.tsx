@@ -6,6 +6,7 @@ import { useOptionalRealData } from "@/context/RealDataContext";
 import { THEME_CONFIG } from "@/lib/theme";
 import { formatEventDate, formatMoney } from "@/lib/event-dates";
 import { getCostaRicaTodayDate } from "@/lib/date/costa-rica";
+import { countdownText } from "@/lib/calendar";
 import type { ThemeKey } from "@/types";
 import { ExchangeLifecycleControls } from "@/components/ExchangeLifecycleControls";
 import { PaperIllustration } from "@/components/PaperIllustration";
@@ -267,7 +268,10 @@ export function ExchangeDetailView() {
           <dl className="event-facts">
             <div>
               <dt>Entrega</dt>
-              <dd>{formatEventDate(ex.eventDate)}</dd>
+              <dd>
+                {formatEventDate(ex.eventDate)}
+                {!closed && <small className="event-countdown">{countdownText(ex.eventDate, getCostaRicaTodayDate(), "entrega")}</small>}
+              </dd>
             </div>
             <div>
               <dt>Por regalo</dt>
@@ -341,9 +345,127 @@ export function ExchangeDetailView() {
               </button>
             </section>
           )}
+          {/* While people can still join, inviting is the organizer's next step: first on every screen size. */}
+          {canInvite && (
+            <section className="workshop-sheet invite-sheet">
+              <p className="workshop-step">El siguiente paso</p>
+              <h2>Pasá la invitación.</h2>
+              {!shareUnavailable && <InvitationQR url={real ? `/unirse/${ex.inviteCode}` : '/?mode=demo'} name={ex.name} />}
+              {!real && <p className="field-help">El QR de ejemplo abre la demo; las invitaciones reales se crean con tu cuenta.</p>}
+              <p>
+                Compartí el enlace con tu familia o tus amigos.
+                {ex.requiresApproval && " Vos decidís quién entra."}
+              </p>
+              <div className="invite-actions">
+                <button
+                  className="paper-button"
+                  onClick={shareInvite}
+                  disabled={shareUnavailable}
+                >
+                  Compartir invitación
+                </button>
+                <button
+                  className="paper-outline-button"
+                  onClick={copyInvite}
+                  disabled={shareUnavailable}
+                >
+                  Copiar enlace
+                </button>
+                <button
+                  className="paper-text-button"
+                  onClick={() => {
+                    if (real) setShareUrl(invitationUrl());
+                    else void copyInvite();
+                  }}
+                  disabled={shareUnavailable}
+                >
+                  Preparar para WhatsApp
+                </button>
+              </div>
+              {shareUnavailable && (
+                <p className="field-help">
+                  No hay una invitación vigente. Revisá el cierre de
+                  inscripción antes de renovar el enlace.
+                </p>
+              )}
+              {shareUrl && (
+                <a
+                  className="paper-outline-button"
+                  href={`https://wa.me/?text=${encodeURIComponent(`¡Te invito a ${ex.name} en Papelito! ${shareUrl}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Abrir WhatsApp ↗
+                </a>
+              )}
+              {copyFallback && (
+                <label className="workshop-field">
+                  Copiá este enlace
+                  <input
+                    readOnly
+                    value={copyFallback}
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <small>
+                    No pudimos usar el portapapeles. Seleccioná y copiá el
+                    enlace.
+                  </small>
+                </label>
+              )}
+              {real && (
+                <details className="workshop-options">
+                  <summary>Reemplazar el enlace</summary>
+                  <p>
+                    El enlace anterior dejará de funcionar. Usalo si se
+                    compartió con personas que no conocés.
+                  </p>
+                  {!renew ? (
+                    <button
+                      className="paper-text-button"
+                      onClick={() => setRenew(true)}
+                    >
+                      Quiero cambiarlo
+                    </button>
+                  ) : (
+                    <div className="workshop-actions">
+                      <button
+                        className="paper-outline-button"
+                        disabled={!!busy}
+                        onClick={() =>
+                          void run(
+                            "invite",
+                            async () => {
+                              const token = await real.regenerateInviteLink(
+                                ex.id,
+                              );
+                              if (!token) return false;
+                              setShareUrl("");
+                              setCopyFallback("");
+                              setRenew(false);
+                              return true;
+                            },
+                            "Enlace renovado. Copiá o compartí la nueva invitación.",
+                          )
+                        }
+                      >
+                        Confirmar cambio de enlace
+                      </button>
+                      <button
+                        className="paper-text-button"
+                        onClick={() => setRenew(false)}
+                        disabled={!!busy}
+                      >
+                        Conservar enlace
+                      </button>
+                    </div>
+                  )}
+                </details>
+              )}
+            </section>
+          )}
           <div className="detail-columns">
             <div>
-              {!closed && (
+              {!closed && (owner || !drawn) && (
                 <section className="workshop-sheet readiness-sheet">
                   <p className="workshop-step">Antes de repartir secretos</p>
                   <h2>
@@ -623,123 +745,6 @@ export function ExchangeDetailView() {
               </section>
             </div>
             <aside>
-              {canInvite && (
-                <section className="workshop-sheet invite-sheet">
-                  <p className="workshop-step">El siguiente paso</p>
-                  <h2>Pasá la invitación.</h2>
-                  {!shareUnavailable && <InvitationQR url={real ? `/unirse/${ex.inviteCode}` : '/?mode=demo'} name={ex.name} />}
-                  {!real && <p className="field-help">El QR de ejemplo abre la demo; las invitaciones reales se crean con tu cuenta.</p>}
-                  <p>
-                    Compartí el enlace con tu familia o tus amigos.
-                    {ex.requiresApproval && " Vos decidís quién entra."}
-                  </p>
-                  <div className="invite-actions">
-                    <button
-                      className="paper-button"
-                      onClick={shareInvite}
-                      disabled={shareUnavailable}
-                    >
-                      Compartir invitación
-                    </button>
-                    <button
-                      className="paper-outline-button"
-                      onClick={copyInvite}
-                      disabled={shareUnavailable}
-                    >
-                      Copiar enlace
-                    </button>
-                    <button
-                      className="paper-text-button"
-                      onClick={() => {
-                        if (real) setShareUrl(invitationUrl());
-                        else void copyInvite();
-                      }}
-                      disabled={shareUnavailable}
-                    >
-                      Preparar para WhatsApp
-                    </button>
-                  </div>
-                  {shareUnavailable && (
-                    <p className="field-help">
-                      No hay una invitación vigente. Revisá el cierre de
-                      inscripción antes de renovar el enlace.
-                    </p>
-                  )}
-                  {shareUrl && (
-                    <a
-                      className="paper-outline-button"
-                      href={`https://wa.me/?text=${encodeURIComponent(`¡Te invito a ${ex.name} en Papelito! ${shareUrl}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Abrir WhatsApp ↗
-                    </a>
-                  )}
-                  {copyFallback && (
-                    <label className="workshop-field">
-                      Copiá este enlace
-                      <input
-                        readOnly
-                        value={copyFallback}
-                        onFocus={(e) => e.target.select()}
-                      />
-                      <small>
-                        No pudimos usar el portapapeles. Seleccioná y copiá el
-                        enlace.
-                      </small>
-                    </label>
-                  )}
-                  {real && (
-                    <details className="workshop-options">
-                      <summary>Reemplazar el enlace</summary>
-                      <p>
-                        El enlace anterior dejará de funcionar. Usalo si se
-                        compartió con personas que no conocés.
-                      </p>
-                      {!renew ? (
-                        <button
-                          className="paper-text-button"
-                          onClick={() => setRenew(true)}
-                        >
-                          Quiero cambiarlo
-                        </button>
-                      ) : (
-                        <div className="workshop-actions">
-                          <button
-                            className="paper-outline-button"
-                            disabled={!!busy}
-                            onClick={() =>
-                              void run(
-                                "invite",
-                                async () => {
-                                  const token = await real.regenerateInviteLink(
-                                    ex.id,
-                                  );
-                                  if (!token) return false;
-                                  setShareUrl("");
-                                  setCopyFallback("");
-                                  setRenew(false);
-                                  return true;
-                                },
-                                "Enlace renovado. Copiá o compartí la nueva invitación.",
-                              )
-                            }
-                          >
-                            Confirmar cambio de enlace
-                          </button>
-                          <button
-                            className="paper-text-button"
-                            onClick={() => setRenew(false)}
-                            disabled={!!busy}
-                          >
-                            Conservar enlace
-                          </button>
-                        </div>
-                      )}
-                    </details>
-                  )}
-                </section>
-              )}
               {owner && !closed && (
                 <section className="workshop-sheet">
                   <details className="workshop-options">

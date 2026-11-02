@@ -101,7 +101,7 @@ button:disabled { cursor: wait; opacity: .65; }
 .paper-empty h3 { margin: 0; font-size: 24px; }
 .paper-empty p { color: var(--text-secondary); }
 .paper-closing-note { text-align: center; margin: 30px 0 0; color: #786783; font-size: 13px; }
-.paper-navigation { position: fixed; z-index: 50; left: 50%; transform: translateX(-50%); bottom: 15px; width: min(420px, calc(100% - 32px)); display: grid; grid-template-columns: repeat(3, 1fr); padding: 6px; background: var(--paper-white); border: 1.5px solid #CBB9D7; border-radius: 15px; box-shadow: 0 5px 0 #E3D9EC; }
+.paper-navigation { position: fixed; z-index: 50; left: 50%; transform: translateX(-50%); bottom: calc(15px + env(safe-area-inset-bottom, 0px)); width: min(420px, calc(100% - 32px)); display: grid; grid-template-columns: repeat(3, 1fr); padding: 6px; background: var(--paper-white); border: 1.5px solid #CBB9D7; border-radius: 15px; box-shadow: 0 5px 0 #E3D9EC; }
 .paper-navigation button { border: 0; border-radius: 9px; padding: 8px 5px; min-height: 51px; display: flex; align-items: center; justify-content: center; gap: 8px; background: none; color: var(--text-secondary); font-size: 13px; cursor: pointer; }
 .paper-navigation button[aria-current=page] { background: var(--paper-lilac); color: var(--paper-ink); font-weight: 650; }
 .paper-navigation svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
@@ -187,10 +187,10 @@ button:disabled { cursor: wait; opacity: .65; }
 .paper-wish-check { display: flex; align-items: center; gap: 9px; min-height: 45px; border-top: 1px dashed #D5C8DF; margin-top: 13px; padding-top: 13px; cursor: pointer; font-size: 15px; }
 .paper-wish-check input { width: 20px; height: 20px; accent-color: var(--paper-purple); margin: 0; }
 .paper-private-note { font-size: 13px; color: var(--text-secondary); text-align: center; padding: 12px 15px; }
-@media (min-width: 760px) { .paper-navigation { bottom: 20px; } }
+@media (min-width: 760px) { .paper-navigation { bottom: calc(20px + env(safe-area-inset-bottom, 0px)); } }
 @media (max-width: 700px) {
   .paper-header-inner { padding: 16px 21px; }
-  .paper-dashboard { padding: 27px 21px 112px; }
+  .paper-dashboard { padding: 27px 21px calc(112px + env(safe-area-inset-bottom, 0px)); }
   .paper-page-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 17px 10px; margin-bottom: 24px; align-items: center; }
   .paper-page-heading > div { display: contents; }
   .paper-page-heading .paper-greeting { grid-column: 1; grid-row: 1; margin: 0; font-size: 15px; }
@@ -546,3 +546,10 @@ button:disabled { cursor: wait; opacity: .65; }
   .paper-auth-password-toggle { min-width: 68px; padding: 0 9px; font-size: 12px; }
 }
 .paper-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg-app); font-family: var(--font-heading); color: var(--color-tinta); font-size: 20px; }
+
+/* On-screen keyboard open while editing: the floating navigation would cover
+   the field. visibility (not display) avoids layout shifts and removes it from
+   the tab order until the keyboard closes. */
+html[data-keyboard="open"] .paper-navigation, html[data-keyboard="open"] .update-banner { visibility: hidden; }
+/* Fields scrolled into view stop above the floating navigation. */
+html { scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
