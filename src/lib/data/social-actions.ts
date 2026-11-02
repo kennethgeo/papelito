@@ -1,21 +1,23 @@
 'use server';
 import { getServerSession } from '@/lib/auth/server';
+import { PublicError } from '@/lib/data/errors';
+import { logError } from '@/lib/observability/log';
 import { getLatestConsentStatus } from '@/lib/repositories/profiles';
 import { getAnonymousThreads, getGiftPreferences, saveGiftPreferences, sendAnonymousMessage } from '@/lib/repositories/social';
 import { getPushPublicKey, isPushConfigured, savePushSubscription, removePushSubscription, ownsPushSubscription, notifyUser } from '@/lib/notifications/push';
 
 async function user() {
   const session = await getServerSession();
-  if (!session?.user || !(await getLatestConsentStatus(session.user.id)).hasCurrentConsent) throw new Error('Iniciá sesión y confirmá el consentimiento para continuar.');
+  if (!session?.user || !(await getLatestConsentStatus(session.user.id)).hasCurrentConsent) throw new PublicError('Iniciá sesión y confirmá el consentimiento para continuar.');
   return session.user.id;
 }
 async function safe<T>(work: () => Promise<T>) {
   try { return { success: true as const, data: await work() }; }
   catch (e) {
-    const text = e instanceof Error ? e.message : '';
     // Never serialize SQL, tokens, subscription endpoints or provider diagnostics.
-    const publicError = /^(No pudimos confirmar tu sesión|Iniciá|Escribí|Esta conversación|Esperá|Cada respuesta|Perfil de gustos|Los recordatorios|No se pudo vincular|Proveedor de|Suscripción inválida|Claves de)/.test(text);
-    return { success: false as const, error: publicError ? text : 'No se pudo completar. Revisá la conexión e intentá de nuevo.' };
+    if (e instanceof PublicError) return { success: false as const, error: e.message };
+    logError('social_action.failed', e);
+    return { success: false as const, error: 'No se pudo completar. Revisá la conexión e intentá de nuevo.' };
   }
 }
 export async function giftPreferencesAction(value?: unknown) {
@@ -37,7 +39,7 @@ export async function unsubscribePushAction(endpoint: string) { return safe(asyn
 export async function testPushAction(endpoint: string) {
   return safe(async () => {
     const id = await user();
-    if (!(await ownsPushSubscription(id, endpoint))) throw new Error('Suscripción inválida.');
+    if (!(await ownsPushSubscription(id, endpoint))) throw new PublicError('Suscripción inválida.');
     return notifyUser(id, `test:${Math.floor(Date.now() / 60_000)}`, { body: '¡Listo! Los recordatorios de Papelito llegan a este dispositivo.' }, undefined, endpoint);
   });
 }

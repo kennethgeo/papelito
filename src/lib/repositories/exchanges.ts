@@ -1,7 +1,9 @@
 import 'server-only';
+import { PublicError } from '@/lib/data/errors';
 import crypto from 'node:crypto';
 import { dbQuery, dbTransaction } from '@/lib/db/client';
 import { getCostaRicaTodayDate } from '@/lib/date/costa-rica';
+import { toIsoTimestamp } from '@/lib/date/timestamps';
 import {
   purgeExpiredClosedExchangesWithClient,
   type PurgeExpiredExchangesOptions,
@@ -81,20 +83,20 @@ export async function createExchangeWithInvitation(
   input: CreateExchangeInput
 ): Promise<{ exchangeId: string; inviteToken: string }> {
   if (!input.name || input.name.trim().length === 0) {
-    throw new Error('El nombre del intercambio es obligatorio.');
+    throw new PublicError('El nombre del intercambio es obligatorio.');
   }
   if (input.budgetAmount <= 0) {
-    throw new Error('El presupuesto debe ser mayor a cero.');
+    throw new PublicError('El presupuesto debe ser mayor a cero.');
   }
   if (!input.eventDate || !input.registrationDeadline) {
-    throw new Error('Las fechas del evento y cierre de inscripción son obligatorias.');
+    throw new PublicError('Las fechas del evento y cierre de inscripción son obligatorias.');
   }
 
   return await dbTransaction(async (client) => {
     if (input.previousExchangeId) {
       const source = await client.query<{ organizer_id: string }>(
         'SELECT organizer_id FROM exchanges WHERE id = $1 FOR SHARE', [input.previousExchangeId]);
-      if (source.rows[0]?.organizer_id !== organizerId) throw new Error('Solo podés repetir un intercambio que organizás.');
+      if (source.rows[0]?.organizer_id !== organizerId) throw new PublicError('Solo podés repetir un intercambio que organizás.');
     }
     // 1. Insert exchange
     const exRes = await client.query<{ id: string }>(
@@ -159,14 +161,14 @@ export async function regenerateExchangeInvitation(
       [exchangeId]
     );
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
     const ex = exRes.rows[0];
     if (ex.organizer_id !== actorUserId) {
-      throw new Error('Solo la persona organizadora puede renovar el enlace de invitación.');
+      throw new PublicError('Solo la persona organizadora puede renovar el enlace de invitación.');
     }
     if (ex.status !== 'inscripcion_abierta') {
-      throw new Error('Solo se puede renovar el enlace mientras la inscripción está abierta.');
+      throw new PublicError('Solo se puede renovar el enlace mientras la inscripción está abierta.');
     }
 
     // Revoke previous active invitations
@@ -257,7 +259,7 @@ export async function getMyExchanges(userId: string) {
     requiresApproval: row.requires_approval,
     minParticipants: row.min_participants,
     currentDrawVersion: row.current_draw_version,
-    closedAt: row.closed_at,
+    closedAt: toIsoTimestamp(row.closed_at),
     isOrganizer: row.is_organizer,
     memberStatus: row.member_status as 'approved' | 'pending' | 'rejected',
     organizerAlias: row.organizer_alias,
@@ -279,7 +281,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
   );
 
   if (memberRes.rowCount === 0) {
-    throw new Error('No tienes acceso a este intercambio.');
+    throw new PublicError('No tienes acceso a este intercambio.');
   }
 
   const userMembership = memberRes.rows[0];
@@ -336,7 +338,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
   );
 
   if (exRes.rowCount === 0) {
-    throw new Error('Intercambio no encontrado.');
+    throw new PublicError('Intercambio no encontrado.');
   }
 
   const ex = exRes.rows[0];
@@ -359,7 +361,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
         minParticipants: ex.min_participants,
         status: ex.status,
         currentDrawVersion: ex.current_draw_version,
-        closedAt: ex.closed_at,
+        closedAt: toIsoTimestamp(ex.closed_at),
         organizerAlias: ex.organizer_alias,
         isCurrentUserOrganizer: false,
         currentUserMemberStatus: userMembership.status,
@@ -457,7 +459,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
       minParticipants: ex.min_participants,
       status: ex.status,
       currentDrawVersion: ex.current_draw_version,
-      closedAt: ex.closed_at,
+      closedAt: toIsoTimestamp(ex.closed_at),
       drawNotice: ex.draw_notice,
       organizerAlias: ex.organizer_alias,
       isCurrentUserOrganizer: isOrganizer,
@@ -470,7 +472,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
       avatarColor: p.avatar_color,
       isOrganizer: p.is_organizer,
       status: p.status,
-      joinedAt: p.joined_at,
+      joinedAt: toIsoTimestamp(p.joined_at) ?? '',
       wishCount: p.wish_count,
       represented: p.represented,
     })),
@@ -492,19 +494,19 @@ export async function manageMemberStatus(
       [exchangeId]
     );
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
     const ex = exRes.rows[0];
     if (ex.organizer_id !== actorUserId) {
-      throw new Error('Solo el organizador puede gestionar a los participantes.');
+      throw new PublicError('Solo el organizador puede gestionar a los participantes.');
     }
     if (ex.status === 'sorteado' || ex.status === 'finalizado' || ex.status === 'cancelado') {
-      throw new Error('No se pueden modificar participantes una vez realizado el sorteo.');
+      throw new PublicError('No se pueden modificar participantes una vez realizado el sorteo.');
     }
 
     // 2. Prevent modifying the organizer's own status
     if (targetUserId === ex.organizer_id) {
-      throw new Error('No se puede modificar el estado del organizador del intercambio.');
+      throw new PublicError('No se puede modificar el estado del organizador del intercambio.');
     }
 
     // 3. Verify target membership exists
@@ -513,7 +515,7 @@ export async function manageMemberStatus(
       [exchangeId, targetUserId]
     );
     if (memRes.rowCount === 0) {
-      throw new Error('El participante especificado no pertenece a este intercambio.');
+      throw new PublicError('El participante especificado no pertenece a este intercambio.');
     }
 
     const res = await client.query(
@@ -539,7 +541,7 @@ export async function updateExchangeTheme(
   newTheme: 'navidad' | 'amistad' | 'cumpleanos' | 'general'
 ): Promise<boolean> {
   if (!['navidad', 'amistad', 'cumpleanos', 'general'].includes(newTheme)) {
-    throw new Error('Tema visual inválido.');
+    throw new PublicError('Tema visual inválido.');
   }
 
   return await dbTransaction(async (client) => {
@@ -548,14 +550,14 @@ export async function updateExchangeTheme(
       [exchangeId]
     );
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
     const ex = exRes.rows[0];
     if (ex.organizer_id !== actorUserId) {
-      throw new Error('Solo el organizador puede cambiar el tema del intercambio.');
+      throw new PublicError('Solo el organizador puede cambiar el tema del intercambio.');
     }
     if (ex.status === 'sorteado' || ex.status === 'finalizado' || ex.status === 'cancelado') {
-      throw new Error('No se puede cambiar el tema después de realizar el sorteo.');
+      throw new PublicError('No se puede cambiar el tema después de realizar el sorteo.');
     }
 
     const res = await client.query(
@@ -656,7 +658,7 @@ export async function acceptInvitationAtomic(
   referenceNow: Date = new Date()
 ): Promise<{ exchangeId: string; status: 'approved' | 'pending' | 'rejected'; alreadyMember: boolean }> {
   if (!token || typeof token !== 'string' || token.trim().length < 8) {
-    throw new Error('Invitación no válida.');
+    throw new PublicError('Invitación no válida.');
   }
 
   const tokenHash = hashInviteToken(token);
@@ -669,7 +671,7 @@ export async function acceptInvitationAtomic(
     );
 
     if (lookupRes.rowCount === 0) {
-      throw new Error('Invitación no válida.');
+      throw new PublicError('Invitación no válida.');
     }
 
     const { id: invitationId, exchange_id: exchangeId } = lookupRes.rows[0];
@@ -687,7 +689,7 @@ export async function acceptInvitationAtomic(
     );
 
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
 
     const ex = exRes.rows[0];
@@ -709,10 +711,10 @@ export async function acceptInvitationAtomic(
 
     const inv = invRes.rows[0];
     if (inv.revoked_at !== null) {
-      throw new Error('La invitación fue revocada.');
+      throw new PublicError('La invitación fue revocada.');
     }
     if (new Date(inv.expires_at) < referenceNow) {
-      throw new Error('La invitación ha expirado.');
+      throw new PublicError('La invitación ha expirado.');
     }
 
     // 4. Check if user is already a member under lock (idempotent: does NOT consume another use, preserves rejected/approved/pending status)
@@ -731,16 +733,16 @@ export async function acceptInvitationAtomic(
 
     // 5. For new members, enforce max_uses, exchange status, and America/Costa_Rica registration_deadline
     if (inv.use_count >= inv.max_uses) {
-      throw new Error('La invitación ha alcanzado el límite de usos permitidos.');
+      throw new PublicError('La invitación ha alcanzado el límite de usos permitidos.');
     }
 
     if (ex.status !== 'inscripcion_abierta') {
-      throw new Error('El intercambio no está abierto para nuevas inscripciones.');
+      throw new PublicError('El intercambio no está abierto para nuevas inscripciones.');
     }
 
     const todayCR = getCostaRicaTodayDate(referenceNow);
     if (todayCR > ex.registration_deadline) {
-      throw new Error(`El plazo de inscripción para este evento venció el ${ex.registration_deadline}.`);
+      throw new PublicError(`El plazo de inscripción para este evento venció el ${ex.registration_deadline}.`);
     }
 
     // 6. Increment invitation use count only once per new member
@@ -777,14 +779,14 @@ export async function setExchangeExclusions(
       [exchangeId]
     );
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
     const ex = exRes.rows[0];
     if (ex.organizer_id !== actorUserId) {
-      throw new Error('Solo el organizador puede configurar restricciones del sorteo.');
+      throw new PublicError('Solo el organizador puede configurar restricciones del sorteo.');
     }
     if (ex.status !== 'inscripcion_abierta') {
-      throw new Error('No se pueden modificar restricciones cuando la inscripción no está abierta.');
+      throw new PublicError('No se pueden modificar restricciones cuando la inscripción no está abierta.');
     }
 
     // Verify all referenced users are approved members of the exchange
@@ -796,10 +798,10 @@ export async function setExchangeExclusions(
 
     for (const rule of rules) {
       if (rule.giverUserId === rule.excludedReceiverUserId) {
-        throw new Error('Una persona ya está excluida de regalarse a sí misma.');
+        throw new PublicError('Una persona ya está excluida de regalarse a sí misma.');
       }
       if (!approvedIds.has(rule.giverUserId) || !approvedIds.has(rule.excludedReceiverUserId)) {
-        throw new Error('Las exclusiones solo pueden configurarse entre participantes aprobados del intercambio.');
+        throw new PublicError('Las exclusiones solo pueden configurarse entre participantes aprobados del intercambio.');
       }
     }
 
@@ -829,7 +831,7 @@ export async function updateExchangeLifecycleStatus(
   referenceNow: Date = new Date()
 ): Promise<{ status: 'finalizado' | 'cancelado'; closedAt: string }> {
   if (nextStatus !== 'finalizado' && nextStatus !== 'cancelado') {
-    throw new Error('El estado de cierre debe ser finalizado o cancelado.');
+    throw new PublicError('El estado de cierre debe ser finalizado o cancelado.');
   }
 
   return await dbTransaction(async (client) => {
@@ -846,23 +848,23 @@ export async function updateExchangeLifecycleStatus(
     );
 
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
 
     const ex = exRes.rows[0];
     if (ex.organizer_id !== actorUserId) {
-      throw new Error('Solo la persona organizadora puede finalizar o cancelar el intercambio.');
+      throw new PublicError('Solo la persona organizadora puede finalizar o cancelar el intercambio.');
     }
 
     if (ex.status === 'finalizado' || ex.status === 'cancelado') {
       if (ex.status === nextStatus && ex.closed_at) {
         return { status: nextStatus, closedAt: ex.closed_at };
       }
-      throw new Error('Este intercambio ya fue cerrado anteriormente.');
+      throw new PublicError('Este intercambio ya fue cerrado anteriormente.');
     }
 
     if (nextStatus === 'finalizado' && ex.status !== 'sorteado') {
-      throw new Error('Solo se puede finalizar un intercambio que ya tiene sorteo. Para abandonarlo antes, elegí cancelar.');
+      throw new PublicError('Solo se puede finalizar un intercambio que ya tiene sorteo. Para abandonarlo antes, elegí cancelar.');
     }
 
     const nowIso = referenceNow.toISOString();
@@ -905,12 +907,12 @@ export async function deleteExchange(
   referenceNow: Date = new Date()
 ): Promise<void> {
   if (!input.confirmIrreversible || !Number.isSafeInteger(input.memberCount) || input.memberCount < 1) {
-    throw new Error('Confirmá expresamente la eliminación y actualizá el intercambio.');
+    throw new PublicError('Confirmá expresamente la eliminación y actualizá el intercambio.');
   }
   const authenticatedAt = input.sessionAuthenticatedAt ? new Date(input.sessionAuthenticatedAt).getTime() : NaN;
   if (!Number.isFinite(authenticatedAt) || authenticatedAt > referenceNow.getTime() ||
       referenceNow.getTime() - authenticatedAt > 15 * 60 * 1000) {
-    throw new Error('Por seguridad, volvé a iniciar sesión antes de eliminar el intercambio (máximo 15 minutos).');
+    throw new PublicError('Por seguridad, volvé a iniciar sesión antes de eliminar el intercambio (máximo 15 minutos).');
   }
 
   await dbTransaction(async (client) => {
@@ -918,16 +920,16 @@ export async function deleteExchange(
       'SELECT organizer_id, name, status FROM exchanges WHERE id = $1 FOR UPDATE', [exchangeId]
     );
     const exchange = result.rows[0];
-    if (!exchange) throw new Error('Este intercambio ya no existe. Actualizá la lista.');
-    if (exchange.organizer_id !== actorUserId) throw new Error('Solo quien organiza actualmente puede eliminar el intercambio.');
+    if (!exchange) throw new PublicError('Este intercambio ya no existe. Actualizá la lista.');
+    if (exchange.organizer_id !== actorUserId) throw new PublicError('Solo quien organiza actualmente puede eliminar el intercambio.');
     if (exchange.name !== input.name || exchange.status !== input.status) {
-      throw new Error('El intercambio cambió. Actualizá la página y revisá la eliminación nuevamente.');
+      throw new PublicError('El intercambio cambió. Actualizá la página y revisá la eliminación nuevamente.');
     }
     const members = await client.query<{ count: number }>(
       'SELECT count(*)::integer AS count FROM memberships WHERE exchange_id = $1', [exchangeId]
     );
     if (members.rows[0].count !== input.memberCount) {
-      throw new Error('Cambió la cantidad de participantes. Actualizá la página antes de eliminar.');
+      throw new PublicError('Cambió la cantidad de participantes. Actualizá la página antes de eliminar.');
     }
     // All exchange-specific children use ON DELETE CASCADE. Linked future editions use SET NULL.
     await client.query('DELETE FROM exchanges WHERE id = $1', [exchangeId]);
@@ -943,7 +945,7 @@ export async function transferExchangeOrganizer(
   newOrganizerUserId: string
 ): Promise<boolean> {
   if (!newOrganizerUserId || newOrganizerUserId.trim().length === 0) {
-    throw new Error('Debes seleccionar un participante aprobado como nuevo organizador.');
+    throw new PublicError('Debes seleccionar un participante aprobado como nuevo organizador.');
   }
 
   return await dbTransaction(async (client) => {
@@ -953,16 +955,16 @@ export async function transferExchangeOrganizer(
     );
 
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
 
     const ex = exRes.rows[0];
     if (ex.organizer_id !== actorUserId) {
-      throw new Error('Solo la persona organizadora actual puede transferir la organización.');
+      throw new PublicError('Solo la persona organizadora actual puede transferir la organización.');
     }
 
     if (newOrganizerUserId === actorUserId) {
-      throw new Error('Ya eres la persona organizadora de este intercambio.');
+      throw new PublicError('Ya eres la persona organizadora de este intercambio.');
     }
 
     const memRes = await client.query<{ user_id: string; status: string; represented: boolean }>(
@@ -976,13 +978,13 @@ export async function transferExchangeOrganizer(
 
     const targetMember = memRes.rows.find((m) => m.user_id === newOrganizerUserId);
     if (!targetMember || targetMember.status !== 'approved') {
-      throw new Error(
+      throw new PublicError(
         'Solo podés transferir la organización a un participante aprobado de este intercambio.'
       );
     }
     // A represented person has no account: nobody could administer the group.
     if (targetMember.represented) {
-      throw new Error('Esa persona participa a cargo de otra y no tiene cuenta propia. Elegí a alguien con cuenta.');
+      throw new PublicError('Esa persona participa a cargo de otra y no tiene cuenta propia. Elegí a alguien con cuenta.');
     }
 
     await client.query(

@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { dbQuery, dbTransaction } from '@/lib/db/client';
 import { PublicError } from '@/lib/data/errors';
 import { passkeyAppURL } from '@/lib/auth/passkey-config';
+import { toIsoTimestamp } from '@/lib/date/timestamps';
 import { generateRegistrationOptions, generateAuthenticationOptions, verifyRegistrationResponse, verifyAuthenticationResponse,
   type RegistrationResponseJSON, type AuthenticationResponseJSON, type AuthenticatorTransport } from '@simplewebauthn/server';
 export const hashToken = (value: string) => crypto.createHash('sha256').update(value).digest('hex');
@@ -109,7 +110,8 @@ export async function listAccountAccess(userId: string, currentOwnSession?: stri
     dbQuery<{ id: string; ua: string; created_at: string; expires_at: string }>(`SELECT s.id, s."userAgent" AS ua, s."createdAt"::text AS created_at, s."expiresAt"::text AS expires_at FROM neon_auth.session s WHERE s."userId"::text = $1 AND s."expiresAt" > now() AND NOT EXISTS (SELECT 1 FROM app_session_revocations r WHERE r.session_id = s.id::text AND r.user_id = $1)`, [userId]),
     dbQuery<{ provider: string }>('SELECT DISTINCT "providerId" AS provider FROM neon_auth.account WHERE "userId"::text = $1', [userId]),
   ]);
-  return { keys: keys.rows, own: own.rows.map(s => ({ ...s, current: s.id === currentOwnSession })), neon: neon.rows.map(s => ({ id: s.id, browser: browserName(s.ua || ''), created_at: s.created_at, expires_at: s.expires_at })), providers: providers.rows.map(p => p.provider) };
+  const iso = (value: string | null) => toIsoTimestamp(value);
+  return { keys: keys.rows.map(k => ({ ...k, created_at: iso(k.created_at) ?? '', last_used_at: iso(k.last_used_at) })), own: own.rows.map(s => ({ ...s, created_at: iso(s.created_at) ?? '', expires_at: iso(s.expires_at) ?? '', current: s.id === currentOwnSession })), neon: neon.rows.map(s => ({ id: s.id, browser: browserName(s.ua || ''), created_at: iso(s.created_at) ?? '', expires_at: iso(s.expires_at) ?? '' })), providers: providers.rows.map(p => p.provider) };
 }
 /** Result of closing the same session at Neon Auth (the identity provider). */
 export type ProviderRevocation = 'revoked' | 'not-found' | 'unavailable' | 'not-applicable';

@@ -1,5 +1,6 @@
 import 'server-only';
 import { neon, Pool } from '@neondatabase/serverless';
+import { logError } from '@/lib/observability/log';
 
 export interface QueryResult<T = unknown> {
   rows: T[];
@@ -90,7 +91,11 @@ export async function dbTransaction<T = unknown>(
       await activeTestAdapter.query('COMMIT');
       return result;
     } catch (err) {
-      await activeTestAdapter.query('ROLLBACK');
+      try {
+        await activeTestAdapter.query('ROLLBACK');
+      } catch (rollbackError) {
+        logError('db.rollback_failed', rollbackError);
+      }
       throw err;
     }
   }
@@ -101,8 +106,10 @@ export async function dbTransaction<T = unknown>(
   const pool = requestScoped
     ? new Pool({ connectionString: connectionString(), max: 1 })
     : getPool();
+  let outcome: { ok: true; value: T } | { ok: false; error: unknown };
   try {
     const client = await pool.connect();
+    let broken: unknown = undefined;
     try {
       await client.query('BEGIN');
       const txClient: TransactionClient = {
@@ -116,16 +123,39 @@ export async function dbTransaction<T = unknown>(
       };
       const result = await callback(txClient);
       await client.query('COMMIT');
-      return result;
+      outcome = { ok: true, value: result };
     } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
+      outcome = { ok: false, error: err };
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        // Keep the original error; a failed ROLLBACK means the socket is unusable.
+        broken = rollbackError;
+        logError('db.rollback_failed', rollbackError);
+      }
     } finally {
-      client.release();
+      try {
+        // Passing the error destroys the connection instead of reusing it.
+        client.release(broken instanceof Error ? broken : undefined);
+      } catch (releaseError) {
+        logError('db.release_failed', releaseError);
+      }
     }
+  } catch (connectError) {
+    outcome = { ok: false, error: connectError };
   } finally {
-    if (requestScoped) await pool.end();
+    if (requestScoped) {
+      try {
+        await pool.end();
+      } catch (endError) {
+        // The transaction already finished: report the cleanup failure without
+        // turning a committed change into an apparent error (or vice versa).
+        logError('db.pool_end_failed', endError);
+      }
+    }
   }
+  if (!outcome.ok) throw outcome.error;
+  return outcome.value;
 }
 
 export async function closeDbPool(): Promise<void> {

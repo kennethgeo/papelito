@@ -1,7 +1,9 @@
 import 'server-only';
+import { PublicError } from '@/lib/data/errors';
 import { EMPTY_GIFT_PREFERENCES } from '@/lib/gift-preferences';
 import { getGiftPreferences } from './social';
 import { dbQuery, dbTransaction } from '@/lib/db/client';
+import { toIsoTimestamp } from '@/lib/date/timestamps';
 import type { Assignment, Wish, Currency } from '@/types';
 
 export async function getMyAssignment(
@@ -128,7 +130,7 @@ export async function getMyAssignment(
     priority: w.priority,
     isPurchasedByGiver: w.is_purchased_by_giver,
     isPurchased: w.is_purchased_by_giver,
-    createdAt: w.created_at,
+    createdAt: toIsoTimestamp(w.created_at) ?? '',
   }));
 
   return {
@@ -143,7 +145,7 @@ export async function getMyAssignment(
     budgetAmount: Number(ex.budget_amount),
     currency: ex.currency,
     revealed: Boolean(assignment.revealed_at),
-    revealedAt: assignment.revealed_at || undefined,
+    revealedAt: toIsoTimestamp(assignment.revealed_at) ?? undefined,
     wishes,
   };
 }
@@ -155,7 +157,7 @@ export async function revealAssignment(exchangeId: string, userId: string): Prom
     [exchangeId]
   );
   if (exRes.rowCount === 0 || exRes.rows[0].status !== 'sorteado' || exRes.rows[0].current_draw_version === 0) {
-    throw new Error('No hay un sorteo activo en este intercambio.');
+    throw new PublicError('No hay un sorteo activo en este intercambio.');
   }
 
   const verRes = await dbQuery<{ id: string }>(
@@ -163,7 +165,7 @@ export async function revealAssignment(exchangeId: string, userId: string): Prom
     [exchangeId, exRes.rows[0].current_draw_version]
   );
   if (verRes.rowCount === 0) {
-    throw new Error('Versión de sorteo no encontrada.');
+    throw new PublicError('Versión de sorteo no encontrada.');
   }
 
   // 2. Verify caller is an approved member and has an assignment in this draw version
@@ -178,7 +180,7 @@ export async function revealAssignment(exchangeId: string, userId: string): Prom
   );
 
   if (existing.rowCount === 0) {
-    throw new Error('No tienes una asignación activa en este intercambio.');
+    throw new PublicError('No tienes una asignación activa en este intercambio.');
   }
 
   const row = existing.rows[0];
@@ -205,10 +207,10 @@ export async function toggleWishPurchase(
       [exchangeId]
     );
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
     if (exRes.rows[0].status !== 'sorteado' || exRes.rows[0].current_draw_version === 0) {
-      throw new Error('No hay un sorteo activo para este intercambio.');
+      throw new PublicError('No hay un sorteo activo para este intercambio.');
     }
 
     const verRes = await client.query<{ id: string }>(
@@ -216,7 +218,7 @@ export async function toggleWishPurchase(
       [exchangeId, exRes.rows[0].current_draw_version]
     );
     if (verRes.rowCount === 0) {
-      throw new Error('No hay un sorteo activo para este intercambio.');
+      throw new PublicError('No hay un sorteo activo para este intercambio.');
     }
 
     // 2. Verify buyer is an approved member and has assignment as giver
@@ -228,7 +230,7 @@ export async function toggleWishPurchase(
       [verRes.rows[0].id, buyerId]
     );
     if (assignRes.rowCount === 0) {
-      throw new Error('No tienes asignación autorizada como regalador en este intercambio.');
+      throw new PublicError('No tienes asignación autorizada como regalador en este intercambio.');
     }
 
     const receiverId = assignRes.rows[0].receiver_id;
@@ -242,7 +244,7 @@ export async function toggleWishPurchase(
       [exchangeId, wishId, receiverId]
     );
     if (selRes.rowCount === 0) {
-      throw new Error('El deseo no pertenece a la persona asignada o no fue seleccionado en este intercambio.');
+      throw new PublicError('El deseo no pertenece a la persona asignada o no fue seleccionado en este intercambio.');
     }
 
     // 4. Insert or remove purchase mark atomically

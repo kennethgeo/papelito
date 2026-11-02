@@ -9,7 +9,7 @@
 type Level = 'error' | 'warn' | 'info';
 type Primitive = string | number | boolean | null;
 
-const FORBIDDEN_KEY = /cookie|token|secret|password|credential|authorization|email|name|alias|body|message|sql|param|url|query|description|title/i;
+const FORBIDDEN_KEY = /cookie|token|secret|password|credential|authorization|email|name|alias|body|message|sql|param|url|query|description|title|detail|^err$|^error$|header/i;
 const MAX_VALUE = 120;
 
 function sanitizeValue(value: unknown): Primitive | undefined {
@@ -19,11 +19,16 @@ function sanitizeValue(value: unknown): Primitive | undefined {
   return undefined;
 }
 
+/** Paths keep their shape; long opaque segments (tokens, ids) are removed. */
+function redactPath(value: string) {
+  return value.split('?')[0].split('/').map((segment) => (/^[A-Za-z0-9_.~-]{16,}$/.test(segment) ? ':id' : segment)).join('/');
+}
+
 export function sanitizeLogFields(fields: Record<string, unknown> = {}): Record<string, Primitive> {
   const clean: Record<string, Primitive> = {};
   for (const [key, value] of Object.entries(fields)) {
     if (FORBIDDEN_KEY.test(key)) continue;
-    const safe = sanitizeValue(value);
+    const safe = sanitizeValue(key === 'path' && typeof value === 'string' ? redactPath(value) : value);
     if (safe !== undefined) clean[key] = safe;
   }
   return clean;
@@ -49,3 +54,15 @@ export function logEvent(level: Level, event: string, fields: Record<string, unk
 export function logError(event: string, error: unknown, fields: Record<string, unknown> = {}) {
   logEvent('error', event, { ...fields, ...describeError(error) });
 }
+
+/**
+ * Adapter for the Neon Auth SDK logger: keeps its static message and safe
+ * fields (component, upstream path, status, code); drops URLs, error details
+ * and raw errors, which can contain reset tokens or personal data.
+ */
+export const neonAuthLogger = {
+  error: (message: string, meta?: Record<string, unknown>) => logEvent('error', 'neon_auth', { sdk: message.slice(0, 100), ...(meta ?? {}) }),
+  warn: (message: string, meta?: Record<string, unknown>) => logEvent('warn', 'neon_auth', { sdk: message.slice(0, 100), ...(meta ?? {}) }),
+  info: () => undefined,
+  debug: () => undefined,
+};

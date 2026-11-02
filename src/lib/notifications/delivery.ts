@@ -2,6 +2,7 @@ import webpush from 'web-push';
 import { createECDH, hkdfSync } from 'node:crypto';
 import type { DbClient } from '@/lib/db/client';
 import { LEGAL_CONSTANTS } from '../legal/constants';
+import { PublicError } from '../data/errors';
 
 export function getPushKeys() {
   const publicKey = process.env.PUSH_VAPID_PUBLIC_KEY;
@@ -19,22 +20,22 @@ export function getPushPublicKey() { return getPushKeys()?.publicKey || ''; }
 export function isPushConfigured() { return !!getPushKeys(); }
 export function validatePushSubscription(value: unknown) {
   const input = value as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } | null;
-  if (!input || typeof input.endpoint !== 'string' || input.endpoint.length > 2048) throw new Error('Suscripción inválida.');
+  if (!input || typeof input.endpoint !== 'string' || input.endpoint.length > 2048) throw new PublicError('Suscripción inválida.');
   const url = new URL(input.endpoint);
   const host = url.hostname;
   const allowed = host === 'fcm.googleapis.com' || host === 'updates.push.services.mozilla.com' ||
     host.endsWith('.push.services.mozilla.com') || host === 'web.push.apple.com' ||
     host.endsWith('.push.apple.com') || host.endsWith('.notify.windows.com');
-  if (url.protocol !== 'https:' || url.port || url.username || url.password || !allowed) throw new Error('Proveedor de notificaciones no admitido.');
+  if (url.protocol !== 'https:' || url.port || url.username || url.password || !allowed) throw new PublicError('Proveedor de notificaciones no admitido.');
   const { p256dh, auth } = input.keys || {};
   if (typeof p256dh !== 'string' || !/^[A-Za-z0-9_-]{87}=?$/.test(p256dh) ||
-      typeof auth !== 'string' || !/^[A-Za-z0-9_-]{22}={0,2}$/.test(auth)) throw new Error('Claves de suscripción inválidas.');
+      typeof auth !== 'string' || !/^[A-Za-z0-9_-]{22}={0,2}$/.test(auth)) throw new PublicError('Claves de suscripción inválidas.');
   return { endpoint: input.endpoint, keys: { p256dh, auth } };
 }
 
 export function createPushService(dbQuery: DbClient['query']) {
 async function savePushSubscription(userId: string, raw: unknown) {
-  if (!isPushConfigured()) throw new Error('Los recordatorios todavía no están disponibles.');
+  if (!isPushConfigured()) throw new PublicError('Los recordatorios todavía no están disponibles.');
   const sub = validatePushSubscription(raw);
   const count = await dbQuery<{ count: string }>('SELECT count(*)::text AS count FROM push_subscriptions WHERE user_id = $1', [userId]);
   const result = await dbQuery(`INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
@@ -42,7 +43,7 @@ async function savePushSubscription(userId: string, raw: unknown) {
     ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth
       WHERE push_subscriptions.user_id = EXCLUDED.user_id RETURNING id`,
     [userId, sub.endpoint, sub.keys.p256dh, sub.keys.auth, Number(count.rows[0].count)]);
-  if (!result.rowCount) throw new Error('No se pudo vincular este dispositivo. Desactivá los avisos de la cuenta anterior o eliminá un dispositivo.');
+  if (!result.rowCount) throw new PublicError('No se pudo vincular este dispositivo. Desactivá los avisos de la cuenta anterior o eliminá un dispositivo.');
 }
 async function removePushSubscription(userId: string, endpoint: string) {
   await dbQuery('DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2', [userId, endpoint]);

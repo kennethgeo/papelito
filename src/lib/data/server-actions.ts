@@ -44,6 +44,7 @@ import {
   type RequestAccountDeletionResult,
 } from "@/lib/repositories/profiles";
 import { LEGAL_CONSTANTS } from "@/lib/legal/constants";
+import { PublicError, publicErrorMessage } from "@/lib/data/errors";
 import { readAppSnapshot } from "@/lib/repositories/app-snapshot";
 import {
   PENDING_CONSENT_COOKIE,
@@ -63,19 +64,7 @@ const VALID_PRIORITIES = new Set(["alta", "media", "baja"]);
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function sanitizeErrorMessage(err: unknown, fallback: string): string {
-  if (!(err instanceof Error)) return fallback;
-  const msg = err.message;
-  // Filter out raw PostgreSQL / driver internal diagnostics
-  if (
-    msg.includes("syntax error") ||
-    msg.includes('relation "') ||
-    msg.includes("violates foreign key") ||
-    msg.includes("violates check constraint") ||
-    msg.includes("duplicate key value")
-  ) {
-    return fallback;
-  }
-  return msg;
+  return publicErrorMessage(err, fallback);
 }
 
 function validateIsoDate(dateStr: unknown): dateStr is string {
@@ -182,14 +171,14 @@ function validateSaveWish(input: SaveWishInput): string | null {
 
 async function requireAuth() {
   if (!isDatabaseConfigured()) {
-    throw new Error(
+    throw new PublicError(
       "El almacenamiento en la nube no está configurado en este entorno.",
     );
   }
 
   const session = await getServerSession();
   if (!session || !session.user) {
-    throw new Error("Debes iniciar sesión para realizar esta acción.");
+    throw new PublicError("Iniciá sesión para realizar esta acción.");
   }
 
   // Ensure user profile exists idempotently
@@ -211,8 +200,8 @@ async function requireConsentedUser() {
     return user;
   }
 
-  throw new Error(
-    "Debes confirmar el consentimiento informado vigente para realizar esta acción.",
+  throw new PublicError(
+    "Confirmá el consentimiento informado vigente para realizar esta acción.",
   );
 }
 

@@ -1,5 +1,7 @@
 import 'server-only';
+import { PublicError } from '@/lib/data/errors';
 import { dbQuery } from '@/lib/db/client';
+import { toIsoTimestamp } from '@/lib/date/timestamps';
 
 export interface WishRow {
   has_photo: boolean;
@@ -60,13 +62,13 @@ export async function getMyWishes(userId: string) {
     currency: w.currency,
     priority: w.priority,
     selectedInExchanges: selectionsMap.get(w.id) || [],
-    createdAt: w.created_at,
+    createdAt: toIsoTimestamp(w.created_at) ?? '',
   }));
 }
 
 export async function saveWish(userId: string, input: SaveWishInput): Promise<{ wishId: string }> {
   if (!input.title || input.title.trim().length === 0) {
-    throw new Error('El título del deseo es obligatorio.');
+    throw new PublicError('El título del deseo es obligatorio.');
   }
 
   const currency = input.currency || 'CRC';
@@ -93,7 +95,7 @@ export async function saveWish(userId: string, input: SaveWishInput): Promise<{ 
     );
 
     if (res.rowCount === 0) {
-      throw new Error('Deseo no encontrado o sin autorización para editarlo.');
+      throw new PublicError('Deseo no encontrado o sin autorización para editarlo.');
     }
     return { wishId: res.rows[0].id };
   } else {
@@ -123,7 +125,7 @@ export async function deleteWish(userId: string, wishId: string): Promise<boolea
     [wishId, userId]
   );
   if (res.rowCount === 0) {
-    throw new Error('Deseo no encontrado o no tienes permiso para eliminarlo.');
+    throw new PublicError('Deseo no encontrado o no tienes permiso para eliminarlo.');
   }
   return true;
 }
@@ -140,7 +142,7 @@ export async function toggleWishInExchange(
     [wishId, userId]
   );
   if (wishRes.rowCount === 0) {
-    throw new Error('Deseo no encontrado o no pertenece a tu cuenta.');
+    throw new PublicError('Deseo no encontrado o no pertenece a tu cuenta.');
   }
 
   // 2. Verify user is approved member of exchange
@@ -149,7 +151,7 @@ export async function toggleWishInExchange(
     [exchangeId, userId]
   );
   if (memRes.rowCount === 0) {
-    throw new Error('Debes ser participante aprobado del evento para compartir deseos.');
+    throw new PublicError('Debes ser participante aprobado del evento para compartir deseos.');
   }
 
   if (selected) {
