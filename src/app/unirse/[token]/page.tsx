@@ -5,8 +5,11 @@ import { connection } from "next/server";
 import { RibbonLogo } from "@/components/RibbonLogo";
 import { RibbonDivider } from "@/components/RibbonDivider";
 import { isDatabaseConfigured } from "@/lib/db/client";
-import { getServerSession } from "@/lib/auth/server";
-import { getInvitationPreviewAction } from "@/lib/data/server-actions";
+import { getSessionState } from "@/lib/auth/server";
+import { isNeonAuthConfigured } from "@/lib/auth/config";
+import { getInvitationPreview } from "@/lib/repositories/exchanges";
+import { logError } from "@/lib/observability/log";
+import { SessionUnavailable } from "@/components/SessionUnavailable";
 import {
   getLatestConsentStatus,
   getOrCreateProfile,
@@ -36,47 +39,40 @@ async function UnirseContent({
   // Invitation expiry and membership must be evaluated for the incoming request.
   await connection();
   const { token } = await tokenPromise;
+  const retryHref = `/unirse/${encodeURIComponent(token)}`;
 
   let preview: PreviewState = {
     valid: false,
-    reason: "El servicio de base de datos no está configurado en este entorno.",
+    reason: "Las invitaciones no están disponibles en este entorno.",
   };
 
   if (isDatabaseConfigured()) {
     try {
-      const res = await getInvitationPreviewAction(token);
-      if (res.success && res.data && res.data.valid) {
-        preview = {
-          valid: true,
-          exchangeId: res.data.exchangeId,
-          name: res.data.name,
-          description: res.data.description || "",
-          eventDate: res.data.eventDate,
-          budgetAmount: Number(res.data.budgetAmount),
-          currency: res.data.currency || "CRC",
-          requiresApproval: res.data.requiresApproval || false,
-          organizerAlias: res.data.organizerAlias || "Organizador",
-        };
-      } else {
-        preview = {
-          valid: false,
-          reason:
-            res.data?.reason ||
-            res.error ||
-            "Enlace de invitación no válido o inexistente.",
-        };
-      }
+      const result = await getInvitationPreview(token.trim());
+      preview = result.valid
+        ? {
+            valid: true,
+            exchangeId: result.exchangeId,
+            name: result.name,
+            description: result.description || "",
+            eventDate: result.eventDate,
+            budgetAmount: Number(result.budgetAmount),
+            currency: result.currency || "CRC",
+            requiresApproval: result.requiresApproval || false,
+            organizerAlias: result.organizerAlias || "Organizador",
+          }
+        : { valid: false, reason: result.reason };
     } catch (err) {
       unstable_rethrow(err);
-      preview = {
-        valid: false,
-        reason: "Error al consultar la invitación en el servidor.",
-      };
+      // An outage is not an invalid invitation: never show driver messages.
+      logError("join.preview_failed", err);
+      return <SessionUnavailable context="invitación" retryHref={retryHref} />;
     }
   }
 
-  const session = await getServerSession();
-  const currentUser = session?.user || null;
+  const session = isNeonAuthConfigured() ? await getSessionState() : { status: "anonymous" as const };
+  if (session.status === "unavailable") return <SessionUnavailable retryHref={retryHref} />;
+  const currentUser = session.status === "authenticated" ? session.user : null;
   let initialHasConsented = false;
 
   if (currentUser && isDatabaseConfigured()) {
@@ -91,7 +87,8 @@ async function UnirseContent({
       initialHasConsented = consentStatus.hasCurrentConsent;
     } catch (err) {
       unstable_rethrow(err);
-      initialHasConsented = false;
+      logError("join.account_state_failed", err);
+      return <SessionUnavailable retryHref={retryHref} />;
     }
   }
 

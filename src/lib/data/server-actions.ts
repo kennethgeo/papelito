@@ -13,7 +13,6 @@ import {
   updateExchangeTheme,
   setExchangeExclusions,
   acceptInvitationAtomic,
-  getInvitationPreview,
   updateExchangeLifecycleStatus,
   transferExchangeOrganizer,
   deleteExchange,
@@ -752,30 +751,6 @@ export async function acceptInvitationAction(
     return {
       success: false,
       error: sanitizeErrorMessage(err, "Error al unirse al intercambio."),
-    };
-  }
-}
-
-export async function getInvitationPreviewAction(
-  token: string,
-): Promise<ActionResult<Awaited<ReturnType<typeof getInvitationPreview>>>> {
-  try {
-    if (!isDatabaseConfigured()) {
-      return {
-        success: false,
-        error:
-          "El servicio de base de datos no está configurado en este entorno.",
-      };
-    }
-    if (!token || typeof token !== "string") {
-      return { success: false, error: "Token de invitación inválido." };
-    }
-    const preview = await getInvitationPreview(token.trim());
-    return { success: true, data: preview };
-  } catch (err: unknown) {
-    return {
-      success: false,
-      error: sanitizeErrorMessage(err, "Error al previsualizar la invitación."),
     };
   }
 }

@@ -1,13 +1,15 @@
 import React, { Suspense } from 'react';
 import { unstable_rethrow } from 'next/navigation';
 import { isNeonAuthConfigured } from '@/lib/auth/config';
-import { getServerSession } from '@/lib/auth/server';
+import { getSessionState } from '@/lib/auth/server';
 import { isDatabaseConfigured } from '@/lib/db/client';
 import { getOrCreateProfile, getLatestConsentStatus } from '@/lib/repositories/profiles';
+import { logError } from '@/lib/observability/log';
 import { RealDataProvider, RealUser } from '@/context/RealDataContext';
 import { RealAppShell } from '@/components/RealAppShell';
 import { DemoDataProvider } from '@/context/DemoDataContext';
 import { DemoAppShell } from '@/components/DemoAppShell';
+import { SessionUnavailable } from '@/components/SessionUnavailable';
 import { WelcomeView } from '@/views/WelcomeView';
 
 interface PageProps {
@@ -26,57 +28,41 @@ async function HomeContent({ searchParams }: PageProps) {
     );
   }
 
-  // 2. Check for real authenticated session if backend credentials are configured
-  let realUser: RealUser | null = null;
-  if (isNeonAuthConfigured()) {
-    try {
-      const session = await getServerSession();
-      if (session?.user) {
-        let alias = session.user.name || session.user.email?.split('@')[0] || 'Participante';
-        let fullName = session.user.name || session.user.email || 'Participante';
-        let avatarColor = session.user.avatarColor || '#46245D';
-        let hasConsented = false;
-        let consentVersion: string | null = null;
+  // 2. Session: confirmed, absent or unknown. Unknown never becomes "guest".
+  const state = isNeonAuthConfigured() ? await getSessionState() : { status: 'anonymous' as const };
+  if (state.status === 'unavailable') return <SessionUnavailable />;
 
-        if (isDatabaseConfigured()) {
-          try {
-            const profile = await getOrCreateProfile(
-              session.user.id,
-              session.user.email,
-              session.user.name,
-              avatarColor
-            );
-            alias = profile.alias;
-            fullName = profile.full_name;
-            avatarColor = profile.avatar_color;
-
-            const consentStatus = await getLatestConsentStatus(session.user.id);
-            hasConsented = consentStatus.hasCurrentConsent;
-            consentVersion = consentStatus.latestVersion;
-          } catch (dbErr) {
-            unstable_rethrow(dbErr);
-            // Fall back to session metadata if DB is momentarily unreachable
-          }
-        }
-
+  if (state.status === 'authenticated') {
+    const sessionUser = state.user;
+    let realUser: RealUser = {
+      id: sessionUser.id,
+      email: sessionUser.email || '',
+      alias: sessionUser.name || sessionUser.email?.split('@')[0] || 'Participante',
+      fullName: sessionUser.name || sessionUser.email || 'Participante',
+      avatarColor: sessionUser.avatarColor || '#46245D',
+      hasConsented: false,
+      consentVersion: null,
+    };
+    if (isDatabaseConfigured()) {
+      try {
+        const profile = await getOrCreateProfile(sessionUser.id, sessionUser.email, sessionUser.name, realUser.avatarColor);
+        const consentStatus = await getLatestConsentStatus(sessionUser.id);
         realUser = {
-          id: session.user.id,
-          email: session.user.email || '',
-          alias,
-          fullName,
-          avatarColor,
-          hasConsented,
-          consentVersion,
+          ...realUser,
+          alias: profile.alias,
+          fullName: profile.full_name,
+          avatarColor: profile.avatar_color,
+          hasConsented: consentStatus.hasCurrentConsent,
+          consentVersion: consentStatus.latestVersion,
         };
+      } catch (error) {
+        unstable_rethrow(error);
+        // Without the stored consent we cannot tell whether it is pending:
+        // asking again would misrepresent an outage as a legal step.
+        logError('home.account_state_failed', error);
+        return <SessionUnavailable />;
       }
-    } catch (err) {
-      unstable_rethrow(err);
-      // In case of network / session error, treat as guest
     }
-  }
-
-  // 3. Authenticated user enters Real connected dashboard
-  if (realUser) {
     return (
       <RealDataProvider initialUser={realUser}>
         <RealAppShell />
@@ -84,7 +70,7 @@ async function HomeContent({ searchParams }: PageProps) {
     );
   }
 
-  // 4. Guest / Unauthenticated visitor sees Welcome screen
+  // 3. Guest / Unauthenticated visitor sees Welcome screen
   return (
     <main style={{ minHeight: '100vh', backgroundColor: 'var(--bg-app)' }}>
       <WelcomeView />
@@ -96,21 +82,8 @@ export default function Page(props: PageProps) {
   return (
     <Suspense
       fallback={
-        <div
-          style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'var(--bg-app)',
-            fontFamily: 'var(--font-heading)',
-            color: 'var(--color-tinta)',
-          }}
-        >
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎁</div>
-            <strong>Cargando Papelito...</strong>
-          </div>
+        <div className="paper-loading" role="status">
+          <strong>Abriendo Papelito…</strong>
         </div>
       }
     >

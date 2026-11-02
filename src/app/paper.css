@@ -545,3 +545,4 @@ button:disabled { cursor: wait; opacity: .65; }
   .paper-auth-tab { font-size: 14px; padding: 8px 6px; }
   .paper-auth-password-toggle { min-width: 68px; padding: 0 9px; font-size: 12px; }
 }
+.paper-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg-app); font-family: var(--font-heading); color: var(--color-tinta); font-size: 20px; }

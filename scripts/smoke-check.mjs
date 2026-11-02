@@ -32,11 +32,11 @@ const html = (extra = {}) => ({ type: /text\/html/, mustNot: [ENGLISH_DEFAULT_ER
 const routes = [
   { path: "/", status: 200, ...html({ must: [/<html[^>]+lang="es/, /papelito/i] }), headers: { "x-frame-options": /DENY/i, "x-content-type-options": /nosniff/i, "referrer-policy": /strict-origin-when-cross-origin/i } },
   { path: "/?mode=demo", status: 200, ...html({ must: [/<html[^>]+lang="es/] }) },
-  { path: `/unirse/${randomToken}`, status: 200, ...html({ must: [/Invitación no disponible/] }), headers: { "cache-control": /no-store/ } },
+  { path: `/unirse/${randomToken}`, status: 200, ...html({ must: [/Invitación no disponible/] }), headers: { "cache-control": /no-store/ }, transientMarker: /No pudimos revisar esta invitación/ },
   { path: "/ayuda", status: 200, ...html({ must: [/papelito/i] }) },
   { path: "/privacidad", status: 200, ...html() },
   { path: "/terminos", status: 200, ...html() },
-  { path: `/esta-ruta-no-existe-${randomToken.slice(0, 8)}`, status: 404 },
+  { path: `/esta-ruta-no-existe-${randomToken.slice(0, 8)}`, status: 404, ...html({ must: [/No encontramos esta página/] }) },
   { path: "/api/auth/get-session", status: profile === "production" ? 200 : 503, type: /json/, headers: { "cache-control": /no-store/ } },
   { path: "/api/wishes/00000000-0000-4000-8000-000000000000/image", status: 401, headers: { "cache-control": /no-store/ } },
   { path: "/sw.js", status: 200, type: /javascript/, must: [/papelito-public-/] },
