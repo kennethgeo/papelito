@@ -8,10 +8,12 @@ const cached = [],
 let claimed = 0,
   skipped = 0,
   networkFails = false;
+let cacheMissing = false, cacheFails = false;
 const offline = { publicOffline: true },
   network = { privateServerResponse: true };
 const context = {
   URL,
+  Response,
   self: {
     registration: { showNotification: async (title, options) => { context.notification = { title, ...options }; } },
     location: { origin: "https://paper.example" },
@@ -36,7 +38,10 @@ const context = {
     delete: async (key) => {
       deleted.push(key);
     },
-    match: async (key) => (key === "/offline.html" ? offline : undefined),
+    match: async (key) => {
+      if (cacheFails) throw new Error('Cache storage unavailable');
+      return key === "/offline.html" && !cacheMissing ? offline : undefined;
+    },
   },
   fetch: async () => {
     if (networkFails) throw new Error("Offline");
@@ -122,6 +127,14 @@ assert.equal(cached.length, 9);
 networkFails = true;
 assert.equal(await navigation(), offline);
 assert.equal(cached.length, 9);
+cacheMissing = true;
+const emergency = await navigation();
+assert.ok(emergency instanceof Response, 'An evicted offline cache must not break the navigation');
+assert.equal(emergency.status, 503);
+assert.equal(emergency.headers.get('cache-control'), 'no-store');
+assert.match(await emergency.text(), /No pudimos abrir Papelito/);
+cacheFails = true;
+assert.ok(await navigation() instanceof Response, 'Cache Storage failure must still return a valid response');
 console.log(
   "PASS PWA: precarga solo pública, nunca cachea HTML privado/API/auth/invitaciones, actualización consentida y limpieza limitada a sus propias cachés",
 );

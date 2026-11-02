@@ -10,7 +10,7 @@ const {
 } = await import("../src/lib/event-dates.ts");
 const { inferThemeFromDate, resolveExchangeTheme } =
   await import("../src/lib/theme.ts");
-const { callServerAction } = await import("../src/lib/client-actions.ts");
+const { callServerAction, callServerRead } = await import("../src/lib/client-actions.ts");
 
 assert.equal(isCalendarDate("2028-02-29"), true);
 for (const date of [
@@ -80,6 +80,9 @@ try {
   assert.equal(offline.success, false);
   assert.equal(calls, 0);
   assert.match(offline.error, /no se envió/);
+  const offlineRead = await callServerRead(async () => { calls++; return { success: true }; });
+  assert.equal(calls, 0);
+  assert.match(offlineRead.error, /cargar tus intercambios/);
   Object.defineProperty(globalThis, "navigator", {
     configurable: true,
     value: { onLine: true },
@@ -91,6 +94,9 @@ try {
   assert.equal(unknown.success, false);
   assert.equal(calls, 1);
   assert.match(unknown.error, /antes de repetirlo/);
+  const readFailure = await callServerRead(async () => { throw new Error('Connection lost'); });
+  assert.match(readFailure.error, /cargar tus intercambios/);
+  assert.doesNotMatch(readFailure.error, /confirmar el cambio|repetirlo/);
   assert.deepEqual(
     await callServerAction(async () => ({ success: true, data: 42 })),
     { success: true, data: 42 },
