@@ -15,7 +15,8 @@ export function ExchangeLifecycleControls({ exchange }: { exchange: Exchange }) 
   const inFlight = useRef(false);
   if (!real) return null;
   const closed = exchange.status === 'finalizado' || exchange.status === 'cancelado';
-  const candidates = exchange.participants.filter(p => p.status === 'approved' && !p.isOrganizer);
+  // Only people with their own account can organize (never a represented alias).
+  const candidates = exchange.participants.filter(p => p.status === 'approved' && !p.isOrganizer && !p.represented);
 
   async function confirm() {
     if (!real || !operation || inFlight.current) return;

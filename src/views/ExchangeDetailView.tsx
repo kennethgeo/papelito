@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOptionalDemoData } from "@/context/DemoDataContext";
 import { useOptionalRealData } from "@/context/RealDataContext";
 import { THEME_CONFIG } from "@/lib/theme";
@@ -31,6 +31,9 @@ export function ExchangeDetailView() {
   const [giver, setGiver] = useState("");
   const [receiver, setReceiver] = useState("");
   const [mutual, setMutual] = useState(true);
+  const [memberConfirm, setMemberConfirm] = useState<{ id: string; action: "reject" | "remove" } | null>(null);
+  const memberConfirmTitle = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (memberConfirm) memberConfirmTitle.current?.focus(); }, [memberConfirm]);
   const [demoRules, setDemoRules] = useState<
     Array<{ giverId: string; receiverId: string }>
   >([]);
@@ -99,6 +102,10 @@ export function ExchangeDetailView() {
     (p) => (p.status ?? "approved") === "approved",
   );
   const pending = ex.participants.filter((p) => p.status === "pending");
+  const rejected = ex.participants.filter((p) => p.status === "rejected");
+  // Changing who participates is only possible before the draw.
+  const canManageMembers = !!real && ex.isCurrentUserOrganizer && ex.status === "inscripcion_abierta";
+  const confirmingMember = memberConfirm ? ex.participants.find((p) => p.id === memberConfirm.id) : undefined;
   const missing = approved.filter((p) => !p.wishCount);
   const closed = ["finalizado", "cancelado"].includes(ex.status);
   const canEnter = (ex.currentUserMemberStatus ?? "approved") === "approved";
@@ -471,6 +478,7 @@ export function ExchangeDetailView() {
                         <strong>
                           {p.alias}
                           {p.isOrganizer && <small> · Organiza</small>}
+                          {p.represented && <small> · A cargo de otra persona</small>}
                         </strong>
                         <span>
                           {p.wishCount
@@ -478,6 +486,16 @@ export function ExchangeDetailView() {
                             : "Todavía sin pistas"}
                         </span>
                       </div>
+                      {canManageMembers && !p.isOrganizer && (
+                        <button
+                          className="paper-text-button participant-action"
+                          disabled={!!busy}
+                          aria-label={`Quitar a ${p.alias} del intercambio`}
+                          onClick={() => setMemberConfirm({ id: p.id, action: "remove" })}
+                        >
+                          Quitar
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -487,6 +505,47 @@ export function ExchangeDetailView() {
                 >
                   Preparar mis deseos
                 </button>
+                {confirmingMember && memberConfirm && (
+                  <div className="confirmation-note" role="group" aria-labelledby="member-confirm-title">
+                    <h3 id="member-confirm-title" tabIndex={-1} ref={memberConfirmTitle}>
+                      {memberConfirm.action === "reject"
+                        ? `¿Rechazar a ${confirmingMember.alias}?`
+                        : `¿Quitar a ${confirmingMember.alias} del intercambio?`}
+                    </h3>
+                    <p>
+                      {memberConfirm.action === "reject"
+                        ? "No va a poder entrar con este enlace."
+                        : "Deja de participar en el sorteo y se borran las restricciones donde aparece. Sus deseos personales se conservan."}{" "}
+                      Si tiene personas a cargo en este intercambio, también salen. Podés volver a aprobar a {confirmingMember.alias} desde «Solicitudes rechazadas» antes del sorteo.
+                    </p>
+                    <div className="workshop-actions">
+                      <button
+                        className="paper-button"
+                        disabled={!!busy}
+                        aria-busy={busy === confirmingMember.id}
+                        onClick={async () => {
+                          const done = await run(
+                            confirmingMember.id,
+                            () => real!.manageMember(confirmingMember.id, "rejected"),
+                            memberConfirm.action === "reject"
+                              ? `Rechazaste la solicitud de ${confirmingMember.alias}.`
+                              : `${confirmingMember.alias} ya no participa.`,
+                          );
+                          if (done) setMemberConfirm(null);
+                        }}
+                      >
+                        {memberConfirm.action === "reject" ? "Sí, rechazar" : "Sí, quitar"}
+                      </button>
+                      <button
+                        className="paper-text-button"
+                        disabled={!!busy}
+                        onClick={() => setMemberConfirm(null)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {owner && pending.length > 0 && (
                   <div className="pending-members">
                     <h3>Están tocando la puerta</h3>
@@ -510,13 +569,7 @@ export function ExchangeDetailView() {
                           <button
                             className="paper-text-button"
                             disabled={!!busy}
-                            onClick={() =>
-                              void run(
-                                p.id,
-                                () => real!.manageMember(p.id, "rejected"),
-                                "Solicitud rechazada.",
-                              )
-                            }
+                            onClick={() => setMemberConfirm({ id: p.id, action: "reject" })}
                           >
                             Rechazar a {p.alias}
                           </button>
@@ -524,6 +577,30 @@ export function ExchangeDetailView() {
                       </div>
                     ))}
                   </div>
+                )}
+                {canManageMembers && rejected.length > 0 && (
+                  <details className="workshop-options">
+                    <summary>Solicitudes rechazadas ({rejected.length})</summary>
+                    <p className="field-help">Podés volver a aprobar a alguien mientras la inscripción esté abierta.</p>
+                    {rejected.map((p) => (
+                      <div key={p.id} className="pending-row">
+                        <strong>{p.alias}</strong>
+                        <button
+                          className="paper-outline-button"
+                          disabled={!!busy}
+                          onClick={() =>
+                            void run(
+                              p.id,
+                              () => real!.manageMember(p.id, "approved"),
+                              `${p.alias} volvió al intercambio.`,
+                            )
+                          }
+                        >
+                          Volver a aprobar a {p.alias}
+                        </button>
+                      </div>
+                    ))}
+                  </details>
                 )}
               </section>
             </div>

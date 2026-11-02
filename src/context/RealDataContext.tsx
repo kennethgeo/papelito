@@ -257,6 +257,7 @@ export function RealDataProvider({
         isReady: p.wishCount > 0,
         joinedAt: p.joinedAt,
         wishCount: p.wishCount,
+        represented: p.represented,
         status: p.status,
       }));
       setCurrentExchange({

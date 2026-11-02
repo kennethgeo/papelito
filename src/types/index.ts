@@ -19,6 +19,8 @@ export interface Participant {
   joinedAt: string;
   wishCount: number;
   status?: 'approved' | 'pending' | 'rejected';
+  /** Participates through an adult's account; cannot organize. */
+  represented?: boolean;
 }
 
 export interface Wish {

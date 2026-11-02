@@ -380,6 +380,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
          m.joined_at::text,
          p.alias,
          p.avatar_color,
+         (p.guardian_user_id IS NOT NULL) AS represented,
          (SELECT count(*)::int FROM wish_selections ws WHERE ws.exchange_id = m.exchange_id AND ws.user_id = m.user_id) as wish_count
        FROM memberships m
        JOIN profiles p ON p.user_id = m.user_id
@@ -393,6 +394,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
          m.joined_at::text,
          p.alias,
          p.avatar_color,
+         (p.guardian_user_id IS NOT NULL) AS represented,
          (SELECT count(*)::int FROM wish_selections ws WHERE ws.exchange_id = m.exchange_id AND ws.user_id = m.user_id) as wish_count
        FROM memberships m
        JOIN profiles p ON p.user_id = m.user_id
@@ -407,6 +409,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
     joined_at: string;
     alias: string;
     avatar_color: string;
+    represented: boolean;
     wish_count: number;
   }>(partQuery, [exchangeId]);
 
@@ -469,6 +472,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
       status: p.status,
       joinedAt: p.joined_at,
       wishCount: p.wish_count,
+      represented: p.represented,
     })),
     exclusions,
     invitationToken: inviteToken,
@@ -518,7 +522,13 @@ export async function manageMemberStatus(
        WHERE exchange_id = $3 AND user_id = $4`,
       [newStatus, actorUserId, exchangeId, targetUserId]
     );
-    if (newStatus === 'rejected') await client.query(`UPDATE memberships SET status = 'rejected' WHERE exchange_id = $1 AND user_id IN (SELECT user_id FROM profiles WHERE guardian_user_id = $2 AND represented_exchange_id = $1)`, [exchangeId, targetUserId]);
+    if (newStatus === 'rejected') {
+      await client.query(`UPDATE memberships SET status = 'rejected' WHERE exchange_id = $1 AND user_id IN (SELECT user_id FROM profiles WHERE guardian_user_id = $2 AND represented_exchange_id = $1)`, [exchangeId, targetUserId]);
+      // Restrictions only apply between approved people; drop the ones that
+      // involved this person (or whoever they represent) so none stay orphaned.
+      await client.query(`DELETE FROM exclusions WHERE exchange_id = $1 AND (giver_user_id IN (SELECT $2::text UNION SELECT user_id FROM profiles WHERE guardian_user_id = $2 AND represented_exchange_id = $1)
+        OR receiver_user_id IN (SELECT $2::text UNION SELECT user_id FROM profiles WHERE guardian_user_id = $2 AND represented_exchange_id = $1))`, [exchangeId, targetUserId]);
+    }
     return res.rowCount > 0;
   });
 }
@@ -955,19 +965,24 @@ export async function transferExchangeOrganizer(
       throw new Error('Ya eres la persona organizadora de este intercambio.');
     }
 
-    const memRes = await client.query<{ user_id: string; status: string }>(
-      `SELECT user_id, status
-       FROM memberships
-       WHERE exchange_id = $1 AND user_id IN ($2, $3)
-       FOR UPDATE`,
+    const memRes = await client.query<{ user_id: string; status: string; represented: boolean }>(
+      `SELECT m.user_id, m.status, (p.guardian_user_id IS NOT NULL) AS represented
+       FROM memberships m
+       JOIN profiles p ON p.user_id = m.user_id
+       WHERE m.exchange_id = $1 AND m.user_id IN ($2, $3)
+       FOR UPDATE OF m`,
       [exchangeId, actorUserId, newOrganizerUserId]
     );
 
     const targetMember = memRes.rows.find((m) => m.user_id === newOrganizerUserId);
     if (!targetMember || targetMember.status !== 'approved') {
       throw new Error(
-        'Solo puedes transferir la organización a un participante aprobado de este intercambio.'
+        'Solo podés transferir la organización a un participante aprobado de este intercambio.'
       );
+    }
+    // A represented person has no account: nobody could administer the group.
+    if (targetMember.represented) {
+      throw new Error('Esa persona participa a cargo de otra y no tiene cuenta propia. Elegí a alguien con cuenta.');
     }
 
     await client.query(

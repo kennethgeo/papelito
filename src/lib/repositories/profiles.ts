@@ -311,21 +311,26 @@ export async function getAccountDeletionImpactWithClient(
       user_id: string;
       status: string;
       alias: string;
+      represented: boolean;
     }>(
-      `SELECT m.user_id, m.status, p.alias
+      // People represented by this account are deleted with it, so they are not
+      // "others"; people represented by someone else have no account of their own
+      // and can never organize (their adult is the eligible successor).
+      `SELECT m.user_id, m.status, p.alias, (p.guardian_user_id IS NOT NULL) AS represented
        FROM memberships m
        JOIN profiles p ON p.user_id = m.user_id
        WHERE m.exchange_id = $1
          AND m.user_id <> $2
          AND m.status IN ('approved', 'pending')
+         AND (p.guardian_user_id IS NULL OR p.guardian_user_id <> $2)
        ORDER BY m.joined_at ASC, m.user_id ASC`,
       [ex.id, userId]
     );
 
     const otherApprovedMembers = othersRes.rows
-      .filter((r) => r.status === 'approved')
+      .filter((r) => r.status === 'approved' && !r.represented)
       .map((r) => ({ userId: r.user_id, alias: r.alias }));
-    const otherPendingCount = othersRes.rows.filter((r) => r.status === 'pending').length;
+    const otherPendingCount = othersRes.rows.filter((r) => r.status === 'pending' || r.represented).length;
 
     if (otherApprovedMembers.length === 0 && otherPendingCount === 0) {
       soloOrganizedExchanges.push({
@@ -685,20 +690,23 @@ export async function purgeUserAppDataWithClient(
       user_id: string;
       status: string;
       alias: string;
+      represented: boolean;
     }>(
-      `SELECT m.user_id, m.status, p.alias
+      `SELECT m.user_id, m.status, p.alias, (p.guardian_user_id IS NOT NULL) AS represented
        FROM memberships m
        JOIN profiles p ON p.user_id = m.user_id
        WHERE m.exchange_id = $1
          AND m.user_id <> $2
          AND m.status IN ('approved', 'pending')
+         AND (p.guardian_user_id IS NULL OR p.guardian_user_id <> $2)
        ORDER BY m.joined_at ASC, m.user_id ASC
        FOR UPDATE`,
       [ex.id, userId]
     );
 
-    const otherApproved = othersRes.rows.filter((r) => r.status === 'approved');
-    const otherPending = othersRes.rows.filter((r) => r.status === 'pending');
+    // Only a person with an account can organize (never a represented alias).
+    const otherApproved = othersRes.rows.filter((r) => r.status === 'approved' && !r.represented);
+    const otherPending = othersRes.rows.filter((r) => r.status === 'pending' || r.represented);
 
     if (otherApproved.length === 0 && otherPending.length === 0) {
       await client.query(`DELETE FROM exchanges WHERE id = $1`, [ex.id]);
