@@ -86,3 +86,13 @@ test('sorteo imposible: el error nombra el alias, nunca el identificador interno
   await ex.setExchangeExclusions(exchangeId, 'al1', [{ giverUserId: 'al2', excludedReceiverUserId: 'al1' }, { giverUserId: 'al2', excludedReceiverUserId: 'al3' }]);
   await assert.rejects(() => executeAndCommitDraw(exchangeId, 'al1', 0), (error) => /^Beto no tiene a quién regalar/.test(error.message) && !error.message.includes('al2'));
 });
+
+test('recursos: las mutaciones no invalidan una caché compartida que la app no usa', async () => {
+  for (const file of ['src/lib/data/server-actions.ts', 'src/lib/data/selected-actions.ts', 'src/lib/data/social-actions.ts', 'src/lib/data/photo-actions.ts', 'src/lib/data/passkey-actions.ts']) {
+    assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /revalidatePath|revalidateTag|updateTag/, file);
+  }
+  assert.doesNotMatch(fs.readFileSync('vite.config.ts', 'utf8'), /kvDataAdapter\(/);
+  assert.doesNotMatch(fs.readFileSync('cloudflare.config.ts', 'utf8'), /VINEXT_KV_CACHE/);
+  const pages = fs.readdirSync('src', { recursive: true }).filter((f) => /\.(ts|tsx)$/.test(f));
+  for (const f of pages) assert.doesNotMatch(fs.readFileSync(`src/${f}`, 'utf8'), /['"]use cache['"]|unstable_cache\(/, f);
+});

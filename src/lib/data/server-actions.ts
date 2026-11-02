@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getServerSession, getFreshServerSession } from "@/lib/auth/server";
 import { isDatabaseConfigured } from "@/lib/db/client";
@@ -230,7 +229,6 @@ export async function createExchangeAction(
 
     const user = await requireConsentedUser();
     const result = await createExchangeWithInvitation(user.id, formData);
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
@@ -252,7 +250,6 @@ export async function regenerateInvitationAction(
     }
     const user = await requireConsentedUser();
     const result = await regenerateExchangeInvitation(exchangeId, user.id);
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
@@ -345,7 +342,6 @@ export async function manageMemberStatusAction(
     }
     const user = await requireConsentedUser();
     await manageMemberStatus(exchangeId, targetUserId, newStatus, user.id);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -374,7 +370,6 @@ export async function updateExchangeThemeAction(
     }
     const user = await requireConsentedUser();
     await updateExchangeTheme(exchangeId, user.id, newTheme);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -411,7 +406,6 @@ export async function setExchangeExclusionsAction(
     }
     const user = await requireConsentedUser();
     await setExchangeExclusions(exchangeId, user.id, rules);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -447,7 +441,6 @@ export async function triggerDrawAction(
       expectedVersion,
       invalidationReason,
     );
-    revalidatePath("/");
     return {
       success: true,
       data: { version: result.version, count: result.count },
@@ -481,7 +474,6 @@ export async function revealAssignmentAction(
   try {
     const user = await requireConsentedUser();
     await revealAssignment(exchangeId, user.id);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -502,7 +494,6 @@ export async function toggleWishPurchaseAction(
     }
     const user = await requireConsentedUser();
     await toggleWishPurchase(exchangeId, user.id, wishId, purchased);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -539,7 +530,6 @@ export async function saveWishAction(
 
     const user = await requireConsentedUser();
     const result = await saveWish(user.id, input);
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
@@ -553,7 +543,6 @@ export async function deleteWishAction(wishId: string): Promise<ActionResult> {
   try {
     const user = await requireConsentedUser();
     await deleteWish(user.id, wishId);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -574,7 +563,6 @@ export async function toggleWishInExchangeAction(
     }
     const user = await requireConsentedUser();
     await toggleWishInExchange(user.id, exchangeId, wishId, selected);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -603,7 +591,6 @@ export async function updateProfileAliasAction(
     }
     const user = await requireConsentedUser();
     await updateProfileAlias(user.id, newAlias);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -664,7 +651,6 @@ export async function recordConsentAction(input: {
     } catch {
       // Ignore if cookies cannot be mutated
     }
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -679,7 +665,6 @@ export async function revokeConsentAction(): Promise<ActionResult> {
     const user = await requireAuth();
     const cookieStore = await cookies();
     await revokeConsentAndClearCookie(user.id, cookieStore);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -754,7 +739,6 @@ export async function acceptInvitationAction(
     }
     const user = await requireConsentedUser();
     const result = await acceptInvitationAtomic(token.trim(), user.id);
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
@@ -786,7 +770,6 @@ export async function updateExchangeLifecycleStatusAction(
       user.id,
       nextStatus,
     );
-    revalidatePath("/");
     return { success: true, data: res };
   } catch (err: unknown) {
     return {
@@ -819,7 +802,6 @@ export async function deleteExchangeAction(exchangeId: string, input: {
     await deleteExchange(exchangeId, session.user.id, {
       ...input, sessionAuthenticatedAt: session.authenticatedAt,
     });
-    revalidatePath('/');
     return { success: true };
   } catch (err: unknown) {
     return { success: false, error: sanitizeErrorMessage(err, 'No se pudo eliminar el intercambio.') };
@@ -846,7 +828,6 @@ export async function transferExchangeOrganizerAction(
     }
     const user = await requireConsentedUser();
     await transferExchangeOrganizer(exchangeId, user.id, newOrganizerUserId);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -926,8 +907,6 @@ export async function requestAccountDeletionAction(input: {
       notes: input.notes,
       sessionAuthenticatedAt: freshSession.authenticatedAt,
     });
-
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
