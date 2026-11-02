@@ -71,11 +71,26 @@ test('preferencias, guía, ayuda y copia cifrada de lectura sin conexión', asyn
   await context.setOffline(false);
 });
 
+// Every test also checks the report-only CSP: nothing the app does may be
+// reported, so the policy can later be enforced without breaking a flow.
+const policyViolations = new WeakMap<import("@playwright/test").Page, string[]>();
 test.beforeEach(async ({ page }) => {
+  const violations: string[] = [];
+  policyViolations.set(page, violations);
+  await page.exposeBinding("__papelitoPolicyViolation", (_source, text: string) => { violations.push(text); });
+  await page.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", (event) => {
+      (window as unknown as { __papelitoPolicyViolation: (text: string) => void }).__papelitoPolicyViolation(`${event.effectiveDirective} ${event.blockedURI} (${event.disposition}) ${event.sourceFile}:${event.lineNumber}:${event.columnNumber}`);
+    });
+  });
   await page.goto("/?mode=demo");
   await expect(
     page.getByRole("button", { name: "Crear intercambio", exact: true }),
   ).toBeVisible();
+});
+
+test.afterEach(async ({ page }) => {
+  expect(policyViolations.get(page) ?? [], "la política de seguridad en modo reporte no debe registrar violaciones").toEqual([]);
 });
 
 async function noOverflow(page: import("@playwright/test").Page) {
@@ -357,4 +372,18 @@ test('acceso: Google primero, luego correo y la passkey como opción secundaria'
   const [googleBox, emailBox] = [await google.boundingBox(), await email.boundingBox()];
   expect(googleBox!.y).toBeLessThan(emailBox!.y);
   await noOverflow(page);
+});
+
+test('cabeceras de seguridad: CSP en modo reporte, Permissions-Policy y detección de recursos externos', async ({ page }) => {
+  const response = await page.goto('/?mode=demo');
+  const headers = response!.headers();
+  expect(headers['content-security-policy-report-only']).toContain("default-src 'self'");
+  expect(headers['content-security-policy']).toBeUndefined();
+  expect(headers['permissions-policy']).toContain('camera=()');
+  // Report-only never blocks: an external image is reported (so the collector works) but still requested.
+  await page.evaluate(() => { const img = document.createElement('img'); img.src = 'https://tienda.invalid/foto.png'; document.body.append(img); });
+  const violations = policyViolations.get(page)!;
+  await expect.poll(() => violations.length).toBe(1);
+  expect(violations[0]).toMatch(/^img-src https:\/\/tienda\.invalid\/foto\.png \(report\) /);
+  violations.length = 0;
 });

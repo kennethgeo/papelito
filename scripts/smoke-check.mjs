@@ -30,7 +30,7 @@ const randomToken = randomBytes(24).toString("base64url");
 
 const html = (extra = {}) => ({ type: /text\/html/, mustNot: [ENGLISH_DEFAULT_ERROR], ...extra });
 const routes = [
-  { path: "/", status: 200, ...html({ must: [/<html[^>]+lang="es/, /papelito/i] }), headers: { "x-frame-options": /DENY/i, "x-content-type-options": /nosniff/i, "referrer-policy": /strict-origin-when-cross-origin/i } },
+  { path: "/", status: 200, ...html({ must: [/<html[^>]+lang="es/, /papelito/i] }), headers: { "x-frame-options": /DENY/i, "x-content-type-options": /nosniff/i, "referrer-policy": /strict-origin-when-cross-origin/i, "permissions-policy": /camera=\(\)/, "content-security-policy-report-only": /default-src 'self'.*report-uri \/api\/csp-report/ } },
   { path: "/?mode=demo", status: 200, ...html({ must: [/<html[^>]+lang="es/] }) },
   { path: `/unirse/${randomToken}`, status: 200, ...html({ must: [/Invitación no disponible/] }), headers: { "cache-control": /no-store/ }, transientMarker: /No pudimos revisar esta invitación/ },
   { path: "/ayuda", status: 200, ...html({ must: [/papelito/i] }) },
