@@ -78,7 +78,8 @@ function isLocalLoopbackHost(hostname: string): boolean {
  * Resolves the safe 303 redirect URL for POST /auth/logout.
  * - Preserves the request origin on local loopback hosts (localhost, 127.0.0.1, ::1)
  *   so local session cookies are never switched across origins.
- * - For non-local requests (e.g. Netlify where request.url may be rewritten to a deploy permalink),
+ * - For non-local requests (request.url may be a deploy permalink or preview host, as on the
+ *   former Netlify setup or a workers.dev preview),
  *   uses the validated public origin from NEXT_PUBLIC_APP_URL (http/https only, no credentials,
  *   root "/" without path/query/hash).
  * - Falls back to the request origin root "/" if NEXT_PUBLIC_APP_URL is missing or invalid.
