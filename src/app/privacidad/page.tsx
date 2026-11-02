@@ -72,9 +72,12 @@ export default function PrivacidadPage() {
 
           <h3>2. Tratamiento internacional y proveedores de infraestructura</h3>
           <p>
-            La infraestructura utiliza Neon PostgreSQL y Neon Auth en la región de Ohio, Estados Unidos,
-            y Netlify para alojamiento y distribución. El tratamiento puede ocurrir fuera de Costa Rica. Google participa
-            cuando eliges acceder mediante ese proveedor. El acceso con correo y contraseña lo administra
+            La base de datos y el acceso (Neon PostgreSQL y Neon Auth) se alojan en la región de Ohio,
+            Estados Unidos. Cloudflare aloja y distribuye la aplicación desde su red global (Workers y Pages),
+            procesa las fotos de referencia antes de guardarlas y conserva registros técnicos de las solicitudes
+            (por ejemplo, la dirección visitada y los errores), sin el contenido de deseos ni mensajes.
+            El tratamiento puede ocurrir fuera de Costa Rica. Google participa
+            cuando elegís acceder mediante ese proveedor. El acceso con correo y contraseña lo administra
             Neon Auth; las contraseñas no se guardan en texto plano en los perfiles de Papelito.
             Neon Auth envía los correos transaccionales de acceso y recuperación mediante su proveedor compartido.
             No utilizamos estos correos para publicidad. No vendemos los datos de los participantes.
@@ -87,7 +90,7 @@ export default function PrivacidadPage() {
           <ul>
             <li>Tu cuenta conserva el registro de aceptación de los documentos legales con su versión y fecha.</li>
             <li>Los demás miembros solo ven tu alias y avatar en la lista del evento.</li>
-            <li>Tu asignación secreta solo la ves tú; si participás mediante una persona adulta que te representa, esa persona también puede consultarla.</li>
+            <li>Tu asignación secreta solo la ves vos; si participás mediante una persona adulta que te representa, esa persona también puede consultarla.</li>
             <li>
               Tus deseos seleccionados solo son accesibles para la persona a quien le tocó regalarte.
             </li>
