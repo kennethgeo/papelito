@@ -21,22 +21,54 @@ export function trustedPasskeyOrigin(raw: string) {
   if (requested.protocol !== 'https:' && !local) throw new PublicError('Las passkeys requieren una conexión segura.');
   return { origin: requested.origin, rpID: requested.hostname };
 }
-async function storeChallenge(challenge: string, kind: string, userId: string | null, origin: string, rpID: string) {
-  const token = crypto.randomBytes(32).toString('base64url');
-  await dbTransaction(async client => {
-    await client.query("SELECT name FROM app_locks WHERE name = 'webauthn-challenges' FOR UPDATE");
-    await client.query('DELETE FROM webauthn_challenges WHERE expires_at < now()');
-    const count = await client.query<{ n: string }>('SELECT count(*)::text AS n FROM webauthn_challenges');
-    if (Number(count.rows[0].n) >= 500) throw new PublicError('Hay demasiados intentos. Esperá unos minutos y volvé a intentar.');
-    await client.query('INSERT INTO webauthn_challenges (token_hash, challenge, kind, user_id, origin, rp_id) VALUES ($1, $2, $3, $4, $5, $6)', [hashToken(token), challenge, kind, userId, origin, rpID]);
-  });
-  return token;
+/**
+ * WebAuthn attempts are signed, short-lived tokens kept in an HttpOnly cookie:
+ * starting a sign-in writes nothing to the database, so no global table or
+ * cap can be exhausted by anonymous requests. Completing an attempt records
+ * its nonce once (webauthn_challenges) so a captured token cannot be replayed.
+ */
+const ATTEMPT_TTL_MS = 5 * 60 * 1000;
+type Attempt = { c: string; k: 'registration' | 'authentication'; u: string | null; o: string; r: string; e: number; n: string };
+
+function attemptKey(): Buffer {
+  const secret = process.env.INVITATION_TOKEN_SECRET?.trim() || process.env.NEON_AUTH_COOKIE_SECRET?.trim();
+  if (!secret || secret.length < 32) throw new PublicError('Las passkeys no están disponibles en este momento.');
+  // Separate purpose from invitation encryption and Web Push keys.
+  return Buffer.from(crypto.hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.from('papelito-webauthn-attempt-v1'), Buffer.from('hmac-sha256'), 32));
+}
+function sealAttempt(attempt: Attempt): string {
+  const body = Buffer.from(JSON.stringify(attempt)).toString('base64url');
+  return `${body}.${crypto.createHmac('sha256', attemptKey()).update(body).digest('base64url')}`;
+}
+function openAttempt(token: string): Attempt | null {
+  if (typeof token !== 'string' || token.length > 2048) return null;
+  const [body, mac, extra] = token.split('.');
+  if (!body || !mac || extra !== undefined) return null;
+  const expected = crypto.createHmac('sha256', attemptKey()).update(body).digest();
+  const given = Buffer.from(mac, 'base64url');
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+  try {
+    const a = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as Attempt;
+    const valid = typeof a.c === 'string' && (a.k === 'registration' || a.k === 'authentication') && (a.u === null || typeof a.u === 'string')
+      && typeof a.o === 'string' && typeof a.r === 'string' && Number.isFinite(a.e) && typeof a.n === 'string' && /^[A-Za-z0-9_-]{22}$/.test(a.n);
+    return valid ? a : null;
+  } catch {
+    return null;
+  }
+}
+async function storeChallenge(challenge: string, kind: Attempt['k'], userId: string | null, origin: string, rpID: string) {
+  return sealAttempt({ c: challenge, k: kind, u: userId, o: origin, r: rpID, e: Date.now() + ATTEMPT_TTL_MS, n: crypto.randomBytes(16).toString('base64url') });
 }
 async function consumeChallenge(token: string, kind: string, userId?: string) {
-  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new PublicError('El intento de acceso venció. Volvé a empezar.');
-  const res = await dbQuery<{ challenge: string; origin: string; rp_id: string; user_id: string | null }>(`DELETE FROM webauthn_challenges WHERE token_hash = $1 AND kind = $2 AND expires_at > now() RETURNING challenge, origin, rp_id, user_id`, [hashToken(token), kind]);
-  if (!res.rows[0] || (userId && res.rows[0].user_id !== userId)) throw new PublicError('El intento de acceso venció o ya se utilizó. Volvé a empezar.');
-  return res.rows[0];
+  const attempt = openAttempt(token);
+  if (!attempt || attempt.e <= Date.now()) throw new PublicError('El intento de acceso venció. Volvé a empezar.');
+  // One use per attempt, recorded before any other check (as before).
+  await dbQuery('DELETE FROM webauthn_challenges WHERE expires_at < now()');
+  const used = await dbQuery(`INSERT INTO webauthn_challenges (token_hash, challenge, kind, user_id, origin, rp_id, expires_at)
+    VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7::double precision / 1000)) ON CONFLICT (token_hash) DO NOTHING RETURNING token_hash`,
+    [hashToken(attempt.n), attempt.c, attempt.k, attempt.u, attempt.o, attempt.r, attempt.e]);
+  if (!used.rowCount || attempt.k !== kind || (userId && attempt.u !== userId)) throw new PublicError('El intento de acceso venció o ya se utilizó. Volvé a empezar.');
+  return { challenge: attempt.c, origin: attempt.o, rp_id: attempt.r, user_id: attempt.u };
 }
 export async function registrationOptions(user: { id: string; email: string }, rawOrigin: string) {
   const { origin, rpID } = trustedPasskeyOrigin(rawOrigin);
