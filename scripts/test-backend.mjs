@@ -457,7 +457,7 @@ async function runTests() {
   ]);
   await assertThrows(
     () => executeAndCommitDraw(exchangeId, userA, 0),
-    'no tiene ningún destinatario posible',
+    'no tiene a quién regalar',
     'Sorteo imposible por exclusiones debe abortar sin persistir cambios'
   );
 
