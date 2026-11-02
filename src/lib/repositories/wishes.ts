@@ -143,7 +143,7 @@ export async function deleteWish(userId: string, wishId: string): Promise<boolea
     [wishId, userId]
   );
   if (res.rowCount === 0) {
-    throw new PublicError('Deseo no encontrado o no tienes permiso para eliminarlo.');
+    throw new PublicError('No encontramos ese deseo en tu lista.');
   }
   return true;
 }
@@ -169,7 +169,7 @@ export async function toggleWishInExchange(
     [exchangeId, userId]
   );
   if (memRes.rowCount === 0) {
-    throw new PublicError('Debes ser participante aprobado del evento para compartir deseos.');
+    throw new PublicError('Para compartir deseos tenés que estar aprobado en el intercambio.');
   }
 
   if (selected) {

@@ -70,7 +70,7 @@ export const JoinExchangeClientAction: React.FC<
       setJoining(false);
     } catch {
       setJoinError(
-        "Error inesperado al unirte al intercambio. Inténtalo de nuevo.",
+        "No pudimos completar tu ingreso al intercambio. Intentá de nuevo.",
       );
       setJoining(false);
     } finally {
@@ -84,7 +84,7 @@ export const JoinExchangeClientAction: React.FC<
         <ConsentGateCard
           compact
           title="Antes de sumarte, un detalle."
-          description={`Has iniciado sesión como ${userEmail}. Antes de unirte al intercambio, confirma por única vez la versión vigente de nuestros documentos legales.`}
+          description={`Entraste como ${userEmail}. Antes de unirte al intercambio, confirmá por única vez la versión vigente de nuestros documentos legales.`}
           submitLabel="Confirmar consentimiento"
           onConfirm={handleConfirmConsent}
           externalError={joinError}
@@ -106,7 +106,7 @@ export const JoinExchangeClientAction: React.FC<
                 lineHeight: 1.4,
               }}
             >
-              Consentimiento registrado en tu cuenta. Ahora puedes confirmar tu
+              Consentimiento registrado en tu cuenta. Ahora podés confirmar tu
               ingreso al intercambio.
             </div>
           )}

@@ -443,7 +443,7 @@ export async function requestAccountDeletion(
   input: RequestAccountDeletionInput
 ): Promise<RequestAccountDeletionResult> {
   if (!input.confirmIrreversible) {
-    throw new PublicError('Debes confirmar expresamente que comprendes el alcance de la solicitud de baja.');
+    throw new PublicError('Tenés que confirmar expresamente que entendés el alcance de la solicitud de baja.');
   }
 
   const normalizedPhrase = (input.confirmPhrase || '').trim().toUpperCase();
@@ -453,7 +453,7 @@ export async function requestAccountDeletion(
     normalizedPhrase !== 'ELIMINAR MI CUENTA'
   ) {
     throw new PublicError(
-      'Debes escribir exactamente SOLICITAR ELIMINACION (o ELIMINAR MI CUENTA) para confirmar la solicitud.'
+      'Escribí exactamente ELIMINAR MI CUENTA para confirmar la solicitud.'
     );
   }
 
@@ -461,7 +461,7 @@ export async function requestAccountDeletion(
   const maxAgeSec = input.maxSessionAgeSeconds ?? RECENT_AUTH_MAX_AGE_SECONDS;
   if (!input.sessionAuthenticatedAt) {
     throw new PublicError(
-      'Por seguridad, esta operación requiere una sesión autenticada recientemente. Cierra sesión y vuelve a ingresar antes de continuar.'
+      'Por seguridad, esta operación requiere una sesión autenticada recientemente. Volvé a ingresar antes de continuar.'
     );
   }
 
@@ -472,7 +472,7 @@ export async function requestAccountDeletion(
     referenceNow.getTime() - sessionAuthMs > maxAgeSec * 1000
   ) {
     throw new PublicError(
-      `Por seguridad, para solicitar la eliminación de tu cuenta debes haber iniciado sesión en los últimos ${Math.floor(maxAgeSec / 60)} minutos. Cierra sesión y vuelve a entrar para renovar tu autenticación.`
+      `Por seguridad, para solicitar la eliminación de tu cuenta tenés que haber iniciado sesión en los últimos ${Math.floor(maxAgeSec / 60)} minutos. Volvé a ingresar para renovar tu autenticación.`
     );
   }
 
@@ -505,7 +505,7 @@ export async function requestAccountDeletion(
       if (!input.confirmOrganizerImpact) {
         const names = impact.activeOrganizedWithOthers.map((e) => `«${e.name}»`).join(', ');
         throw new PublicError(
-          `Organizas intercambios activos con otras personas (${names}). Transfiere la organización o finaliza/cancela esos intercambios desde su detalle, o marca la confirmación adicional para transferir automáticamente la organización al participante aprobado más antiguo.`
+          `Organizás intercambios activos con otras personas (${names}). Transferí la organización o finalizá/cancelá esos intercambios desde su detalle, o marcá la confirmación adicional para transferir automáticamente la organización al participante aprobado más antiguo.`
         );
       }
 

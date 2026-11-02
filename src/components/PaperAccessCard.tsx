@@ -314,7 +314,7 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
       }
 
       setStatusMessage(
-        `Si existe una cuenta asociada a ${normalizedEmail}, recibirás un enlace para establecer o recuperar tu contraseña. Si entraste antes con Google, también puedes usar «Continuar con Google».`
+        `Si existe una cuenta asociada a ${normalizedEmail}, recibirás un enlace para establecer o recuperar tu contraseña. Si entraste antes con Google, también podés usar «Continuar con Google».`
       );
       setLoadingAction(null);
     } catch (err) {
@@ -338,7 +338,7 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
 
     const cleanOtp = otpCode.trim();
     if (cleanOtp.length < 4) {
-      setErrorMessage('Ingresa el código de verificación enviado a tu correo.');
+      setErrorMessage('Ingresá el código de verificación enviado a tu correo.');
       return;
     }
 
@@ -636,7 +636,7 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
           <div className="paper-auth-subview-header">
             <h3 className="paper-auth-subview-title">Recuperar o definir contraseña</h3>
             <p className="paper-auth-subview-desc">
-              Ingresa tu correo electrónico y te enviaremos un enlace seguro para establecer una nueva contraseña.
+              Ingresá tu correo electrónico y te enviaremos un enlace seguro para establecer una nueva contraseña.
             </p>
           </div>
 
@@ -681,9 +681,9 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
       {mode === 'verify-otp' && (
         <form onSubmit={handleVerifyOtp} className="paper-auth-form" noValidate>
           <div className="paper-auth-subview-header">
-            <h3 className="paper-auth-subview-title">Verifica tu correo electrónico</h3>
+            <h3 className="paper-auth-subview-title">Verificá tu correo electrónico</h3>
             <p className="paper-auth-subview-desc">
-              Ingresa el código de verificación enviado a <strong>{normalizeEmailInput(email)}</strong>.
+              Ingresá el código de verificación enviado a <strong>{normalizeEmailInput(email)}</strong>.
             </p>
           </div>
 
@@ -742,7 +742,7 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
       {(mode === 'signin' || mode === 'signup') && (
         <>
           <div className="paper-auth-divider" role="separator" aria-label="O continúa con Google">
-            <span>o también puedes</span>
+            <span>o también podés</span>
           </div>
 
           <button

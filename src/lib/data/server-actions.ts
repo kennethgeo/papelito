@@ -647,7 +647,7 @@ export async function recordConsentAction(input: {
       return {
         success: false,
         error:
-          "Debes aceptar explícitamente tanto los términos como el consentimiento de datos.",
+          "Aceptá explícitamente los términos y el consentimiento de datos.",
       };
     }
     if (input.version !== LEGAL_CONSTANTS.VERSION) {
@@ -841,7 +841,7 @@ export async function transferExchangeOrganizerAction(
       return {
         success: false,
         error:
-          "Selecciona el participante aprobado a quien transferir la organización.",
+          "Elegí a la persona aprobada que va a organizar.",
       };
     }
     const user = await requireConsentedUser();
@@ -908,7 +908,7 @@ export async function requestAccountDeletionAction(input: {
       return {
         success: false,
         error:
-          "Debes iniciar sesión con una sesión activa verificada para solicitar la baja de tu cuenta.",
+          "Iniciá sesión para solicitar la baja de tu cuenta.",
       };
     }
 

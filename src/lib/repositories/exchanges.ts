@@ -310,7 +310,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
   );
 
   if (memberRes.rowCount === 0) {
-    throw new PublicError('No tienes acceso a este intercambio.');
+    throw new PublicError('No tenés acceso a este intercambio.');
   }
 
   const userMembership = memberRes.rows[0];
@@ -976,7 +976,7 @@ export async function transferExchangeOrganizer(
   newOrganizerUserId: string
 ): Promise<boolean> {
   if (!newOrganizerUserId || newOrganizerUserId.trim().length === 0) {
-    throw new PublicError('Debes seleccionar un participante aprobado como nuevo organizador.');
+    throw new PublicError('Elegí a una persona aprobada como nueva organizadora.');
   }
 
   return await dbTransaction(async (client) => {
@@ -995,7 +995,7 @@ export async function transferExchangeOrganizer(
     }
 
     if (newOrganizerUserId === actorUserId) {
-      throw new PublicError('Ya eres la persona organizadora de este intercambio.');
+      throw new PublicError('Ya sos la persona organizadora de este intercambio.');
     }
 
     const memRes = await client.query<{ user_id: string; status: string; represented: boolean }>(

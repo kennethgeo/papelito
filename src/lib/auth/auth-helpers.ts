@@ -27,10 +27,10 @@ export function normalizeEmailInput(email: string): string {
 export function validateEmailInput(email: string): string | null {
   const normalized = normalizeEmailInput(email);
   if (!normalized) {
-    return 'Ingresa tu correo electrónico.';
+    return 'Ingresá tu correo electrónico.';
   }
   if (normalized.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-    return 'Ingresa un correo electrónico válido (ejemplo: nombre@dominio.com).';
+    return 'Ingresá un correo electrónico válido (ejemplo: nombre@dominio.com).';
   }
   return null;
 }
@@ -44,7 +44,7 @@ export function validatePasswordInput(
   mode: 'signin' | 'signup' | 'reset' = 'signin'
 ): string | null {
   if (typeof password !== 'string' || password.length === 0) {
-    return mode === 'reset' ? 'Ingresa tu nueva contraseña.' : 'Ingresa tu contraseña.';
+    return mode === 'reset' ? 'Ingresá tu nueva contraseña.' : 'Ingresá tu contraseña.';
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
     return `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`;
@@ -61,7 +61,7 @@ export function validatePasswordInput(
 export function validateNameOrAliasInput(name: string): string | null {
   const trimmed = typeof name === 'string' ? name.trim() : '';
   if (trimmed.length < 2 || trimmed.length > 60) {
-    return 'Ingresa tu nombre o alias visible (entre 2 y 60 caracteres).';
+    return 'Ingresá tu nombre o alias visible (entre 2 y 60 caracteres).';
   }
   return null;
 }
@@ -175,7 +175,7 @@ export function mapAuthErrorToSpanish(
   ) {
     return {
       code: code || 'RATE_LIMIT',
-      message: 'Has realizado demasiados intentos seguidos. Espera un momento antes de volver a intentarlo.',
+      message: 'Hiciste demasiados intentos seguidos. Esperá un momento antes de volver a intentarlo.',
       requiresEmailVerification: false,
       isInvalidToken: false,
       suggestGoogleOrReset: false,
@@ -194,7 +194,7 @@ export function mapAuthErrorToSpanish(
     return {
       code: code || 'EMAIL_NOT_VERIFIED',
       message:
-        'Tu correo electrónico aún no está verificado. Ingresa el código enviado a tu correo para activar el acceso.',
+        'Tu correo electrónico aún no está verificado. Ingresá el código enviado a tu correo para activar el acceso.',
       requiresEmailVerification: true,
       isInvalidToken: false,
       suggestGoogleOrReset: false,
@@ -212,7 +212,7 @@ export function mapAuthErrorToSpanish(
     return {
       code: code || 'INVALID_TOKEN',
       message:
-        'El enlace de recuperación no es válido o ya expiró. Solicita un nuevo enlace para establecer tu contraseña.',
+        'El enlace de recuperación no es válido o ya expiró. Pedí un enlace nuevo para establecer tu contraseña.',
       requiresEmailVerification: false,
       isInvalidToken: true,
       suggestGoogleOrReset: false,
@@ -234,7 +234,7 @@ export function mapAuthErrorToSpanish(
     return {
       code: code || 'INVALID_CREDENTIALS',
       message:
-        'Correo o contraseña incorrectos. Si entraste antes con Google, usa «Continuar con Google» o selecciona «¿Olvidaste tu contraseña?» para crear una clave.',
+        'Correo o contraseña incorrectos. Si entraste antes con Google, usá «Continuar con Google» o elegí «¿Olvidaste tu contraseña?» para crear una clave.',
       requiresEmailVerification: false,
       isInvalidToken: false,
       suggestGoogleOrReset: true,
@@ -252,7 +252,7 @@ export function mapAuthErrorToSpanish(
     return {
       code: code || 'USER_ALREADY_EXISTS',
       message:
-        'Ya existe una cuenta con este correo electrónico. Inicia sesión con tu contraseña o usa «Continuar con Google».',
+        'Ya existe una cuenta con este correo electrónico. Iniciá sesión con tu contraseña o usá «Continuar con Google».',
       requiresEmailVerification: false,
       isInvalidToken: false,
       suggestGoogleOrReset: true,
@@ -301,7 +301,7 @@ export function mapAuthErrorToSpanish(
     return {
       code: code || 'INVALID_OTP',
       message:
-        'El código de verificación no es válido o ya expiró. Revisa tu correo o solicita un código nuevo.',
+        'El código de verificación no es válido o ya expiró. Revisá tu correo o pedí un código nuevo.',
       requiresEmailVerification: true,
       isInvalidToken: false,
       suggestGoogleOrReset: false,
@@ -321,7 +321,7 @@ export function mapAuthErrorToSpanish(
     return {
       code: code || 'INVALID_ORIGIN',
       message:
-        'Este dominio o enlace temporal no está autorizado para iniciar sesión. Abre Papelito desde su dirección principal e inténtalo de nuevo.',
+        'Este dominio o enlace temporal no está autorizado para iniciar sesión. Abrí Papelito desde su dirección principal e intentá de nuevo.',
       requiresEmailVerification: false,
       isInvalidToken: false,
       suggestGoogleOrReset: false,
@@ -336,7 +336,7 @@ export function mapAuthErrorToSpanish(
   ) {
     return {
       code: 'NETWORK_ERROR',
-      message: 'No pudimos conectar con el servidor. Revisa tu conexión a internet e inténtalo de nuevo.',
+      message: 'No pudimos conectar con el servidor. Revisá tu conexión a internet e intentá de nuevo.',
       requiresEmailVerification: false,
       isInvalidToken: false,
       suggestGoogleOrReset: false,
@@ -345,12 +345,12 @@ export function mapAuthErrorToSpanish(
 
   // Context-specific fallback
   const fallbackByContext: Record<AuthFlowContext, string> = {
-    signin: 'No se pudo iniciar sesión. Verifica tus datos e inténtalo nuevamente.',
-    signup: 'No se pudo crear la cuenta. Verifica tus datos e inténtalo nuevamente.',
-    forgot: 'No pudimos procesar la solicitud de recuperación en este momento. Inténtalo de nuevo.',
-    reset: 'No se pudo actualizar la contraseña. Solicita un nuevo enlace e inténtalo nuevamente.',
-    otp: 'No se pudo verificar el código. Inténtalo nuevamente.',
-    google: 'No se pudo conectar con Google. Inténtalo nuevamente.',
+    signin: 'No se pudo iniciar sesión. Revisá tus datos e intentá de nuevo.',
+    signup: 'No se pudo crear la cuenta. Revisá tus datos e intentá de nuevo.',
+    forgot: 'No pudimos procesar la solicitud de recuperación en este momento. Intentá de nuevo.',
+    reset: 'No se pudo actualizar la contraseña. Pedí un enlace nuevo e intentá de nuevo.',
+    otp: 'No se pudo verificar el código. Intentá de nuevo.',
+    google: 'No se pudo conectar con Google. Intentá de nuevo.',
   };
 
   return {

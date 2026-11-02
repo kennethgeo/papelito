@@ -416,7 +416,7 @@ async function runTests() {
 
   await assertThrows(
     () => getExchangeDetails(exchangeId, userF),
-    'No tienes acceso',
+    'No tenés acceso',
     'Usuario externo no debe poder leer detalles del intercambio'
   );
   console.log('✓ 5. Gestión de miembros, preservación de estado rejected, tema y conteo real verificados');
@@ -530,12 +530,12 @@ async function runTests() {
   // Hallazgo 9: revealAssignment debe lanzar error si el usuario no tiene asignación activa
   await assertThrows(
     () => revealAssignment(exchangeId, userD),
-    'No tienes una asignación activa',
+    'No tenés una asignación activa',
     'Hallazgo 9: revealAssignment debe fallar para miembro pendiente sin asignación'
   );
   await assertThrows(
     () => revealAssignment(exchangeId, userF),
-    'No tienes una asignación activa',
+    'No tenés una asignación activa',
     'Hallazgo 9: revealAssignment debe fallar para usuario externo'
   );
 
@@ -553,12 +553,12 @@ async function runTests() {
   );
   await assertThrows(
     () => revealAssignment(exchangeId, userB),
-    'No tienes una asignación activa',
+    'No tenés una asignación activa',
     'Punto 3: revealAssignment debe rechazar si la membresía ya no es approved'
   );
   await assertThrows(
     () => toggleWishPurchase(exchangeId, userB, wishClaraLinked.wishId, true),
-    'No tienes asignación autorizada',
+    'No tenés una asignación vigente para regalar',
     'Punto 3: toggleWishPurchase debe rechazar si la membresía ya no es approved'
   );
   const exportRejectedB = await exportUserData(userB);

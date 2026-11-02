@@ -180,7 +180,7 @@ export async function revealAssignment(exchangeId: string, userId: string): Prom
   );
 
   if (existing.rowCount === 0) {
-    throw new PublicError('No tienes una asignación activa en este intercambio.');
+    throw new PublicError('No tenés una asignación activa en este intercambio.');
   }
 
   const row = existing.rows[0];
@@ -230,7 +230,7 @@ export async function toggleWishPurchase(
       [verRes.rows[0].id, buyerId]
     );
     if (assignRes.rowCount === 0) {
-      throw new PublicError('No tienes asignación autorizada como regalador en este intercambio.');
+      throw new PublicError('No tenés una asignación vigente para regalar en este intercambio.');
     }
 
     const receiverId = assignRes.rows[0].receiver_id;

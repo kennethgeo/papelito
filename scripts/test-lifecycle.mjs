@@ -86,7 +86,7 @@ try {
   await assert.rejects(requestAccountDeletion(users[3], { ...input, confirmIrreversible: false }), /confirmar/);
   await assert.rejects(requestAccountDeletion(users[3], { ...input, sessionAuthenticatedAt: '2026-10-17T17:44:59Z' }), /15 minutos/);
   await assert.rejects(requestAccountDeletion(users[3], { ...input, sessionAuthenticatedAt: '2026-10-17T18:00:01Z' }), /15 minutos/);
-  await assert.rejects(requestAccountDeletion(users[3], input), /Organizas/);
+  await assert.rejects(requestAccountDeletion(users[3], input), /Organizás/);
   const request = await requestAccountDeletion(users[3], { ...input, confirmOrganizerImpact: true });
   assert.equal(request.transferredExchanges[0].newOrganizerUserId, users[0]);
   assert.equal((await requestAccountDeletion(users[3], input)).requestId, request.requestId);

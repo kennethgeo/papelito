@@ -41,7 +41,7 @@ export async function executeAndCommitDraw(
     // Strict expected version check for idempotency / concurrency conflict prevention
     if (ex.current_draw_version !== expectedVersion) {
       throw new PublicError(
-        `Conflicto de versión: el sorteo ya fue modificado (versión actual: ${ex.current_draw_version}, esperada: ${expectedVersion}). Actualiza la página.`
+        `Conflicto de versión: el sorteo ya fue modificado (versión actual: ${ex.current_draw_version}, esperada: ${expectedVersion}). Actualizá la página.`
       );
     }
 
