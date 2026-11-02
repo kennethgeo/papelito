@@ -27,7 +27,7 @@
     "dev:vinext": "vite dev --port 3001",
     "build:vinext": "vite build",
     "start:vinext": "vite preview",
-    "deploy:vinext": "vinext-cloudflare deploy",
+    "deploy:vinext": "node scripts/deploy-cloudflare-web.mjs",
     "deploy:cloudflare:jobs": "wrangler deploy --config cloudflare/scheduler.wrangler.jsonc",
     "check:cloudflare:jobs": "wrangler deploy --dry-run --config cloudflare/scheduler.wrangler.jsonc"
   },
@@ -50,6 +50,8 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@cloudflare/build-output-utils": "0.9.6",
+    "@cloudflare/config": "0.29.0",
     "@cloudflare/vite-plugin": "2.0.0-beta.v.8",
     "@electric-sql/pglite": "0.5.10",
     "@playwright/test": "^1.64.1",
