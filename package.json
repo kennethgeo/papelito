@@ -28,7 +28,7 @@
     "test:e2e:workerd": "PAPELITO_E2E_WORKERD=1 playwright test",
     "test:neon:e2e": "node --conditions=react-server --experimental-strip-types scripts/test-neon-journey.mjs",
     "test:pwa": "node scripts/test-pwa.mjs",
-    "test:workerd": "node scripts/test-workerd.mjs",
+    "test:workerd": "node scripts/test-workerd.mjs && node scripts/test-workerd-push.mjs",
     "test:selected": "node --conditions=react-server --experimental-strip-types scripts/test-selected.mjs",
     "support:list": "node scripts/support-list.mjs",
     "test:social": "node --conditions=react-server --experimental-strip-types scripts/test-social.mjs",
