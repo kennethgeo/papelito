@@ -23,6 +23,10 @@ import {
 import { inferThemeFromDate } from "@/lib/theme";
 import { goBackOr, pushView, readViewFromUrl, replaceView } from "@/lib/view-history";
 
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.reducedMotion === "true";
+}
+
 interface DemoDataContextType {
   exchanges: Exchange[];
   currentExchange: Exchange | null;
@@ -167,7 +171,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({
       setActiveTab("cuenta");
     }
     if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
     }
   };
 

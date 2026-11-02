@@ -5,6 +5,8 @@ import "./workshop.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { VersionWatcher } from "@/components/VersionWatcher";
 
+const PREFERENCES_SCRIPT = `try{var p=JSON.parse(localStorage.getItem('papelito-accessibility')||'{}'),d=document.documentElement.dataset;d.largeText=String(p.large===true);d.highContrast=String(p.contrast===true);d.reducedMotion=String(p.motion===true);}catch(e){}`;
+
 export const metadata: Metadata = {
   title: "Papelito — Un pequeño gran secreto",
   description:
@@ -36,9 +38,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
-        <script src="/preferences.js" defer />
+        {/* Applied before the first paint so text size, contrast and motion
+            preferences do not flash; same logic as public/preferences.js. */}
+        <script dangerouslySetInnerHTML={{ __html: PREFERENCES_SCRIPT }} />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body>

@@ -67,7 +67,7 @@ export function WishesListView() {
     setError("");
     setMessage("");
     titleRef.current?.focus();
-    titleRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    titleRef.current?.scrollIntoView({ block: "center", behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.reducedMotion === "true" ? "auto" : "smooth" });
   }
   async function save(e: React.FormEvent) {
     e.preventDefault();

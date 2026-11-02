@@ -147,7 +147,7 @@ button:active {
 .management-note { margin-top: 1rem; padding: 1rem; border-radius: 14px; border: 1px solid #e8c8ad; background: #fff9ef; }
 .management-note h3 { margin-top: 0; font-family: var(--font-heading); }
 .management-field { display: grid; gap: .4rem; margin: .85rem 0; font-size: .84rem; font-weight: 700; }
-.management-field input, .management-field textarea, .management-field select { width: 100%; min-width: 0; min-height: 44px; padding: .7rem; border: 1px solid var(--border-subtle); border-radius: 9px; background: #fff; color: var(--color-tinta); font: 1rem var(--font-body); }
+.management-field input, .management-field textarea, .management-field select { width: 100%; min-width: 0; min-height: 44px; padding: .7rem; border: 1px solid #8A74A0; border-radius: 9px; background: #fff; color: var(--color-tinta); font: 1rem var(--font-body); }
 .management-check { display: flex; align-items: flex-start; gap: .65rem; font-size: .84rem; line-height: 1.5; margin: .85rem 0; }
 .management-check input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--color-tinta); }
 .management-error { color: #9b1c1c; font-weight: 700; }
