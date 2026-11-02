@@ -306,3 +306,13 @@ test('Atrás del sistema, recarga y foco conservan la vista sin datos privados e
   expect(decodeURIComponent(page.url())).not.toMatch(/regalo|deseo=|asignaci|alias|@/i);
   await noOverflow(page);
 });
+
+test('la vista previa de tiendas solo se ofrece donde el servidor puede consultarla', async ({ page }) => {
+  await page.getByRole('button', { name: 'Mis deseos', exact: true }).click();
+  await page.getByText('Agregar enlace, precio o detalles', { exact: true }).click();
+  await page.locator('#wish-url').fill('https://tienda.example/producto');
+  const button = page.getByRole('button', { name: 'Preparar vista previa del enlace' });
+  // The Workers bundle cannot pin DNS for store lookups; next start can.
+  if (process.env.PAPELITO_E2E_WORKERD === '1') await expect(button).toHaveCount(0);
+  else await expect(button).toBeVisible();
+});
