@@ -80,6 +80,13 @@ export function RealAppShell() {
                   <h1>Buscando tus papelitos…</h1>
                   <p>Un momento mientras reunimos tus intercambios.</p>
                 </div>
+              ) : !data.lastSyncedAt && data.errorMessage ? (
+                <div className="workshop-page compact-page">
+                  <section className="workshop-sheet">
+                    <h1>Tus intercambios todavía no están disponibles.</h1>
+                    <p>Usá «Actualizar información» para volver a cargar la lista.</p>
+                  </section>
+                </div>
               ) : (
                 <ExchangesListView />
               ))}
