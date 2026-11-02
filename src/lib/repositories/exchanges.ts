@@ -21,7 +21,16 @@ export interface CreateExchangeInput {
   selectedTheme: 'navidad' | 'amistad' | 'cumpleanos' | 'general';
   requiresApproval: boolean;
   previousExchangeId?: string;
+  /** Client-generated id of this creation attempt; retries return the same exchange. */
+  clientRequestId?: string;
 }
+
+/**
+ * Active (not closed) exchanges one person may organize at once. Generous for
+ * families and offices; it bounds abuse of the free database. Existing groups
+ * above the limit keep working; only new creations are refused.
+ */
+export const MAX_ACTIVE_ORGANIZED_EXCHANGES = 20;
 
 function hashInviteToken(rawToken: string): string {
   return crypto.createHash('sha256').update(rawToken.trim()).digest('hex');
@@ -93,6 +102,25 @@ export async function createExchangeWithInvitation(
   }
 
   return await dbTransaction(async (client) => {
+    // Serialize creations by the same person so the retry lookup and the quota
+    // see each other's committed rows.
+    await client.query('SELECT user_id FROM profiles WHERE user_id = $1 FOR UPDATE', [organizerId]);
+    if (input.clientRequestId) {
+      const existing = await client.query<{ id: string }>(
+        'SELECT id FROM exchanges WHERE organizer_id = $1 AND client_request_id = $2', [organizerId, input.clientRequestId]);
+      if (existing.rows[0]) {
+        const invitation = await client.query<{ encrypted_token: string }>(
+          `SELECT encrypted_token FROM invitations WHERE exchange_id = $1 AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+          [existing.rows[0].id]);
+        const token = invitation.rows[0] ? decryptInviteToken(invitation.rows[0].encrypted_token) : null;
+        return { exchangeId: existing.rows[0].id, inviteToken: token ?? '' };
+      }
+    }
+    const active = await client.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM exchanges WHERE organizer_id = $1 AND status NOT IN ('finalizado', 'cancelado')`, [organizerId]);
+    if (active.rows[0].n >= MAX_ACTIVE_ORGANIZED_EXCHANGES) {
+      throw new PublicError(`Ya organizás ${MAX_ACTIVE_ORGANIZED_EXCHANGES} intercambios activos. Finalizá o cancelá alguno antes de crear otro.`);
+    }
     if (input.previousExchangeId) {
       const source = await client.query<{ organizer_id: string }>(
         'SELECT organizer_id FROM exchanges WHERE id = $1 FOR SHARE', [input.previousExchangeId]);
@@ -102,8 +130,8 @@ export async function createExchangeWithInvitation(
     const exRes = await client.query<{ id: string }>(
       `INSERT INTO exchanges (
         organizer_id, name, description, event_date, registration_deadline,
-        budget_amount, currency, suggested_theme, selected_theme, requires_approval, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'inscripcion_abierta')
+        budget_amount, currency, suggested_theme, selected_theme, requires_approval, status, client_request_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'inscripcion_abierta', $11)
       RETURNING id`,
       [
         organizerId,
@@ -116,6 +144,7 @@ export async function createExchangeWithInvitation(
         input.suggestedTheme,
         input.selectedTheme,
         input.requiresApproval,
+        input.clientRequestId ?? null,
       ]
     );
 
@@ -807,7 +836,9 @@ export async function setExchangeExclusions(
 
     await client.query(`DELETE FROM exclusions WHERE exchange_id = $1`, [exchangeId]);
 
-    for (const rule of rules) {
+    // Duplicates add nothing; with them removed the list is at most n·(n−1).
+    const unique = [...new Map(rules.map((rule) => [`${rule.giverUserId}\u0000${rule.excludedReceiverUserId}`, rule])).values()];
+    for (const rule of unique) {
       await client.query(
         `INSERT INTO exclusions (exchange_id, giver_user_id, receiver_user_id)
          VALUES ($1, $2, $3)

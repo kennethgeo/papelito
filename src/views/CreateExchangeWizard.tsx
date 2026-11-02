@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useOptionalDemoData } from "@/context/DemoDataContext";
 import { useOptionalRealData } from "@/context/RealDataContext";
+import { newRequestId } from "@/lib/request-id";
 import { PaperIllustration } from "@/components/PaperIllustration";
 import type { ThemeKey, Currency } from "@/types";
 import { inferThemeFromDate, THEME_CONFIG } from "@/lib/theme";
@@ -35,6 +36,8 @@ export function CreateExchangeWizard() {
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
   const busy = useRef(false);
+  const attempt = useRef<string | null>(null);
+  const attemptFor = useRef("");
   const titleRef = useRef<HTMLHeadingElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const inferred = inferThemeFromDate(eventDate);
@@ -87,6 +90,12 @@ export function CreateExchangeWizard() {
     setError("");
     try {
       if (real) {
+        // Same attempt id while retrying identical details; new details, new attempt.
+        const fingerprint = JSON.stringify([name.trim(), description.trim(), eventDate, deadline, budget, currency, requiresApproval, theme]);
+        if (attemptFor.current !== fingerprint) {
+          attempt.current = newRequestId() ?? null;
+          attemptFor.current = fingerprint;
+        }
         const res = await real.createExchange({
           name: name.trim(),
           description: description.trim(),
@@ -97,6 +106,7 @@ export function CreateExchangeWizard() {
           requiresApproval,
           suggestedTheme: inferred.theme,
           selectedTheme: theme,
+          clientRequestId: attempt.current ?? undefined,
         });
         if (!res.success || !res.exchangeId) {
           setError(

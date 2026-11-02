@@ -1,6 +1,6 @@
 import 'server-only';
 import { PublicError } from '@/lib/data/errors';
-import { dbQuery } from '@/lib/db/client';
+import { dbQuery, dbTransaction } from '@/lib/db/client';
 import { toIsoTimestamp } from '@/lib/date/timestamps';
 
 export interface WishRow {
@@ -25,7 +25,16 @@ export interface SaveWishInput {
   approximatePrice?: number;
   currency?: 'CRC' | 'USD';
   priority?: 'alta' | 'media' | 'baja';
+  /** Client-generated id of this creation attempt; retries return the same wish. */
+  clientRequestId?: string;
 }
+
+/**
+ * Wishes per person (each represented person counts separately). Far above
+ * normal use; it bounds storage on the free plan. Existing lists above the
+ * limit stay intact; only new wishes are refused.
+ */
+export const MAX_WISHES_PER_PERSON = 100;
 
 export async function getMyWishes(userId: string) {
   // 1. Fetch all user wishes
@@ -98,11 +107,20 @@ export async function saveWish(userId: string, input: SaveWishInput): Promise<{ 
       throw new PublicError('Deseo no encontrado o sin autorización para editarlo.');
     }
     return { wishId: res.rows[0].id };
-  } else {
-    // Insert new wish
-    const res = await dbQuery<{ id: string }>(
-      `INSERT INTO wishes (user_id, title, description, url, approximate_price, currency, priority)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+  }
+  return await dbTransaction(async (client) => {
+    await client.query('SELECT user_id FROM profiles WHERE user_id = $1 FOR UPDATE', [userId]);
+    if (input.clientRequestId) {
+      const existing = await client.query<{ id: string }>('SELECT id FROM wishes WHERE user_id = $1 AND client_request_id = $2', [userId, input.clientRequestId]);
+      if (existing.rows[0]) return { wishId: existing.rows[0].id };
+    }
+    const count = await client.query<{ n: number }>('SELECT count(*)::int AS n FROM wishes WHERE user_id = $1', [userId]);
+    if (count.rows[0].n >= MAX_WISHES_PER_PERSON) {
+      throw new PublicError(`Ya tenés ${MAX_WISHES_PER_PERSON} ideas guardadas. Borrá alguna antes de agregar otra.`);
+    }
+    const res = await client.query<{ id: string }>(
+      `INSERT INTO wishes (user_id, title, description, url, approximate_price, currency, priority, client_request_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id`,
       [
         userId,
@@ -112,11 +130,11 @@ export async function saveWish(userId: string, input: SaveWishInput): Promise<{ 
         price,
         currency,
         priority,
+        input.clientRequestId ?? null,
       ]
     );
-
     return { wishId: res.rows[0].id };
-  }
+  });
 }
 
 export async function deleteWish(userId: string, wishId: string): Promise<boolean> {

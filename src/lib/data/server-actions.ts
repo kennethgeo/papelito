@@ -44,6 +44,7 @@ import {
   type RequestAccountDeletionResult,
 } from "@/lib/repositories/profiles";
 import { LEGAL_CONSTANTS } from "@/lib/legal/constants";
+import { getCostaRicaTodayDate } from "@/lib/date/costa-rica";
 import { PublicError, publicErrorMessage } from "@/lib/data/errors";
 import { readAppSnapshot } from "@/lib/repositories/app-snapshot";
 import {
@@ -62,6 +63,10 @@ const VALID_THEMES = new Set(["navidad", "amistad", "cumpleanos", "general"]);
 const VALID_CURRENCIES = new Set(["CRC", "USD"]);
 const VALID_PRIORITIES = new Set(["alta", "media", "baja"]);
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_URL_LENGTH = 2048;
+const MAX_REASON_LENGTH = 500;
+const MAX_EXCLUSION_RULES = 2000;
 
 function sanitizeErrorMessage(err: unknown, fallback: string): string {
   return publicErrorMessage(err, fallback);
@@ -79,7 +84,8 @@ function validateIsoDate(dateStr: unknown): dateStr is string {
 function validateCreateExchange(input: CreateExchangeInput): string | null {
   if (!input || typeof input !== "object")
     return "Datos de intercambio inválidos.";
-  if (input.previousExchangeId !== undefined && !/^[0-9a-f-]{36}$/i.test(input.previousExchangeId)) return 'Intercambio anterior inválido.';
+  if (input.previousExchangeId !== undefined && !UUID_REGEX.test(input.previousExchangeId)) return 'Intercambio anterior inválido.';
+  if (input.clientRequestId !== undefined && (typeof input.clientRequestId !== "string" || !UUID_REGEX.test(input.clientRequestId))) return "Intento de creación inválido. Recargá la página.";
   if (
     typeof input.name !== "string" ||
     input.name.trim().length < 2 ||
@@ -101,6 +107,11 @@ function validateCreateExchange(input: CreateExchangeInput): string | null {
   }
   if (input.registrationDeadline > input.eventDate) {
     return "El cierre de inscripción no puede ser posterior a la fecha del intercambio.";
+  }
+  // Costa Rica calendar: a new group cannot start already closed.
+  const today = getCostaRicaTodayDate();
+  if (input.registrationDeadline < today) {
+    return "La inscripción no puede cerrar en una fecha pasada.";
   }
   if (
     typeof input.budgetAmount !== "number" ||
@@ -140,6 +151,11 @@ function validateSaveWish(input: SaveWishInput): string | null {
   ) {
     return "La descripción no puede superar los 500 caracteres.";
   }
+  if (input.clientRequestId !== undefined && (typeof input.clientRequestId !== "string" || !UUID_REGEX.test(input.clientRequestId))) {
+    return "Intento de guardado inválido. Recargá la página.";
+  }
+  if (input.url !== undefined && typeof input.url !== "string") return "El enlace ingresado no es válido.";
+  if (input.url !== undefined && input.url.length > MAX_URL_LENGTH) return "El enlace es demasiado largo.";
   if (input.url !== undefined && input.url.trim().length > 0) {
     try {
       const parsed = new URL(input.url.trim());
@@ -379,7 +395,8 @@ export async function setExchangeExclusionsAction(
     if (
       !exchangeId ||
       typeof exchangeId !== "string" ||
-      !Array.isArray(rules)
+      !Array.isArray(rules) ||
+      rules.length > MAX_EXCLUSION_RULES
     ) {
       return { success: false, error: "Datos de restricciones inválidos." };
     }
@@ -419,6 +436,9 @@ export async function triggerDrawAction(
       expectedVersion < 0
     ) {
       return { success: false, error: "Versión esperada del sorteo inválida." };
+    }
+    if (invalidationReason !== undefined && (typeof invalidationReason !== "string" || invalidationReason.length > MAX_REASON_LENGTH)) {
+      return { success: false, error: `El motivo puede tener hasta ${MAX_REASON_LENGTH} caracteres.` };
     }
     const user = await requireConsentedUser();
     const result = await executeAndCommitDraw(

@@ -49,6 +49,9 @@ export async function executeAndCommitDraw(
       throw new PublicError('El estado del intercambio no permite realizar un sorteo.');
     }
 
+    if (invalidationReason !== undefined && invalidationReason.length > 500) {
+      throw new PublicError('El motivo puede tener hasta 500 caracteres.');
+    }
     if (
       (ex.status === 'sorteado' || ex.current_draw_version > 0) &&
       (!invalidationReason || invalidationReason.trim().length < 6)

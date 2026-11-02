@@ -18,6 +18,7 @@
     "test:draw": "node --experimental-strip-types scripts/test-draw.mjs",
     "test:lifecycle": "node --conditions=react-server --experimental-strip-types scripts/test-lifecycle.mjs",
     "test:hardening": "node --conditions=react-server --experimental-strip-types scripts/test-hardening.mjs",
+    "test:concurrency": "node --conditions=react-server --experimental-strip-types scripts/test-concurrency.mjs",
     "test:backend": "node --conditions=react-server --experimental-strip-types scripts/test-backend.mjs",
     "test:neon": "node --conditions=react-server --experimental-strip-types scripts/test-neon.mjs",
     "test:ux": "node --experimental-strip-types scripts/test-ux.mjs && npm run test:db:workers",
@@ -72,6 +73,7 @@
     "cf": "1.0.0-beta.26",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "pg": "8.16.3",
     "typescript": "^5",
     "vite": "8.3.5",
     "wrangler": "4.156.0"

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useOptionalDemoData } from "@/context/DemoDataContext";
 import { useOptionalRealData } from "@/context/RealDataContext";
+import { newRequestId } from "@/lib/request-id";
 import { formatMoney } from "@/lib/event-dates";
 import type { Currency, Wish } from "@/types";
 import { WishPhoto } from '@/components/WishPhoto';
@@ -33,6 +34,8 @@ export function WishesListView() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
+  const attempt = useRef<string | null>(null);
+  const attemptFor = useRef("");
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const selectionLocks = useRef(new Set<string>());
   const [error, setError] = useState("");
@@ -105,7 +108,14 @@ export function WishesListView() {
         priority: draft.priority,
       };
       if (real) {
-        if (!(await real.saveWish({ ...data, id: editing ?? undefined }))) {
+        // New ideas carry an attempt id so retrying the same content after a
+        // lost response does not duplicate it; different content is a new attempt.
+        const fingerprint = JSON.stringify(data);
+        if (!editing && attemptFor.current !== fingerprint) {
+          attempt.current = newRequestId() ?? null;
+          attemptFor.current = fingerprint;
+        }
+        if (!(await real.saveWish({ ...data, id: editing ?? undefined, clientRequestId: editing ? undefined : attempt.current ?? undefined }))) {
           setError("No se guardó la idea. Conservamos lo que escribiste.");
           return;
         }
@@ -118,6 +128,7 @@ export function WishesListView() {
           ? "Cambios guardados."
           : "¡Idea guardada! Elegí abajo en cuáles intercambios compartirla.",
       );
+      attempt.current = null;
       cancelEdit();
       titleRef.current?.focus();
     } catch {

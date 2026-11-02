@@ -4,6 +4,7 @@ import { useOptionalRealData } from '@/context/RealDataContext';
 import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { createExchangeAction } from '@/lib/data/server-actions';
 import { callServerAction } from '@/lib/client-actions';
+import { newRequestId } from '@/lib/request-id';
 import { getCostaRicaTodayDate } from '@/lib/date/costa-rica';
 import { suggestedEventDates, validateExchangeDraft } from '@/lib/event-dates';
 import { inferThemeFromDate } from '@/lib/theme';
@@ -15,7 +16,7 @@ export function RepeatExchange({ exchange }: { exchange: Exchange }) {
   const defaults = suggestedEventDates(getCostaRicaTodayDate());
   const [date, setDate] = useState(defaults.eventDate);
   const [deadline, setDeadline] = useState(defaults.registrationDeadline);
-  const [busy, setBusy] = useState(false); const lock = useRef(false);
+  const [busy, setBusy] = useState(false); const lock = useRef(false); const attempt = useRef<string | null>(null);
   const [error, setError] = useState('');
   async function repeat(event: React.FormEvent) {
     event.preventDefault(); if (lock.current) return;
@@ -26,7 +27,8 @@ export function RepeatExchange({ exchange }: { exchange: Exchange }) {
       const data = { name, description: exchange.description, eventDate: date, registrationDeadline: deadline, budgetAmount: exchange.budgetAmount,
         currency: exchange.currency, requiresApproval: exchange.requiresApproval };
       if (real) {
-        const result = await callServerAction(() => createExchangeAction({ ...data, previousExchangeId: exchange.id, suggestedTheme: inferThemeFromDate(date).theme, selectedTheme: exchange.manualThemeOverride || inferThemeFromDate(date).theme }));
+        attempt.current ??= newRequestId() ?? null;
+        const result = await callServerAction(() => createExchangeAction({ ...data, clientRequestId: attempt.current ?? undefined, previousExchangeId: exchange.id, suggestedTheme: inferThemeFromDate(date).theme, selectedTheme: exchange.manualThemeOverride || inferThemeFromDate(date).theme }));
         if (!result.success || !result.data) { setError(result.error || 'No pudimos crear la nueva edición.'); return; }
         real.navigateTo('intercambio_detalle', result.data.exchangeId); await real.reloadExchanges();
       } else if (demo) { const id = demo.createExchange(data); demo.navigateTo('intercambio_detalle', id); }

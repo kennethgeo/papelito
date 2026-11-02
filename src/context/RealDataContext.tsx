@@ -99,6 +99,7 @@ interface RealDataContextType {
     suggestedTheme: "navidad" | "amistad" | "cumpleanos" | "general";
     selectedTheme: "navidad" | "amistad" | "cumpleanos" | "general";
     requiresApproval: boolean;
+    clientRequestId?: string;
   }) => Promise<{ success: boolean; exchangeId?: string; error?: string }>;
   manageMember: (
     targetUserId: string,
@@ -139,6 +140,7 @@ interface RealDataContextType {
     approximatePrice?: number;
     currency?: "CRC" | "USD";
     priority?: "alta" | "media" | "baja";
+    clientRequestId?: string;
   }) => Promise<boolean>;
   deleteWish: (wishId: string) => Promise<boolean>;
   toggleWishInExchange: (
@@ -444,6 +446,7 @@ export function RealDataProvider({
     suggestedTheme: "navidad" | "amistad" | "cumpleanos" | "general";
     selectedTheme: "navidad" | "amistad" | "cumpleanos" | "general";
     requiresApproval: boolean;
+    clientRequestId?: string;
   }) => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -685,6 +688,7 @@ export function RealDataProvider({
     approximatePrice?: number;
     currency?: "CRC" | "USD";
     priority?: "alta" | "media" | "baja";
+    clientRequestId?: string;
   }) => {
     setErrorMessage(null);
     const res = await callServerAction(() => saveWishAction(wish));

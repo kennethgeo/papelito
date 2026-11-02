@@ -66,6 +66,9 @@ jobs:
       - name: Audit fixes (sessions, errors, participants, limits)
         run: npm run test:hardening
 
+      - name: Concurrency on a temporary real PostgreSQL (runner binaries)
+        run: npm run test:concurrency
+
       - name: Next.js production build (without external secrets)
         run: npm run build
 

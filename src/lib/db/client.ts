@@ -13,10 +13,15 @@ export interface DbClient {
 
 export type TransactionClient = DbClient;
 
-let poolInstance: Pool | null = null;
-let testDbAdapter: DbClient | null = null;
+/** Test-only adapter; `transaction` lets real PostgreSQL tests use one connection per transaction. */
+export interface TestDbAdapter extends DbClient {
+  transaction?<T>(callback: (client: TransactionClient) => Promise<T>): Promise<T>;
+}
 
-function getActiveTestAdapter(): DbClient | null {
+let poolInstance: Pool | null = null;
+let testDbAdapter: TestDbAdapter | null = null;
+
+function getActiveTestAdapter(): TestDbAdapter | null {
   return process.env.NODE_ENV === 'test' ? testDbAdapter : null;
 }
 
@@ -26,7 +31,7 @@ export function isDatabaseConfigured(): boolean {
   return Boolean(url && (url.startsWith('postgres://') || url.startsWith('postgresql://')));
 }
 
-export function setTestDbAdapter(adapter: DbClient | null) {
+export function setTestDbAdapter(adapter: TestDbAdapter | null) {
   if (process.env.NODE_ENV !== 'test') {
     throw new Error('setTestDbAdapter solo está permitido cuando NODE_ENV === "test".');
   }
@@ -84,6 +89,7 @@ export async function dbTransaction<T = unknown>(
 ): Promise<T> {
   const activeTestAdapter = getActiveTestAdapter();
   if (activeTestAdapter) {
+    if (activeTestAdapter.transaction) return activeTestAdapter.transaction(callback);
     // For test adapter, run within BEGIN/COMMIT/ROLLBACK
     await activeTestAdapter.query('BEGIN');
     try {
