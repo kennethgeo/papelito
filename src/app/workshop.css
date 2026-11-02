@@ -1045,3 +1045,5 @@ html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[d
 @keyframes paper-arrives { from { opacity:.2;transform:translateY(10px) rotate(-2deg); } to { opacity:1;transform:none; } }
 @media(prefers-reduced-motion:reduce) { .paper-secret-card { animation:none; }.reveal-letter,.reveal-letter::before { transition:none!important; } }
 .participant-list li > .participant-action { margin-left: auto; flex-shrink: 0; min-height: 44px; }
+.reauth-note { border-left: 4px solid var(--paper-yellow); background: #FEF3D6; padding: 14px 16px; margin: 12px 0; }
+.reauth-note p { margin: 0 0 8px; }

@@ -79,3 +79,16 @@ export function goBackOr(fallback: () => void) {
   if (typeof window !== "undefined" && depth() > 0) window.history.back();
   else fallback();
 }
+
+/**
+ * `?abrir=<section>` reopens a section after re-authentication. Returns true
+ * once for the matching section and removes the parameter from the URL.
+ */
+export function consumeOpenSection(section: string): boolean {
+  if (typeof window === "undefined") return false;
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("abrir") !== section) return false;
+  url.searchParams.delete("abrir");
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  return true;
+}
