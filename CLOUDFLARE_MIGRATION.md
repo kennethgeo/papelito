@@ -34,3 +34,11 @@ El piloto autenticado mostró un aviso de cambio sin confirmar al entrar y falla
 La lectura inicial tiene un mensaje específico de carga y no muestra una lista vacía como si hubiera confirmado cero intercambios. El Service Worker público v6 devuelve una respuesta de recuperación incluso si Android desalojó la caché offline o Cache Storage falla. No almacena HTML autenticado ni intercepta POST, API, autenticación o invitaciones.
 
 `npm run test:db:workers` comprueba aislamiento entre peticiones concurrentes, consultas HTTP, commit, rollback y cierre tras fallo de conexión con un driver simulado. `test:ux` lo ejecuta también en CI y distingue fallos de lectura y escritura. `test:pwa` verifica caché ausente/inaccesible además de las exclusiones de privacidad. Se habilitan registros de Workers con parámetros de URL redactados para diagnosticar excepciones. Estas pruebas no sustituyen comprobar el ingreso real desde el teléfono después del despliegue.
+
+### Publicación del bundle con Wrangler
+
+`npm run deploy:vinext` usa `scripts/deploy-cloudflare-web.mjs`: lee el Build Output Specification generado por Vinext y convierte su configuración con las utilidades oficiales de Cloudflare. Wrangler publica los módulos ya compilados (`no_bundle`) y los assets; los secrets requeridos siguen almacenados en Cloudflare. No se duplican bindings en otra configuración fuente.
+
+Motivo: `cf@1.0.0-beta.26` impone publicación estricta y aborta si una actualización de observabilidad por API fue la última modificación del Worker. Wrangler estable permite reconciliar esa modificación conocida con la configuración revisada del repositorio. Esto no cambia autenticación, permisos ni el plan gratuito. Antes de publicar: `npm run build:vinext` y `npm run deploy:vinext -- --dry-run`. El script rechaza múltiples Workers, containers y tipos de módulo no revisados; el scheduler conserva su configuración independiente.
+
+Verificación del 2 de noviembre: conversión y dry-run correctos, 185 módulos ESM y 72 archivos estáticos, bundle comprimido de aproximadamente 666 KiB. La corrección de aplicación pasó CI completa, incluidos 18 casos de navegador. La comprobación en el teléfono autenticado sigue siendo necesaria después de actualizar la PWA.
