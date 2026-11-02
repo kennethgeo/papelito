@@ -162,3 +162,5 @@ button:active {
     scroll-behavior: auto !important;
   }
 }
+/* Headings receive focus after an in-app view change; no ring for that programmatic focus. */
+h1[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }

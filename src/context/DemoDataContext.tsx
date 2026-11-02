@@ -21,6 +21,7 @@ import {
   INITIAL_USER_WISHES,
 } from "@/lib/demo-data";
 import { inferThemeFromDate } from "@/lib/theme";
+import { goBackOr, pushView, readViewFromUrl, replaceView } from "@/lib/view-history";
 
 interface DemoDataContextType {
   exchanges: Exchange[];
@@ -33,6 +34,7 @@ interface DemoDataContextType {
   isHydrated: boolean;
   // Actions
   navigateTo: (view: AppView, exchangeId?: string) => void;
+  goBack: (fallback: AppView, exchangeId?: string) => void;
   switchTab: (tab: ActiveTab) => void;
   setCurrentExchangeId: (id: string | null) => void;
   createExchange: (data: {
@@ -144,7 +146,8 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({
   const currentExchange =
     visibleExchanges.find((e) => e.id === currentExchangeId) || null;
 
-  const navigateTo = (view: AppView, exchangeId?: string) => {
+  /** Applies a view without touching history (initial load and Back). */
+  const showView = (view: AppView, exchangeId?: string) => {
     if (exchangeId) {
       setCurrentExchangeId(exchangeId);
     }
@@ -168,19 +171,36 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const switchTab = (tab: ActiveTab) => {
-    setActiveTab(tab);
-    if (tab === "intercambios") {
-      setActiveView("intercambios_lista");
-    } else if (tab === "deseos") {
-      setActiveView("deseos_lista");
-    } else if (tab === "cuenta") {
-      setActiveView("cuenta_perfil");
-    }
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+  const navigateTo = (view: AppView, exchangeId?: string) => {
+    showView(view, exchangeId);
+    if (view !== "bienvenida") pushView(view, exchangeId ?? currentExchangeId);
   };
+
+  const switchTab = (tab: ActiveTab) => {
+    const view: AppView = tab === "deseos" ? "deseos_lista" : tab === "cuenta" ? "cuenta_perfil" : "intercambios_lista";
+    showView(view);
+    pushView(view);
+  };
+
+  const goBack = (fallback: AppView, exchangeId?: string) => {
+    goBackOr(() => {
+      showView(fallback, exchangeId);
+      if (fallback !== "bienvenida") replaceView(fallback, exchangeId ?? currentExchangeId);
+    });
+  };
+
+  // Restore the view from the URL and follow the browser's Back/Forward.
+  useEffect(() => {
+    const initial = readViewFromUrl(window.location.search);
+    queueMicrotask(() => showView(initial.view, initial.exchangeId ?? undefined));
+    replaceView(initial.view, initial.exchangeId);
+    const onPopState = () => {
+      const target = readViewFromUrl(window.location.search);
+      showView(target.view, target.exchangeId ?? undefined);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const createExchange = (data: {
     name: string;
@@ -364,6 +384,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({
         activeView,
         isHydrated,
         navigateTo,
+        goBack,
         switchTab,
         setCurrentExchangeId,
         createExchange,

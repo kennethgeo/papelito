@@ -285,3 +285,24 @@ test('gustos, instalación visible, mensajes de demo, QR y nueva edición', asyn
   await noOverflow(page);
   await context.clearPermissions();
 });
+
+test('Atrás del sistema, recarga y foco conservan la vista sin datos privados en la URL', async ({ page }) => {
+  await page.locator('.paper-invitation').first().click();
+  const heading = page.getByRole('heading', { level: 1 }).first();
+  await expect(heading).toBeVisible();
+  const exchangeName = await heading.innerText();
+  expect(page.url()).toMatch(/vista=intercambio&intercambio=/);
+  await expect(page).toHaveTitle(new RegExp(exchangeName.slice(0, 12)));
+  await page.getByRole('button', { name: 'Mis deseos', exact: true }).click();
+  await expect(page).toHaveURL(/vista=deseos/);
+  await expect(page.getByRole('heading', { level: 1 }).first()).toBeFocused();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: exchangeName, level: 1 })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: exchangeName, level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: '← Mis intercambios' }).click();
+  await expect(page).not.toHaveURL(/vista=/);
+  await expect(page.getByRole('button', { name: 'Crear intercambio', exact: true })).toBeVisible();
+  expect(decodeURIComponent(page.url())).not.toMatch(/regalo|deseo=|asignaci|alias|@/i);
+  await noOverflow(page);
+});

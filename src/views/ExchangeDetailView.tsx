@@ -19,6 +19,7 @@ export function ExchangeDetailView() {
   const demo = useOptionalDemoData();
   const exchange = real ? real.currentExchange : demo?.currentExchange;
   const navigate = real?.navigateTo ?? demo?.navigateTo;
+  const goBack = real?.goBack ?? demo?.goBack;
   const [busy, setBusy] = useState("");
   const lock = useRef(false);
   const [message, setMessage] = useState("");
@@ -234,7 +235,7 @@ export function ExchangeDetailView() {
       <div className="section-heading">
         <button
           className="paper-text-button back-link"
-          onClick={() => navigate?.("intercambios_lista")}
+          onClick={() => goBack?.("intercambios_lista")}
         >
           ← Mis intercambios
         </button>

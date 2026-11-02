@@ -19,6 +19,7 @@ export function CreateExchangeWizard() {
   const real = useOptionalRealData();
   const demo = useOptionalDemoData();
   const navigate = real?.navigateTo ?? demo?.navigateTo;
+  const goBack = real?.goBack ?? demo?.goBack;
   const [step, setStep] = useState<1 | 2>(1);
   const [today, setToday] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -132,7 +133,7 @@ export function CreateExchangeWizard() {
       <button
         className="paper-text-button back-link"
         disabled={creating}
-        onClick={() => navigate?.("intercambios_lista")}
+        onClick={() => goBack?.("intercambios_lista")}
       >
         ← Mis intercambios
       </button>

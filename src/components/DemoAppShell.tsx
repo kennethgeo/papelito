@@ -13,6 +13,8 @@ import { WishesListView } from "@/views/WishesListView";
 import { AccountView } from "@/views/AccountView";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { ContextualGuide } from './ContextualGuide';
+import { useViewFocus } from "@/lib/use-view-focus";
+import { VIEW_TITLES } from "@/lib/view-history";
 
 export function DemoAppShell() {
   const {
@@ -20,11 +22,13 @@ export function DemoAppShell() {
     activeTab,
     switchTab,
     navigateTo,
+    goBack,
     currentExchange,
     revealAssignment,
     toggleWishPurchased,
     isHydrated,
   } = useDemoData();
+  useViewFocus(activeView, activeView === "intercambio_detalle" && currentExchange ? currentExchange.name : activeView === "bienvenida" ? "Demo" : VIEW_TITLES[activeView]);
 
   if (!isHydrated) {
     return (
@@ -67,7 +71,7 @@ export function DemoAppShell() {
       <DemoHeader onLogoClick={() => navigateTo("intercambios_lista")} />
       <ConnectionStatus />
 
-      <main style={{ flex: 1 }}>
+      <main id="app-content" style={{ flex: 1 }}>
         <ContextualGuide />
         {activeView === "intercambios_lista" && <ExchangesListView />}
         {activeView === "intercambio_crear" && <CreateExchangeWizard />}
@@ -86,7 +90,7 @@ export function DemoAppShell() {
                   toggleWishPurchased(currentExchange.id, wishId)
                 }
                 onBack={() =>
-                  navigateTo("intercambio_detalle", currentExchange.id)
+                  goBack("intercambio_detalle", currentExchange.id)
                 }
               />
             </div>
