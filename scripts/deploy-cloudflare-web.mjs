@@ -32,8 +32,13 @@ config.assets.directory = worker.assetsDir;
 const configPath = path.join(root, ".cloudflare/output/v0/wrangler-web.json");
 await writeFile(configPath, JSON.stringify(config, null, 2) + "\n");
 const args = process.argv.slice(2);
-if (args.some((arg) => arg !== "--dry-run")) {
-  throw new Error("Only --dry-run is supported as an additional deploy argument.");
+if (args.some((arg) => arg !== "--dry-run" && arg !== "--config-only")) {
+  throw new Error("Only --dry-run or --config-only are supported as additional arguments.");
+}
+// --config-only writes the reviewed Wrangler config for local workerd checks.
+if (args.includes("--config-only")) {
+  console.log(configPath);
+  process.exit(0);
 }
 const result = spawnSync(process.execPath, [
   path.join(root, "node_modules/wrangler/bin/wrangler.js"),

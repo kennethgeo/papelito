@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -21,6 +25,7 @@
     "test:e2e": "playwright test",
     "test:neon:e2e": "node --conditions=react-server --experimental-strip-types scripts/test-neon-journey.mjs",
     "test:pwa": "node scripts/test-pwa.mjs",
+    "test:workerd": "node scripts/test-workerd.mjs",
     "test:selected": "node --conditions=react-server --experimental-strip-types scripts/test-selected.mjs",
     "support:list": "node scripts/support-list.mjs",
     "test:social": "node --conditions=react-server --experimental-strip-types scripts/test-social.mjs",
