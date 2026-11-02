@@ -297,27 +297,8 @@ export async function getMyExchanges(userId: string) {
 }
 
 export async function getExchangeDetails(exchangeId: string, userId: string) {
-  // 1. Verify user membership
-  const memberRes = await dbQuery<{
-    id: string;
-    is_organizer: boolean;
-    status: 'approved' | 'pending' | 'rejected';
-  }>(
-    `SELECT id, is_organizer, status
-     FROM memberships
-     WHERE exchange_id = $1 AND user_id = $2`,
-    [exchangeId, userId]
-  );
-
-  if (memberRes.rowCount === 0) {
-    throw new PublicError('No tenés acceso a este intercambio.');
-  }
-
-  const userMembership = memberRes.rows[0];
-  const isApproved = userMembership.status === 'approved';
-  const isOrganizer = userMembership.is_organizer;
-
-  // 2. Fetch exchange details
+  // 1. Exchange and the caller's membership in one round trip; no row means
+  // no access (the same answer whether the group exists or not).
   const exRes = await dbQuery<{
     id: string;
     organizer_id: string;
@@ -338,6 +319,8 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
     organizer_alias: string;
     organizer_avatar: string;
     draw_notice: string | null;
+    member_is_organizer: boolean;
+    member_status: 'approved' | 'pending' | 'rejected';
   }>(
     `SELECT
        e.id,
@@ -359,18 +342,24 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
        p.alias as organizer_alias,
        p.avatar_color as organizer_avatar,
        (SELECT dv.invalidation_reason FROM draw_versions dv
-        WHERE dv.exchange_id = e.id AND dv.version_number = e.current_draw_version) AS draw_notice
+        WHERE dv.exchange_id = e.id AND dv.version_number = e.current_draw_version) AS draw_notice,
+       m.is_organizer AS member_is_organizer,
+       m.status AS member_status
      FROM exchanges e
      JOIN profiles p ON p.user_id = e.organizer_id
+     JOIN memberships m ON m.exchange_id = e.id AND m.user_id = $2
      WHERE e.id = $1`,
-    [exchangeId]
+    [exchangeId, userId]
   );
 
   if (exRes.rowCount === 0) {
-    throw new PublicError('Intercambio no encontrado.');
+    throw new PublicError('No tenés acceso a este intercambio.');
   }
 
   const ex = exRes.rows[0];
+  const userMembership = { is_organizer: ex.member_is_organizer, status: ex.member_status };
+  const isApproved = userMembership.status === 'approved';
+  const isOrganizer = userMembership.is_organizer;
 
   // If pending or rejected, return restricted view without participant details, exclusions, or invite token
   if (!isApproved) {
@@ -432,7 +421,7 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
        WHERE m.exchange_id = $1 AND m.status = 'approved'
        ORDER BY m.is_organizer DESC, p.alias ASC`;
 
-  const partRes = await dbQuery<{
+  const partPromise = dbQuery<{
     membership_id: string;
     user_id: string;
     is_organizer: boolean;
@@ -444,33 +433,29 @@ export async function getExchangeDetails(exchangeId: string, userId: string) {
     wish_count: number;
   }>(partQuery, [exchangeId]);
 
-  // 4. Fetch exclusions if organizer
-  let exclusions: Array<{ id: string; giverId: string; receiverId: string }> = [];
-  if (isOrganizer) {
-    const exclRes = await dbQuery<{ id: string; giver_user_id: string; receiver_user_id: string }>(
-      `SELECT id, giver_user_id, receiver_user_id FROM exclusions WHERE exchange_id = $1`,
-      [exchangeId]
-    );
-    exclusions = exclRes.rows.map((r) => ({
-      id: r.id,
-      giverId: r.giver_user_id,
-      receiverId: r.receiver_user_id,
-    }));
-  }
-
-  // 5. Decrypt active invitation token ONLY for the organizer
-  let inviteToken: string | null = null;
-  if (isOrganizer) {
-    const invRes = await dbQuery<{ encrypted_token: string }>(
-      `SELECT encrypted_token FROM invitations
-       WHERE exchange_id = $1 AND revoked_at IS NULL AND expires_at > now() AND use_count < max_uses
-       ORDER BY created_at DESC LIMIT 1`,
-      [exchangeId]
-    );
-    if (invRes.rowCount > 0) {
-      inviteToken = decryptInviteToken(invRes.rows[0].encrypted_token);
-    }
-  }
+  // 2. Participants, restrictions and the organizer's invitation in parallel.
+  const exclPromise = isOrganizer
+    ? dbQuery<{ id: string; giver_user_id: string; receiver_user_id: string }>(
+        `SELECT id, giver_user_id, receiver_user_id FROM exclusions WHERE exchange_id = $1`,
+        [exchangeId]
+      )
+    : null;
+  const invPromise = isOrganizer
+    ? dbQuery<{ encrypted_token: string }>(
+        `SELECT encrypted_token FROM invitations
+         WHERE exchange_id = $1 AND revoked_at IS NULL AND expires_at > now() AND use_count < max_uses
+         ORDER BY created_at DESC LIMIT 1`,
+        [exchangeId]
+      )
+    : null;
+  const [partRes, exclRes, invRes] = await Promise.all([partPromise, exclPromise, invPromise]);
+  const exclusions: Array<{ id: string; giverId: string; receiverId: string }> = (exclRes?.rows ?? []).map((r) => ({
+    id: r.id,
+    giverId: r.giver_user_id,
+    receiverId: r.receiver_user_id,
+  }));
+  // Decrypt the active invitation token ONLY for the organizer.
+  const inviteToken = invRes && invRes.rowCount > 0 ? decryptInviteToken(invRes.rows[0].encrypted_token) : null;
 
   return {
     exchange: {

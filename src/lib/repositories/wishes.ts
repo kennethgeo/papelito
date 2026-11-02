@@ -38,21 +38,19 @@ export const MAX_WISHES_PER_PERSON = 100;
 
 export async function getMyWishes(userId: string) {
   // 1. Fetch all user wishes
-  const wishesRes = await dbQuery<WishRow>(
+  // Wishes and their selections are independent reads: one round trip.
+  const [wishesRes, selectionsRes] = await Promise.all([dbQuery<WishRow>(
     `SELECT id, user_id, title, description, url, approximate_price::text, currency, priority, created_at::text, updated_at::text, EXISTS(SELECT 1 FROM wish_photos f WHERE f.wish_id = wishes.id) AS has_photo
      FROM wishes
      WHERE user_id = $1
      ORDER BY created_at DESC`,
     [userId]
-  );
-
-  // 2. Fetch all selections for these wishes
-  const selectionsRes = await dbQuery<{ wish_id: string; exchange_id: string }>(
+  ), dbQuery<{ wish_id: string; exchange_id: string }>(
     `SELECT wish_id, exchange_id
      FROM wish_selections
      WHERE user_id = $1`,
     [userId]
-  );
+  )]);
 
   const selectionsMap = new Map<string, string[]>();
   for (const s of selectionsRes.rows) {

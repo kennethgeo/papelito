@@ -96,3 +96,27 @@ test('recursos: las mutaciones no invalidan una caché compartida que la app no 
   const pages = fs.readdirSync('src', { recursive: true }).filter((f) => /\.(ts|tsx)$/.test(f));
   for (const f of pages) assert.doesNotMatch(fs.readFileSync(`src/${f}`, 'utf8'), /['"]use cache['"]|unstable_cache\(/, f);
 });
+
+test('consultas: el snapshot con detalle y asignación usa menos viajes a la base', async ({ query }) => {
+  const { setTestDbAdapter } = await import('../../src/lib/db/client.ts');
+  const { readAppSnapshot } = await import('../../src/lib/repositories/app-snapshot.ts');
+  for (const id of ['q1', 'q2', 'q3']) await getOrCreateProfile(id, `${id}@example.com`, `Persona ${id}`);
+  const { exchangeId, inviteToken } = await ex.createExchangeWithInvitation('q1', base);
+  for (const id of ['q2', 'q3']) { await ex.acceptInvitationAtomic(inviteToken, id); await ex.manageMemberStatus(exchangeId, id, 'approved', 'q1'); }
+  await executeAndCommitDraw(exchangeId, 'q1', 0);
+  let count = 0;
+  setTestDbAdapter({ query: async (sql, params) => { count++; return query(sql, params); } });
+  try {
+    const snapshot = await readAppSnapshot('q2', { hasCurrentConsent: true, latestVersion: 'x' }, exchangeId);
+    assert.ok(snapshot.selected?.assignment, 'the participant sees their own assignment');
+    assert.equal(snapshot.selected.details.invitationToken, null, 'participants never receive the invitation token');
+    assert.ok(count <= 9, `snapshot used ${count} queries (was 14 before grouping)`);
+    count = 0;
+    const organizer = await readAppSnapshot('q1', { hasCurrentConsent: true, latestVersion: 'x' }, exchangeId);
+    assert.ok(organizer.selected.details.invitationToken === null || typeof organizer.selected.details.invitationToken === 'string');
+    assert.ok(count <= 9, `organizer snapshot used ${count} queries`);
+    await assert.rejects(() => ex.getExchangeDetails(exchangeId, 'outsider'), /No tenés acceso/);
+  } finally {
+    setTestDbAdapter({ query });
+  }
+});
