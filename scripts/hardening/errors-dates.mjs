@@ -50,3 +50,19 @@ test('registros de Neon Auth: sin URLs con tokens ni detalles del error', async 
   assert.match(lines[0], /"component":"server-api"/);
   assert.match(lines[0], /"path":"\/neondb\/auth\/reset-password\/:id"/);
 });
+
+test('errores de servidor: el código de soporte queda en los registros sin datos personales', async () => {
+  const { onRequestError } = await import('../../src/instrumentation.ts');
+  const lines = [];
+  const original = console.error;
+  console.error = (line) => lines.push(String(line));
+  try {
+    const error = Object.assign(new Error('fallo para persona@example.com con token abc'), { digest: '2847561093' });
+    await onRequestError(error, { path: '/unirse/token-secreto-0123456789abcdef?correo=persona@example.com', method: 'GET', headers: { cookie: 'sesion=1' } }, { routeType: 'render', routePath: '/unirse/[token]', routerKind: 'App Router' });
+    await onRequestError(Object.assign(new Error('x'), { digest: '<script>' }), { path: '/', method: 'POST', headers: {} }, { routeType: 'action' });
+  } finally { console.error = original; }
+  const first = JSON.parse(lines[0]);
+  assert.deepEqual(first, { event: 'request_error', digest: '2847561093', method: 'GET', path: '/unirse/:id', routeType: 'render', route: '/unirse/[token]', errorType: 'Error' });
+  assert(!/persona|secreto|correo|sesion|abc/.test(lines[0]));
+  assert.equal(JSON.parse(lines[1]).digest, undefined, 'an unexpected digest format is not logged');
+});
