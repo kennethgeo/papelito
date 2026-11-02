@@ -1,7 +1,7 @@
 // Papelito — Service Worker de alcance público limitado
 // Regla crítica: NUNCA almacena datos de API, autenticación, deseos ni asignaciones privadas.
 
-const CACHE_NAME = 'papelito-public-v5';
+const CACHE_NAME = 'papelito-public-v6';
 const PRECACHE_ASSETS = [
   '/offline.html',
   '/offline-vault.js',
@@ -56,6 +56,18 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+async function offlineNavigationResponse() {
+  try {
+    const cached = await caches.match('/offline.html');
+    if (cached) return cached;
+  } catch { /* Android may evict or temporarily deny access to Cache Storage. */ }
+  // respondWith must always resolve to a Response, even if the cache was evicted.
+  return new Response(`<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Papelito — Sin conexión</title><body style="margin:0;padding:2rem;background:#FAF7FC;color:#46245D;font:1.1rem system-ui"><main><h1>No pudimos abrir Papelito.</h1><p>La conexión se interrumpió. Volvé a intentarlo cuando tengas señal.</p><button onclick="location.reload()" style="padding:1rem;font:inherit">Volver a intentar</button></main></body></html>`, {
+    status: 503,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY' },
+  });
+}
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
@@ -78,9 +90,7 @@ self.addEventListener('fetch', (event) => {
   // Never save authenticated responses in cache to avoid leaking private data.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => {
-        return caches.match('/offline.html');
-      })
+      fetch(request).catch(offlineNavigationResponse)
     );
     return;
   }

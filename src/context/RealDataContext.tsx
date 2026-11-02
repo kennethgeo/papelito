@@ -37,7 +37,7 @@ import type {
   AccountDeletionImpact,
   RequestAccountDeletionResult,
 } from "@/lib/repositories/profiles";
-import { callServerAction } from "@/lib/client-actions";
+import { callServerAction, callServerRead } from "@/lib/client-actions";
 import type { AppSnapshot } from "@/lib/repositories/app-snapshot";
 import { LEGAL_CONSTANTS } from "@/lib/legal/constants";
 import { clearOfflineCopy } from '../../public/offline-vault.js';
@@ -308,7 +308,7 @@ export function RealDataProvider({
       setIsRefreshing(true);
       const promise = (async () => {
         try {
-          const result = await callServerAction(() =>
+          const result = await callServerRead(() =>
             getAppSnapshotAction(key ?? undefined),
           );
           if (version !== requestVersion.current) return false;

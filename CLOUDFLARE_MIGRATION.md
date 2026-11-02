@@ -26,3 +26,11 @@ Las imágenes nuevas usan el binding `IMAGES` para reducir a WebP y respetan el 
 3. Para revertir, detener primero los cron de Cloudflare, restaurar el origen y los destinos de Auth, y después reactivar Netlify y sus cron. Las passkeys siguen ligadas al origen donde se registraron. No borrar datos de Neon ni rotar secretos durante la reversión.
 
 La facturación gratuita depende del tráfico, CPU, transformaciones de imágenes y límites vigentes de Neon y Cloudflare; verificar las métricas reales del proyecto.
+
+## Corrección de carga y PWA (2 de noviembre de 2026)
+
+El piloto autenticado mostró un aviso de cambio sin confirmar al entrar y fallas intermitentes de navegación. Las métricas de Workers registraron 14 excepciones entre las 13:35 y las 14:00 UTC. La revisión encontró un pool WebSocket global: Neon exige crear, usar y cerrar estas conexiones dentro de una sola petición de Workers. Las consultas individuales usan ahora HTTP; las transacciones conservan una conexión propia por operación, cerrada incluso cuando falla la conexión o se revierte la transacción. El pool persistente se mantiene solo en el servidor Node. Se conserva Neon y su esquema.
+
+La lectura inicial tiene un mensaje específico de carga y no muestra una lista vacía como si hubiera confirmado cero intercambios. El Service Worker público v6 devuelve una respuesta de recuperación incluso si Android desalojó la caché offline o Cache Storage falla. No almacena HTML autenticado ni intercepta POST, API, autenticación o invitaciones.
+
+`npm run test:db:workers` comprueba aislamiento entre peticiones concurrentes, consultas HTTP, commit, rollback y cierre tras fallo de conexión con un driver simulado. `test:ux` lo ejecuta también en CI y distingue fallos de lectura y escritura. `test:pwa` verifica caché ausente/inaccesible además de las exclusiones de privacidad. Se habilitan registros de Workers con parámetros de URL redactados para diagnosticar excepciones. Estas pruebas no sustituyen comprobar el ingreso real desde el teléfono después del despliegue.
