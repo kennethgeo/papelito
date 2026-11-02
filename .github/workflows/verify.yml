@@ -86,8 +86,11 @@ jobs:
       - name: Install test browser
         run: npx playwright install --with-deps chromium
 
-      - name: Desktop and mobile browser regression
+      - name: Desktop and mobile browser regression (next start)
         run: npm run test:e2e
+
+      - name: Same browser suite on the Workers bundle (workerd, vinext router)
+        run: npm run test:e2e:workerd
 
       - name: Keep browser evidence on failure
         if: failure()

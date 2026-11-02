@@ -24,6 +24,7 @@
     "test:db:workers": "node --experimental-test-module-mocks --conditions=react-server --experimental-strip-types scripts/test-db-workers.mjs",
     "test:journey": "node --conditions=react-server --experimental-strip-types scripts/test-journey.mjs",
     "test:e2e": "playwright test",
+    "test:e2e:workerd": "PAPELITO_E2E_WORKERD=1 playwright test",
     "test:neon:e2e": "node --conditions=react-server --experimental-strip-types scripts/test-neon-journey.mjs",
     "test:pwa": "node scripts/test-pwa.mjs",
     "test:workerd": "node scripts/test-workerd.mjs",
