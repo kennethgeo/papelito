@@ -111,9 +111,32 @@ export async function listAccountAccess(userId: string, currentOwnSession?: stri
   ]);
   return { keys: keys.rows, own: own.rows.map(s => ({ ...s, current: s.id === currentOwnSession })), neon: neon.rows.map(s => ({ id: s.id, browser: browserName(s.ua || ''), created_at: s.created_at, expires_at: s.expires_at })), providers: providers.rows.map(p => p.provider) };
 }
-export async function revokeAccountSession(userId: string, id: string, kind: 'passkey' | 'neon') {
-  if (kind === 'passkey') await dbQuery('DELETE FROM app_passkey_sessions WHERE user_id = $1 AND id::text = $2', [userId, id]);
-  else if (kind === 'neon') await dbQuery(`INSERT INTO app_session_revocations (session_id, user_id, expires_at) SELECT id::text, "userId"::text, "expiresAt" FROM neon_auth.session WHERE id::text = $1 AND "userId"::text = $2 ON CONFLICT DO NOTHING`, [id, userId]);
-  else throw new PublicError('Sesión inválida.');
-  return true;
+/** Result of closing the same session at Neon Auth (the identity provider). */
+export type ProviderRevocation = 'revoked' | 'not-found' | 'unavailable' | 'not-applicable';
+
+/**
+ * Closes one of the user's own accesses. Neon sessions are first added to the
+ * local revocation list (immediate effect in Papelito and in the auth proxy)
+ * and then revoked at the provider when its API allows it. The provider needs
+ * the secret session token, which never leaves the server: callers pass only
+ * the public session id.
+ */
+export async function revokeAccountSession(userId: string, id: string, kind: 'passkey' | 'neon',
+  revokeAtProvider?: (sessionId: string) => Promise<ProviderRevocation>): Promise<{ provider: ProviderRevocation }> {
+  if (typeof id !== 'string' || !id || id.length > 100) throw new PublicError('Sesión inválida.');
+  if (kind === 'passkey') {
+    await dbQuery('DELETE FROM app_passkey_sessions WHERE user_id = $1 AND id::text = $2', [userId, id]);
+    return { provider: 'not-applicable' };
+  }
+  if (kind !== 'neon') throw new PublicError('Sesión inválida.');
+  const local = await dbQuery(`INSERT INTO app_session_revocations (session_id, user_id, expires_at)
+    SELECT id::text, "userId"::text, "expiresAt" FROM neon_auth.session WHERE id::text = $1 AND "userId"::text = $2
+    ON CONFLICT (session_id) DO UPDATE SET expires_at = EXCLUDED.expires_at WHERE app_session_revocations.user_id = EXCLUDED.user_id
+    RETURNING session_id`, [id, userId]);
+  if (!local.rowCount) throw new PublicError('Ese acceso ya no está activo en tu cuenta.');
+  let provider: ProviderRevocation = 'unavailable';
+  if (revokeAtProvider) {
+    try { provider = await revokeAtProvider(id); } catch { provider = 'unavailable'; }
+  }
+  return { provider };
 }

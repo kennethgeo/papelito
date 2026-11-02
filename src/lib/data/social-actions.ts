@@ -14,7 +14,7 @@ async function safe<T>(work: () => Promise<T>) {
   catch (e) {
     const text = e instanceof Error ? e.message : '';
     // Never serialize SQL, tokens, subscription endpoints or provider diagnostics.
-    const publicError = /^(Iniciá|Escribí|Esta conversación|Esperá|Cada respuesta|Perfil de gustos|Los recordatorios|No se pudo vincular|Proveedor de|Suscripción inválida|Claves de)/.test(text);
+    const publicError = /^(No pudimos confirmar tu sesión|Iniciá|Escribí|Esta conversación|Esperá|Cada respuesta|Perfil de gustos|Los recordatorios|No se pudo vincular|Proveedor de|Suscripción inválida|Claves de)/.test(text);
     return { success: false as const, error: publicError ? text : 'No se pudo completar. Revisá la conexión e intentá de nuevo.' };
   }
 }

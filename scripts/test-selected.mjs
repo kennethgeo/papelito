@@ -105,7 +105,7 @@ try {
   assert.deepEqual((await keys.listAccountAccess(otherOwner)).providers,['credential']);
   const token='a'.repeat(43);await query('INSERT INTO app_passkeys (credential_id,user_id,public_key,rp_id,label) VALUES ($1,$2,$3,$4,$5)',['fake-key',otherOwner,Buffer.from([1]),'localhost','Test']);await query('INSERT INTO app_passkey_sessions (token_hash,user_id,credential_id,browser) VALUES ($1,$2,$3,$4)',[keys.hashToken(token),otherOwner,'fake-key','Test']);
   assert.equal((await keys.readPasskeyToken(token)).user.id,otherOwner);
-  await keys.revokeAccountSession(authOwner,foreignSession,'neon');assert.equal((await query('SELECT * FROM app_session_revocations')).rowCount,0);
+  await assert.rejects(()=>keys.revokeAccountSession(authOwner,foreignSession,'neon'),/ya no está activo/);assert.equal((await query('SELECT * FROM app_session_revocations')).rowCount,0);
   await keys.revokeAccountSession(otherOwner,foreignSession,'neon');assert.equal((await query('SELECT * FROM app_session_revocations')).rowCount,1);
   assert.equal(await keys.readPasskeyToken('invalid'),null);
   assert.equal((await keys.listAccountAccess(otherOwner)).neon.length,0);

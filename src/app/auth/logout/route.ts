@@ -3,6 +3,7 @@ import { isNeonAuthConfigured } from '@/lib/auth/config';
 import { getNeonAuth } from '@/lib/auth/server';
 import { resolveLogoutRedirectUrl } from '@/lib/security/urls';
 import { clearPasskeySession, passkeyCookie } from '@/lib/auth/passkey-session';
+import { clearNeonSessionCookies } from '@/lib/auth/session-guard';
 
 export async function POST(request: NextRequest) {
   if (request.cookies.get(passkeyCookie().name)?.value) await clearPasskeySession();
@@ -22,5 +23,7 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.redirect(targetUrl, 303);
   response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   response.headers.set('Pragma', 'no-cache');
+  // Leaving must work even if Neon Auth or the database is unreachable.
+  clearNeonSessionCookies(response.headers);
   return response;
 }

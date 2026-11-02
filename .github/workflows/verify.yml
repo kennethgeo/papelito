@@ -63,6 +63,9 @@ jobs:
       - name: Lifecycle, deletion and retention integration tests
         run: npm run test:lifecycle
 
+      - name: Audit fixes (sessions, errors, participants, limits)
+        run: npm run test:hardening
+
       - name: Next.js production build (without external secrets)
         run: npm run build
 
