@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { accountAccessAction, beginPasskeyRegistration, completePasskeyRegistration, removePasskeyAction, revokeSessionAction } from '@/lib/data/passkey-actions';
-import { callServerAction } from '@/lib/client-actions';
+import { callServerAction, callServerRead } from '@/lib/client-actions';
 import { authClient } from '@/lib/auth/client';
 export function AccountSecurity() {
   const real=useOptionalRealData();const isReal=!!real;
   const [data,setData]=useState<Awaited<ReturnType<typeof accountAccessAction>>['data']>();
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[status,setStatus]=useState(''),[label,setLabel]=useState('Mi dispositivo'),[confirm,setConfirm]=useState('');
-  useEffect(()=>{let active=true;if(isReal)queueMicrotask(async()=>{const r=await callServerAction(()=>accountAccessAction());if(active){if(r.success)setData(r.data);else setError(r.error||'No pudimos cargar tus accesos.');}});return()=>{active=false;};},[isReal]);
-  async function refresh(){const r=await callServerAction(()=>accountAccessAction());if(r.success)setData(r.data);else setError(r.error||'No pudimos cargar los accesos.');}
+  useEffect(()=>{let active=true;if(isReal)queueMicrotask(async()=>{const r=await callServerRead(()=>accountAccessAction(),'tus accesos');if(active){if(r.success)setData(r.data);else setError(r.error||'No pudimos cargar tus accesos.');}});return()=>{active=false;};},[isReal]);
+  async function refresh(){const r=await callServerRead(()=>accountAccessAction(),'tus accesos');if(r.success)setData(r.data);else setError(r.error||'No pudimos cargar los accesos.');}
   async function register(){if(busy)return;setBusy(true);setError('');setStatus('');try{
     if(!('PublicKeyCredential'in window)||!window.isSecureContext)throw new Error('Este navegador no permite registrar una passkey. Usá uno compatible con conexión segura.');
     if(/^[\d.]+$/.test(window.location.hostname))throw new Error('Para probar una passkey local, abrí Papelito en localhost en lugar de una dirección IP.');

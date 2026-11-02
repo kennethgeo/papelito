@@ -88,7 +88,14 @@ const scenarios = [
   {
     name: "sin servicios configurados (equivalente al modo demo)",
     vars: {},
-    run: async (base) => smoke(base, "unconfigured"),
+    run: async (base) => {
+      smoke(base, "unconfigured");
+      // CI builds with PAPELITO_BUILD_ID: the bundle must report that same build.
+      if (process.env.PAPELITO_BUILD_ID) {
+        const { version } = await (await fetch(`${base}/api/version`)).json();
+        check(version === process.env.PAPELITO_BUILD_ID, `/api/version reports ${version}, expected ${process.env.PAPELITO_BUILD_ID}`);
+      }
+    },
   },
   {
     name: "base de datos y Neon Auth caídos: estado desconocido explícito",

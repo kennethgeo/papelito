@@ -3,6 +3,7 @@ import "./globals.css";
 import "./paper.css";
 import "./workshop.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { VersionWatcher } from "@/components/VersionWatcher";
 
 export const metadata: Metadata = {
   title: "Papelito — Un pequeño gran secreto",
@@ -43,6 +44,7 @@ export default function RootLayout({
       <body>
         {children}
         <ServiceWorkerRegister />
+        <VersionWatcher />
       </body>
     </html>
   );

@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
+// One identifier per build, shared by the server and the browser bundle. CI
+// uses the commit SHA so the post-deploy check can confirm what is live.
+const buildId = (process.env.PAPELITO_BUILD_ID || process.env.GITHUB_SHA || `local-${Date.now().toString(36)}`)
+  .replace(/[^0-9A-Za-z._-]/g, "")
+  .slice(0, 40);
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  env: { PAPELITO_BUILD_ID: buildId },
+  generateBuildId: async () => buildId,
   cacheComponents: true,
   partialPrefetching: true,
   devIndicators: false,

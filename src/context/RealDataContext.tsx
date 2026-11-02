@@ -789,7 +789,7 @@ export function RealDataProvider({
   };
 
   const getAccountDeletionImpactHandler = useCallback(async () => {
-    const res = await callServerAction(() => getAccountDeletionImpactAction());
+    const res = await callServerRead(() => getAccountDeletionImpactAction(), 'el impacto de la baja');
     if (res.success && res.data) {
       return res.data;
     }
@@ -820,7 +820,7 @@ export function RealDataProvider({
 
   const exportAllUserDataHandler = async () => {
     setErrorMessage(null);
-    const res = await callServerAction(() => exportUserDataAction());
+    const res = await callServerRead(() => exportUserDataAction(), 'tus datos');
     if (res.success && res.data) {
       return res.data as Record<string, unknown>;
     }

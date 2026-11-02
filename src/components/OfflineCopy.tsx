@@ -4,7 +4,7 @@ import { useOptionalRealData } from '@/context/RealDataContext';
 import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { sealCopy, writeOfflineCopy, readOfflineCopy, clearOfflineCopy } from '../../public/offline-vault.js';
 import { getAppSnapshotAction } from '@/lib/data/server-actions';
-import { callServerAction } from '@/lib/client-actions';
+import { callServerRead } from '@/lib/client-actions';
 export function OfflineCopy() {
   const real = useOptionalRealData(), demo = useOptionalDemoData();
   const [password,setPassword] = useState(''), [repeat,setRepeat] = useState(''), [consent,setConsent] = useState(false);
@@ -17,7 +17,7 @@ export function OfflineCopy() {
     setBusy(true);
     try {
       const fields = (w: { title: string; description?: string; url?: string }) => ({ title:w.title, description:w.description || '', url:w.url || '' });
-      const snapshot = real ? await callServerAction(() => getAppSnapshotAction(real.currentExchange?.id)) : null;
+      const snapshot = real ? await callServerRead(() => getAppSnapshotAction(real.currentExchange?.id)) : null;
       if (real && (!snapshot?.success || !snapshot.data?.consent.hasCurrentConsent)) throw new Error('No pudimos actualizar los datos para la copia. Volvé a intentar con conexión.');
       const a = real ? snapshot?.data?.selected?.assignment : demo?.currentExchange?.assignment;
       const name = real ? snapshot?.data?.selected?.details.exchange.name : demo?.currentExchange?.name;

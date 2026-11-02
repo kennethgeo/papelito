@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { anonymousThreadsAction, sendAnonymousMessageAction } from '@/lib/data/social-actions';
-import { callServerAction } from '@/lib/client-actions';
+import { callServerAction, callServerRead } from '@/lib/client-actions';
 import type { AnonymousThread } from '@/lib/repositories/social';
 
 export function AnonymousMessages({ exchangeId, version }: { exchangeId: string; version: number }) {
@@ -24,7 +24,7 @@ export function AnonymousMessages({ exchangeId, version }: { exchangeId: string;
       } catch { setError('No pudimos cargar la conversación de demo.'); }
       return;
     }
-    const res = await callServerAction(() => anonymousThreadsAction(exchangeId));
+    const res = await callServerRead(() => anonymousThreadsAction(exchangeId));
     if (request !== generation.current) return;
     if (res.success && res.data) { setThreads(res.data); setError(''); }
     else setError(res.error || 'No pudimos actualizar los mensajes.');

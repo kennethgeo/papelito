@@ -3,7 +3,7 @@ import { useEffect, useId, useState } from 'react';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { EMPTY_GIFT_PREFERENCES, GIFT_FIELDS, type GiftPreferences } from '@/lib/gift-preferences';
 import { giftPreferencesAction } from '@/lib/data/social-actions';
-import { callServerAction } from '@/lib/client-actions';
+import { callServerAction, callServerRead } from '@/lib/client-actions';
 
 export function GiftPreferencesForm() {
   const fieldId = useId();
@@ -18,7 +18,7 @@ export function GiftPreferencesForm() {
     let active = true;
     async function load() {
       if (isReal) {
-        const result = await callServerAction(() => giftPreferencesAction());
+        const result = await callServerRead(() => giftPreferencesAction(), 'tus gustos');
         if (!active) return;
         if (result.success && result.data) setValue({ ...EMPTY_GIFT_PREFERENCES, ...result.data });
         else { setFailed(true); setStatus(result.error || 'No pudimos cargar tus gustos.'); }

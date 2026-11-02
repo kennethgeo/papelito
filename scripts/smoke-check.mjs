@@ -39,6 +39,7 @@ const routes = [
   { path: `/esta-ruta-no-existe-${randomToken.slice(0, 8)}`, status: 404, ...html({ must: [/No encontramos esta página/] }) },
   { path: "/api/auth/get-session", status: profile === "production" ? 200 : 503, type: /json/, headers: { "cache-control": /no-store/ } },
   { path: "/api/wishes/00000000-0000-4000-8000-000000000000/image", status: 401, headers: { "cache-control": /no-store/ } },
+  { path: "/api/version", status: 200, type: /json/, headers: { "cache-control": /no-store/ }, json: (body) => typeof body?.version === "string" && body.version.length > 0 },
   { path: "/sw.js", status: 200, type: /javascript/, must: [/papelito-public-/] },
   { path: "/manifest.webmanifest", status: 200, must: [/Papelito/] },
 ];
