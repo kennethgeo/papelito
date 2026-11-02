@@ -104,6 +104,14 @@ export async function executeAndCommitDraw(
     // 4. Calculate secret santa matching via polynomial Kuhn algorithm & Hall theorem
     const drawResult = computeSecretSantaDraw(participantIds, exclusions);
     if (!drawResult.success) {
+      // Name the person by alias (never by internal id).
+      if (drawResult.participantId && history.rowCount === 0) {
+        const named = await client.query<{ alias: string }>('SELECT alias FROM profiles WHERE user_id = $1', [drawResult.participantId]);
+        const alias = named.rows[0]?.alias ?? 'Una persona';
+        throw new PublicError(drawResult.code === 'NO_GIVER'
+          ? `${alias} no puede recibir regalo de nadie con las restricciones actuales. Quitá alguna restricción donde aparece.`
+          : `${alias} no tiene a quién regalar con las restricciones actuales. Quitá alguna restricción donde aparece.`);
+      }
       throw new PublicError(history.rowCount > 0 ? 'No hay una combinación que respete las restricciones y evite destinatarios de las ediciones anteriores. Revisá las restricciones o creá un intercambio independiente; no repetimos parejas sin avisar.' : drawResult.reason || 'No fue posible encontrar una combinación válida con las restricciones.');
     }
 

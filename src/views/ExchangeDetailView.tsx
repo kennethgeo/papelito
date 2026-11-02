@@ -5,6 +5,7 @@ import { useOptionalDemoData } from "@/context/DemoDataContext";
 import { useOptionalRealData } from "@/context/RealDataContext";
 import { THEME_CONFIG } from "@/lib/theme";
 import { formatEventDate, formatMoney } from "@/lib/event-dates";
+import { getCostaRicaTodayDate } from "@/lib/date/costa-rica";
 import type { ThemeKey } from "@/types";
 import { ExchangeLifecycleControls } from "@/components/ExchangeLifecycleControls";
 import { PaperIllustration } from "@/components/PaperIllustration";
@@ -117,6 +118,7 @@ export function ExchangeDetailView() {
   const enough = approved.length >= ex.minParticipants;
   const drawn = ex.status === "sorteado";
   const repeated = (ex.currentDrawVersion ?? 0) > 0;
+  const registrationOpen = ex.status === "inscripcion_abierta" && getCostaRicaTodayDate() <= ex.registrationDeadline;
   const alias = (id: string) =>
     ex.participants.find((p) => p.id === id)?.alias ?? "Participante";
   const invitationUrl = () =>
@@ -423,9 +425,24 @@ export function ExchangeDetailView() {
                           `${pending.length} solicitudes pendientes quedarán fuera.`}{" "}
                         Cada persona verá únicamente a quien le corresponde.
                       </p>
+                      {!repeated && registrationOpen && (
+                        <p>
+                          La inscripción sigue abierta hasta el{" "}
+                          {formatEventDate(ex.registrationDeadline)}. Si sorteás
+                          ahora, nadie más podrá unirse con el enlace.
+                        </p>
+                      )}
+                      {approved.length === 3 && (
+                        <p>
+                          Con solo 3 personas, cada quien puede deducir quién le
+                          regala. Si el secreto importa, sumá a alguien más antes
+                          de sortear.
+                        </p>
+                      )}
                       {repeated && (
                         <label className="workshop-field">
                           Motivo del nuevo sorteo
+                          <small>Todas las personas del grupo van a ver este motivo; no nombres a nadie por su asignación.</small>
                           <textarea
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}

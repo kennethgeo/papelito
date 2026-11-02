@@ -78,3 +78,11 @@ test('migraciones versionadas: se registran con SHA-256, no se repiten y no acep
   await assert.rejects(() => applyVersionedMigrations(fresh), /cambió después de aplicarse/);
   await fresh.close();
 });
+
+test('sorteo imposible: el error nombra el alias, nunca el identificador interno', async () => {
+  for (const [id, alias] of [['al1', 'Ana'], ['al2', 'Beto'], ['al3', 'Caro']]) await getOrCreateProfile(id, `${id}@example.com`, alias);
+  const { exchangeId, inviteToken } = await ex.createExchangeWithInvitation('al1', base);
+  for (const id of ['al2', 'al3']) { await ex.acceptInvitationAtomic(inviteToken, id); await ex.manageMemberStatus(exchangeId, id, 'approved', 'al1'); }
+  await ex.setExchangeExclusions(exchangeId, 'al1', [{ giverUserId: 'al2', excludedReceiverUserId: 'al1' }, { giverUserId: 'al2', excludedReceiverUserId: 'al3' }]);
+  await assert.rejects(() => executeAndCommitDraw(exchangeId, 'al1', 0), (error) => /^Beto no tiene a quién regalar/.test(error.message) && !error.message.includes('al2'));
+});
