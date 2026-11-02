@@ -4,9 +4,11 @@ Aplicación web progresiva en español diseñada para organizar intercambios de 
 
 [![CI](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml/badge.svg)](https://github.com/kennethgeo/papelito/actions/workflows/ci.yml)
 
-**Estado: corte de alojamiento realizado el 2 de noviembre de 2026.** Dirección pública: [papelitocr.pages.dev](https://papelitocr.pages.dev). Pages envía las peticiones al Worker que ejecuta la aplicación. El titular desactivó Netlify; se verificó HTTP 404 en la dirección anterior. Los cron de Cloudflare están activos: retención diaria a medianoche de Costa Rica y recordatorios cada hora. Quedan pendientes la primera ejecución real y una prueba autenticada completa con Google, correo y passkeys. Las passkeys y las suscripciones Web Push deben registrarse de nuevo en el origen nuevo. La base exclusiva tiene 24 tablas de aplicación; las migraciones se verifican antes de ejecutarse. Las funciones y sus límites están en [SIGUIENTE_TANDA.md](SIGUIENTE_TANDA.md); las recomendaciones restantes están en [PENDIENTES_PRODUCTO.md](PENDIENTES_PRODUCTO.md).
+**Estado: corte de alojamiento realizado el 2 de noviembre de 2026.** Dirección pública: [papelitocr.pages.dev](https://papelitocr.pages.dev). Pages envía las peticiones al Worker que ejecuta la aplicación. El titular desactivó Netlify; se verificó HTTP 404 en la dirección anterior. Los cron de Cloudflare están activos: retención diaria a medianoche de Costa Rica y recordatorios cada hora entre 09:00 y 17:59, con un tope de envíos por ejecución. Quedan pendientes la primera ejecución real y una prueba autenticada completa con Google, correo y passkeys. Las passkeys y las suscripciones Web Push deben registrarse de nuevo en el origen nuevo. La base exclusiva tiene 24 tablas de aplicación; las migraciones se verifican antes de ejecutarse. Las funciones y sus límites están en [SIGUIENTE_TANDA.md](SIGUIENTE_TANDA.md); las recomendaciones restantes están en [PENDIENTES_PRODUCTO.md](PENDIENTES_PRODUCTO.md).
 
 El estado del corte, los límites gratuitos y la reversión están en [CLOUDFLARE_MIGRATION.md](CLOUDFLARE_MIGRATION.md); la arquitectura de la URL corta está en [CLOUDFLARE_PAGES.md](CLOUDFLARE_PAGES.md). Reactivar Netlify requiere desactivar primero los cron de Cloudflare para evitar tareas duplicadas.
+
+Operación diaria: publicación, verificación, reversión y tareas programadas en [docs/OPERACION.md](docs/OPERACION.md); migraciones en [docs/MIGRACIONES.md](docs/MIGRACIONES.md); pruebas y sus límites en [docs/PRUEBAS.md](docs/PRUEBAS.md); dependencias en [docs/DEPENDENCIAS.md](docs/DEPENDENCIAS.md); decisiones y funciones pendientes en [docs/PROPUESTAS.md](docs/PROPUESTAS.md).
 
 Para probar la demo con **Node.js 24**:
 
@@ -22,6 +24,8 @@ Abrí [la demo local](http://127.0.0.1:3040/?mode=demo). Funciona con datos de e
 ## 1. Arquitectura técnica
 
 - **Frontend & Server:** Next.js 16 (App Router + Turbopack), React 19, TypeScript en modo estricto.
+- **Alojamiento:** Cloudflare Workers. `vinext` empaqueta la app para el Worker `papelitocr`; el proyecto Pages `papelitocr` sirve `papelitocr.pages.dev` y reenvía cada petición al Worker por service binding. El Worker privado `papelitocr-jobs` ejecuta retención y recordatorios (`cloudflare/scheduler.ts`). Las fotos se reducen con el binding `IMAGES`. No se usa KV. En Workers, las consultas individuales van por HTTP de Neon y cada transacción abre y cierra su propia conexión dentro de la petición.
+- **Seguridad web:** cabeceras `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` y `Content-Security-Policy-Report-Only` (`next.config.ts`); `no-store` en `/api/`, `/auth/` y `/unirse/`. El proxy de `/api/auth/*` rechaza sesiones revocadas y falla cerrado si no puede comprobarlas.
 - **Estilos:** CSS propio con variables de diseño, mobile-first desde 320 px, safe-areas de pantalla y tipografías autoalojadas con licencia abierta (`Bricolage Grotesque` y `Source Sans 3` bajo SIL OFL 1.1).
 - **Firma visual:** Papelito, con ilustraciones vectoriales propias de sobres y notas, paleta ciruela `#46245D`, violeta `#7043A2`, amarillo `#F7D85B`, lila `#EDE5F5`, blanco `#FFFEFC` y verde `#D8E5C5`. Ver `DIRECCION_VISUAL.md`.
 - **Autenticación & Persistencia:**
@@ -59,7 +63,23 @@ npm run test:neon
 
 # Compilación de producción con Turbopack y Partial Prerendering
 npm run build
+
+# Bundle de Workers, prueba en workerd y comprobación de configuración (sin publicar)
+npm run build:vinext
+npm run test:workerd
+npm run deploy:vinext -- --dry-run
+npm run check:cloudflare:jobs
+
+# Endurecimiento (PGlite) y concurrencia (PostgreSQL real temporal)
+npm run test:hardening
+npm run test:concurrency
+
+# Navegador sobre next start y sobre workerd
+npm run test:e2e
+npm run test:e2e:workerd
 ```
+
+La lista completa y lo que cada suite no demuestra están en [docs/PRUEBAS.md](docs/PRUEBAS.md).
 
 ---
 
@@ -69,6 +89,8 @@ La migración oficial de producción para Neon PostgreSQL se encuentra en:
 `neon/migrations/20261016_init_papelito_neon.sql`
 
 *(La migración inicial de referencia histórica de Supabase se conserva en `supabase/migrations/` únicamente como archivo documental pasivo).*
+
+Las migraciones posteriores son aditivas. Desde el 2 de noviembre de 2026 se registran en `papelito_schema_migrations` con su SHA-256; un archivo ya aplicado no se puede editar. El orden, la compatibilidad y la recuperación están en [docs/MIGRACIONES.md](docs/MIGRACIONES.md).
 
 Tablas incluidas en `neon/migrations/20261016_init_papelito_neon.sql`:
 - `profiles`: perfil público (`user_id` de texto compatible con Better Auth, `alias`, `full_name`, `avatar_color`).
@@ -83,7 +105,7 @@ Tablas incluidas en `neon/migrations/20261016_init_papelito_neon.sql`:
 
 ---
 
-## 4. Guía de conexión: Neon CLI + Migración + Google OAuth + Netlify
+## 4. Guía de conexión: Neon CLI + Migración + Google OAuth + Cloudflare
 
 > **Regla de aislamiento:** Este repositorio está vinculado mediante `.neon`, `neon.ts` y `EXPECTED_NEON_CONFIG` exclusivamente al proyecto dedicado de **Papelito** en Neon (`org-solitary-voice-24830396` / `spring-frog-51248337`, AWS PostgreSQL 18 `free_v3`, rama `production` `br-royal-tooth-b4ru7kif`, endpoint directo `ep-frosty-hall-b42n8gmw.c-6.us-east-2.aws.neon.tech`, base `neondb`). No reutilices ni conectes bases de datos de otras aplicaciones.
 
@@ -124,11 +146,15 @@ El proyecto independiente de Google Cloud es `papelito-costa-rica`, con audienci
 <NEON_AUTH_BASE_URL>/callback/google
 ```
 
-Este flujo usa redirección de servidor; no necesita agregar orígenes JavaScript del navegador. Los destinos de regreso de la app se autorizan por separado en Neon Auth: `http://127.0.0.1:3040`, `http://localhost:3040` y `https://papelitocr.netlify.app`. Al añadir un dominio propio, actualizar sus destinos exactos y la marca de Google; no usar comodines. Google puede mostrar `neon.tech` por el host del callback: publicar la audiencia no equivale a verificar una marca con dominio propio.
+Este flujo usa redirección de servidor; no necesita agregar orígenes JavaScript del navegador. Los destinos de regreso de la app se autorizan por separado en Neon Auth: `http://127.0.0.1:3040`, `http://localhost:3040` y `https://papelitocr.pages.dev` (producción). `https://papelitocr.netlify.app` era el origen anterior: revisar si sigue en la lista y retirarlo cuando ya no se necesite para la reversión documentada. Al añadir un dominio propio, actualizar sus destinos exactos y la marca de Google; no usar comodines. Google puede mostrar `neon.tech` por el host del callback: publicar la audiencia no equivale a verificar una marca con dominio propio.
 
 La recuperación por enlace y la verificación obligatoria por OTP se probaron con entrega real confirmada por el titular. El remitente propio se deja pendiente por su decisión; actualmente se usa el proveedor compartido de Neon.
 
-### Paso 3: Configuración del despliegue en Netlify
+### Paso 3: Despliegue en Cloudflare (actual)
+
+La publicación es automática: cada push a `main` pasa por `verify` y solo entonces el job `deploy-web` de `.github/workflows/ci.yml` publica el Worker `papelitocr`, verifica rutas y versión y, si falla, muestra cómo revertir. Las tareas programadas se publican con el flujo manual `Cloudflare scheduled jobs`. Los secretos (`DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `INVITATION_TOKEN_SECRET` y, si se usan, `PUSH_VAPID_*`) viven en Cloudflare; `PAPELITO_APP_URL` y `NEXT_PUBLIC_APP_URL` usan `https://papelitocr.pages.dev`. Sin ese origen, las passkeys se rechazan en producción en lugar de adivinar un dominio. Detalles en [docs/OPERACION.md](docs/OPERACION.md) y [CLOUDFLARE_MIGRATION.md](CLOUDFLARE_MIGRATION.md).
+
+### Histórico: despliegue anterior en Netlify (solo para la reversión documentada)
 El proyecto incluye `netlify.toml` preconfigurado con Node 24, servidor Next.js (SSR/App Router, sin export estático), cabeceras de seguridad y `Cache-Control: no-store` para `/api/*`, `/auth/*` y `/unirse/*`.
 1. Conecta el repositorio en **Netlify** (`Add new site -> Import an existing project`).
 2. En **Site configuration -> Environment variables**, define:
@@ -154,7 +180,7 @@ La persona organizadora **actual** puede abrir el detalle → «Administrar este
 
 **Diferencia con cerrar:** «Finalizar» y «Cancelar» revocan invitaciones y conservan el historial 12 meses. «Eliminar» quita inmediatamente el grupo de la base activa para todos sus miembros y no se puede deshacer. No se registra un inventario adicional de nombres o asignaciones tras eliminarlo. La versión legal `2026-10-31.1` vuelve a solicitar consentimiento vigente. `npm run test:lifecycle` verifica permiso, confirmación, sesión reciente, cambios entre vista y operación, cascadas, edición vinculada y conservación de deseos personales. El piloto debe comprobar la experiencia con usuarios y dispositivos reales antes de decidir si publicarla.
 
-El organizador puede finalizar un intercambio sorteado, cancelar uno activo o transferir la organización a otro participante aprobado. El cierre revoca invitaciones y registra `closed_at`. Una Scheduled Function privada de Netlify, `retention-cleanup`, elimina diariamente los grupos cerrados hace 12 meses (meses calendario), junto con sus datos dependientes. Las cuentas y listas personales tienen un ciclo separado. No hay un endpoint HTTP público para ejecutar esta tarea. Se puede comprobar desde Functions → retention-cleanup → Run now.
+El organizador puede finalizar un intercambio sorteado, cancelar uno activo o transferir la organización a otro participante aprobado. El cierre revoca invitaciones y registra `closed_at`. El Worker privado `papelitocr-jobs` elimina diariamente, a medianoche de Costa Rica, los grupos cerrados hace 12 meses (meses calendario), junto con sus datos dependientes. Las cuentas y listas personales tienen un ciclo separado. No hay un endpoint HTTP público para ejecutar esta tarea; su resultado queda en los registros del Worker (`retention-cleanup`). Antes del corte esta tarea era una Scheduled Function de Netlify; su código se conserva para la reversión.
 
 La solicitud de baja en Mi cuenta exige un ingreso en los últimos 15 minutos, frase y confirmación expresa. La pantalla explica y pide autorización antes de transferir grupos activos o cancelar grupos sin otros aprobados. **Registrar una solicitud no borra inmediatamente la cuenta:** el operador debe revisar y procesar las solicitudes dentro del plazo indicado en la política.
 
@@ -176,7 +202,7 @@ La creación usa dos pasos y fechas dinámicas. La app agrupa sus lecturas, actu
 
 La ampliación del 18 de octubre añade mensajes anónimos entre las personas de una asignación vigente, gustos opcionales, nuevas ediciones con exclusiones del historial vinculado y QR local. Mi cuenta permite activar/desactivar Web Push por dispositivo y enviar un aviso de prueba. El panel y la entrada pública tienen un botón de instalación con alternativa guiada. El registro completo de ideas se conserva en [PENDIENTES_PRODUCTO.md](PENDIENTES_PRODUCTO.md).
 
-`npm run db:migrate` aplica la migración aditiva `20261018_social_and_reminders.sql`, conservando datos y verificando 15 tablas. Web Push utiliza VAPID con claves opcionales propias o derivación HKDF con propósito separado del secreto de invitaciones existente. La clave privada solo se usa en el servidor. `push-reminders` es una función programada de Netlify cada hora, sin endpoint público; envía entre 09:00 y 17:00 de Costa Rica, deduplica y retira suscripciones vencidas. Las notificaciones no contienen nombres ni mensajes. En iPhone/iPad es necesario abrir una PWA instalada en una versión compatible. La entrega final depende del servicio push y los permisos del dispositivo.
+`npm run db:migrate` aplica la migración aditiva `20261018_social_and_reminders.sql`, conservando datos y verificando 15 tablas. Web Push utiliza VAPID con claves opcionales propias o derivación HKDF con propósito separado del secreto de invitaciones existente. La clave privada solo se usa en el servidor. `push-reminders` corre cada hora en el Worker privado `papelitocr-jobs`, sin endpoint público. Envía entre 09:00 y 17:59 de Costa Rica, con un tope por ejecución dentro de los límites de Workers Free; lo que no cabe sale en la hora siguiente. Deduplica y retira suscripciones vencidas (ver [docs/OPERACION.md](docs/OPERACION.md)). Las notificaciones no contienen nombres ni mensajes. En iPhone/iPad es necesario abrir una PWA instalada en una versión compatible. La entrega final depende del servicio push y los permisos del dispositivo.
 
 ```bash
 npm run test:social

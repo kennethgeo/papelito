@@ -26,7 +26,7 @@ Con workflows reutilizables, GitHub nombra el check como `<job que llama> / <job
 
 ### Qué verifica `verify`
 
-Tipos, lint, pruebas de algoritmo, backend, conexión, PWA, recorrido, social, funciones seleccionadas, ciclo de vida y endurecimiento; compilación de Next y de Workers; `wrangler deploy --dry-run` del Worker web y del scheduler (pausado y activo); el bundle servido por workerd (`npm run test:workerd`) y 18 recorridos de navegador sobre `next start`.
+Tipos, lint, pruebas de algoritmo, backend, conexión, PWA, recorrido, social, funciones seleccionadas, ciclo de vida, endurecimiento y concurrencia (PostgreSQL real temporal); compilación de Next y de Workers; `wrangler deploy --dry-run` del Worker web y del scheduler (pausado y activo); el bundle servido por workerd (`npm run test:workerd`, incluido el transporte push) y 36 casos de navegador sobre `next start` y otros 36 sobre workerd. El detalle y los límites de cada suite están en `docs/PRUEBAS.md`.
 
 `test:workerd` levanta el bundle real de Workers con `wrangler dev` en modo local y comprueba rutas, cabeceras y estados de falla. No contacta Cloudflare, Neon ni Neon Auth: los escenarios usan configuración vacía o direcciones de loopback inalcanzables. No reemplaza la verificación posterior en producción.
 
@@ -36,13 +36,14 @@ Tipos, lint, pruebas de algoritmo, backend, conexión, PWA, recorrido, social, f
 
 | Ruta | Esperado |
 | --- | --- |
-| `/` | 200 HTML en español, cabeceras de seguridad |
+| `/` | 200 HTML en español; `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` y `Content-Security-Policy-Report-Only` |
 | `/?mode=demo` | 200 HTML |
 | `/unirse/<token inválido aleatorio>` | 200 con «Invitación no disponible» y `no-store` |
 | `/ayuda`, `/privacidad`, `/terminos` | 200 HTML sin la página de error por defecto en inglés |
 | Ruta inexistente | 404 |
 | `/api/auth/get-session` sin sesión | 200 en producción, 503 sin servicios configurados; `no-store` |
 | `/api/wishes/<uuid>/image` sin sesión | 401 con `no-store` |
+| `/api/version` | 200 JSON con la versión; `no-store`. Con `--expect-version` debe coincidir con el commit publicado |
 | `/sw.js`, `/manifest.webmanifest` | 200 |
 
 ### Veredictos
@@ -67,3 +68,32 @@ npx wrangler rollback <version-id> --name papelitocr --message "Rollback after f
 La reversión automática existe pero está desactivada. Solo se ejecuta si la variable del repositorio `PAPELITO_AUTO_ROLLBACK` vale `true`, el veredicto es `defective` y se conoce la versión anterior. Activarla requiere haber probado antes una reversión manual con esa misma cuenta.
 
 La reversión de código no deshace migraciones de base de datos: cada migración documenta su compatibilidad hacia atrás en `docs/MIGRACIONES.md`.
+
+## Versiones y códigos de soporte
+
+- Cada compilación lleva `PAPELITO_BUILD_ID` (el SHA del commit en CI). `/api/version` lo informa sin caché. La app lo compara al volver a la pestaña, al recuperar conexión y cuando falla una operación: si hay una versión nueva, ofrece recargar. Nunca recarga sola y avisa antes de descartar texto escrito. Una operación incierta nunca se reintenta automáticamente.
+- Las páginas de error muestran un **código de soporte** (el `digest` de Next). `src/instrumentation.ts` lo registra como evento `request_error` junto con el método, el patrón de ruta y la ruta sin identificadores. Para investigar un reporte, buscar ese código en los registros del Worker `papelitocr`.
+- Los registros propios son JSON con `event` y campos saneados (`src/lib/observability/log.ts`): sin cookies, tokens, correos, nombres, mensajes, SQL ni parámetros.
+
+## Tareas programadas (`papelitocr-jobs`)
+
+| Horario (UTC) | Tarea |
+| --- | --- |
+| `0 6 * * *` | Retención: borra los grupos cerrados hace 12 meses (medianoche de Costa Rica) |
+| `0 * * * *` | Recordatorios push. Fuera de 09:00–17:59 de Costa Rica termina sin abrir conexión a Neon |
+
+Límites de Workers Free (documentación oficial de Cloudflare, revisada el 2 de noviembre de 2026): 50 subpeticiones externas y 10 ms de CPU por invocación; 15 minutos de tiempo de reloj para cron; 5 cron por cuenta. Cada push es una subpetición y la base usa una conexión WebSocket.
+
+- Cada ejecución envía como máximo `PUSH_MAX_SENDS_PER_RUN` avisos (15 por defecto, máximo 45; variable opcional del Worker). Lo que no cabe queda sin reclamar y sale en la siguiente hora del mismo día de Costa Rica. `notification_deliveries` garantiza un aviso por dispositivo y recordatorio. Si la ejecución se interrumpe a mitad, un aviso puede repetirse una vez.
+- Las personas sin consentimiento vigente no ocupan el lote. Quien todavía no recibió el recordatorio va antes que un dispositivo que falló.
+- Cada ejecución registra `{"job":"push-reminders","delivered","failed","pending"}`. Si `pending` es `true` en la última ejecución del día (17:00), hubo más avisos que capacidad: revisar el tope.
+- **Ajuste:** en las métricas del Worker, revisar el tiempo de CPU y los errores `exceededCpu` o `exceededResources` de los primeros días con recordatorios. Si la CPU queda holgada, se puede subir el tope; si aparecen esos errores, bajarlo.
+
+## CSP en modo reporte
+
+`Content-Security-Policy-Report-Only` no bloquea nada: el navegador informa a `/api/csp-report`, que registra eventos `csp_violation` con la directiva, el tipo u origen del recurso y la ruta sin identificadores (como máximo 10 por petición). Las pruebas de navegador fallan ante cualquier informe, así que en uso normal no debería haber ninguno. Antes de aplicar la política, revisar estos eventos durante una o dos semanas (ver `docs/PROPUESTAS.md`).
+
+## Alias de Pages
+
+`cloudflare/pages-alias/dist/_worker.js` reenvía `papelitocr.pages.dev` al Worker `papelitocr` mediante un service binding. No se publica en cada cambio: el binding usa la versión activa del Worker. Solo se vuelve a publicar si cambia el alias, y hace falta un token con permiso de Pages (ver `CLOUDFLARE_PAGES.md`). El cambio de esta entrega en ese archivo solo le da nombre a la exportación (aviso de lint); su comportamiento es idéntico y no requiere publicarlo.
+
