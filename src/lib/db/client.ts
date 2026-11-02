@@ -1,5 +1,5 @@
 import 'server-only';
-import { Pool, type PoolClient } from '@neondatabase/serverless';
+import { neon, Pool } from '@neondatabase/serverless';
 
 export interface QueryResult<T = unknown> {
   rows: T[];
@@ -32,14 +32,22 @@ export function setTestDbAdapter(adapter: DbClient | null) {
   testDbAdapter = adapter;
 }
 
-function getPool(): Pool {
-  if (poolInstance) return poolInstance;
+function isWorkersRuntime(): boolean {
+  return typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
+}
+
+function connectionString(): string {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error('DATABASE_URL no está configurada.');
   }
+  return connectionString;
+}
+
+function getPool(): Pool {
+  if (poolInstance) return poolInstance;
   poolInstance = new Pool({
-    connectionString,
+    connectionString: connectionString(),
     max: 10,
     idleTimeoutMillis: 30000,
   });
@@ -53,6 +61,13 @@ export async function dbQuery<T = unknown>(
   const activeTestAdapter = getActiveTestAdapter();
   if (activeTestAdapter) {
     return activeTestAdapter.query<T>(text, params);
+  }
+
+  // HTTP has no socket to reuse across Worker request contexts.
+  if (isWorkersRuntime()) {
+    const sql = neon(connectionString(), { fullResults: true });
+    const res = await sql.query(text, params);
+    return { rows: res.rows as T[], rowCount: res.rowCount ?? res.rows.length };
   }
 
   const pool = getPool();
@@ -80,27 +95,36 @@ export async function dbTransaction<T = unknown>(
     }
   }
 
-  const pool = getPool();
-  const client: PoolClient = await pool.connect();
+  // Interactive transactions need one connection, owned by this invocation.
+  // A module-level WebSocket pool cannot survive between Worker requests.
+  const requestScoped = isWorkersRuntime();
+  const pool = requestScoped
+    ? new Pool({ connectionString: connectionString(), max: 1 })
+    : getPool();
   try {
-    await client.query('BEGIN');
-    const txClient: TransactionClient = {
-      async query<R = unknown>(text: string, params?: unknown[]) {
-        const res = await client.query(text, params);
-        return {
-          rows: res.rows as R[],
-          rowCount: res.rowCount ?? res.rows.length,
-        };
-      },
-    };
-    const result = await callback(txClient);
-    await client.query('COMMIT');
-    return result;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const txClient: TransactionClient = {
+        async query<R = unknown>(text: string, params?: unknown[]) {
+          const res = await client.query(text, params);
+          return {
+            rows: res.rows as R[],
+            rowCount: res.rowCount ?? res.rows.length,
+          };
+        },
+      };
+      const result = await callback(txClient);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   } finally {
-    client.release();
+    if (requestScoped) await pool.end();
   }
 }
 
