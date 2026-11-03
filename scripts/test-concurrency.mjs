@@ -42,6 +42,15 @@ const server = asUser
   : spawn(path.join(bin, 'postgres'), ['-D', path.join(dir, 'data'), '-p', String(port), '-h', '127.0.0.1', '-k', dir, '-c', 'fsync=off'], { stdio: 'ignore' });
 
 const pool = new pg.Pool({ host: '127.0.0.1', port, user: 'papelito', database: 'postgres', max: 12 });
+// The server can terminate idle pooled connections (57P01). pg-pool re-emits that
+// on the pool and, without a listener, Node aborts the process. It is expected
+// while stopping the server; at any other moment it fails the run.
+let stopping = false;
+const idleErrors = [];
+pool.on('error', (error) => { if (!stopping) idleErrors.push(error); });
+let openConnections = 0;
+pool.on('connect', () => { openConnections++; });
+pool.on('remove', () => { openConnections--; });
 try {
   let ready = false;
   for (let i = 0; i < 100 && !ready && server.exitCode === null; i++) {
@@ -97,8 +106,13 @@ try {
 
   await assert.rejects(pool.query("INSERT INTO exchanges (organizer_id, name, event_date, registration_deadline, budget_amount, currency, suggested_theme, selected_theme, client_request_id) VALUES ('org','x','2099-01-01','2099-01-01',1,'CRC','general','general',$1)", [requestId]), /uq_exchanges_client_request/);
   console.log('PASS base de datos: el índice único impide duplicar un intento aunque se salte el repositorio.');
+  if (idleErrors.length) throw idleErrors[0];
 } finally {
+  stopping = true;
   await pool.end().catch(() => undefined);
+  // pool.end() resolves once every connection was asked to close, not once it
+  // closed: wait for them before stopping the server.
+  for (let i = 0; i < 100 && openConnections > 0; i++) await new Promise((r) => setTimeout(r, 50));
   if (server.exitCode === null) {
     const exited = new Promise((r) => server.once('exit', r));
     server.kill('SIGINT');
