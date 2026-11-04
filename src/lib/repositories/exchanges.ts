@@ -826,12 +826,14 @@ export async function setExchangeExclusions(
 
     // Duplicates add nothing; with them removed the list is at most n·(n−1).
     const unique = [...new Map(rules.map((rule) => [`${rule.giverUserId}\u0000${rule.excludedReceiverUserId}`, rule])).values()];
-    for (const rule of unique) {
+    if (unique.length > 0) {
+      // One round trip, whatever the size of the list.
       await client.query(
         `INSERT INTO exclusions (exchange_id, giver_user_id, receiver_user_id)
-         VALUES ($1, $2, $3)
+         SELECT $1::uuid, pair.giver, pair.receiver
+         FROM unnest($2::text[], $3::text[]) AS pair(giver, receiver)
          ON CONFLICT (exchange_id, giver_user_id, receiver_user_id) DO NOTHING`,
-        [exchangeId, rule.giverUserId, rule.excludedReceiverUserId]
+        [exchangeId, unique.map((rule) => rule.giverUserId), unique.map((rule) => rule.excludedReceiverUserId)]
       );
     }
 
