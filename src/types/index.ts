@@ -10,6 +10,9 @@ export type ExchangeStatus =
 
 export type Currency = 'CRC' | 'USD';
 
+/** The caller's own paper in the current draw. Nothing about other people's papers. */
+export type OwnPaperState = 'sin_asignacion' | 'sin_abrir' | 'abierto';
+
 export interface Participant {
   id: string;
   alias: string;
@@ -81,6 +84,10 @@ export interface Exchange {
   drawNotice?: string | null;
   currentUserMemberStatus?: 'approved' | 'pending' | 'rejected';
   assignment?: Assignment;
+  /** Dashboard facts; zero for anyone who does not currently organize the group. */
+  pendingRequestCount?: number;
+  myWishCount?: number;
+  ownPaperState?: OwnPaperState;
 }
 
 export interface UserProfile {

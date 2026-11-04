@@ -41,6 +41,8 @@ export function ExchangeDetailView() {
     Array<{ giverId: string; receiverId: string }>
   >([]);
 
+  // The demo has no server: `real` is null, and calling it would read as a connection failure.
+  const DEMO_ONLY_MESSAGE = "Este grupo es de ejemplo. En tus intercambios reales, esta decisión se guarda para el grupo.";
   async function run(
     key: string,
     action: () => Promise<boolean>,
@@ -664,9 +666,10 @@ export function ExchangeDetailView() {
                         disabled={!!busy}
                         aria-busy={busy === confirmingMember.id}
                         onClick={async () => {
+                          if (!real) { setMemberConfirm(null); setError(""); setMessage(DEMO_ONLY_MESSAGE); return; }
                           const done = await run(
                             confirmingMember.id,
-                            () => real!.manageMember(confirmingMember.id, "rejected"),
+                            () => real.manageMember(confirmingMember.id, "rejected"),
                             memberConfirm.action === "reject"
                               ? `Rechazaste la solicitud de ${confirmingMember.alias}.`
                               : `${confirmingMember.alias} ya no participa.`,
@@ -697,9 +700,9 @@ export function ExchangeDetailView() {
                             className="paper-button"
                             disabled={!!busy}
                             onClick={() =>
-                              void run(
+                              !real ? (setError(""), setMessage(DEMO_ONLY_MESSAGE)) : void run(
                                 p.id,
-                                () => real!.manageMember(p.id, "approved"),
+                                () => real.manageMember(p.id, "approved"),
                                 `${p.alias} ya está en el intercambio.`,
                               )
                             }

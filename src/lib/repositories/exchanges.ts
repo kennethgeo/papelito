@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { dbQuery, dbTransaction } from '@/lib/db/client';
 import { getCostaRicaTodayDate } from '@/lib/date/costa-rica';
 import { toIsoTimestamp } from '@/lib/date/timestamps';
+import type { OwnPaperState } from '@/types';
 import {
   purgeExpiredClosedExchangesWithClient,
   type PurgeExpiredExchangesOptions,
@@ -246,7 +247,13 @@ export async function getMyExchanges(userId: string) {
     member_status: string;
     organizer_alias: string;
     participant_count: number;
+    pending_request_count: number;
+    my_wish_count: number;
+    own_paper_state: OwnPaperState;
   }>(
+    // One statement whatever the number of groups. The own assignment only joins
+    // for an approved member of a drawn group, on the current draw version, and
+    // only its state leaves this query: never the receiver or other people's openings.
     `SELECT
        e.id,
        e.name,
@@ -262,13 +269,26 @@ export async function getMyExchanges(userId: string) {
        e.min_participants,
        e.current_draw_version,
        e.closed_at::text as closed_at,
-       m.is_organizer,
+       (e.organizer_id = $1) as is_organizer,
        m.status as member_status,
        p.alias as organizer_alias,
-       (SELECT count(*)::int FROM memberships m2 WHERE m2.exchange_id = e.id AND m2.status = 'approved') as participant_count
+       (SELECT count(*)::int FROM memberships m2 WHERE m2.exchange_id = e.id AND m2.status = 'approved') as participant_count,
+       CASE WHEN e.organizer_id = $1
+         THEN (SELECT count(*)::int FROM memberships m3 WHERE m3.exchange_id = e.id AND m3.status = 'pending')
+         ELSE 0 END as pending_request_count,
+       (SELECT count(*)::int FROM wish_selections ws WHERE ws.exchange_id = e.id AND ws.user_id = $1) as my_wish_count,
+       CASE WHEN own.id IS NULL THEN 'sin_asignacion'
+            WHEN own.revealed_at IS NULL THEN 'sin_abrir'
+            ELSE 'abierto' END as own_paper_state
      FROM memberships m
      JOIN exchanges e ON e.id = m.exchange_id
      JOIN profiles p ON p.user_id = e.organizer_id
+     LEFT JOIN LATERAL (
+       SELECT a.id, a.revealed_at
+       FROM draw_versions dv
+       JOIN assignments a ON a.draw_version_id = dv.id AND a.giver_id = m.user_id
+       WHERE dv.exchange_id = e.id AND dv.version_number = e.current_draw_version
+     ) own ON m.status = 'approved' AND e.status = 'sorteado' AND e.current_draw_version > 0
      WHERE m.user_id = $1
      ORDER BY e.event_date ASC, e.created_at DESC`,
     [userId]
@@ -293,6 +313,9 @@ export async function getMyExchanges(userId: string) {
     memberStatus: row.member_status as 'approved' | 'pending' | 'rejected',
     organizerAlias: row.organizer_alias,
     participantCount: row.participant_count,
+    pendingRequestCount: row.pending_request_count,
+    myWishCount: row.my_wish_count,
+    ownPaperState: row.own_paper_state,
   }));
 }
 

@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import {
   Exchange,
+  OwnPaperState,
   UserProfile,
   Wish,
   ActiveTab,
@@ -88,6 +89,21 @@ function getStoredOrDefault<T>(key: string, defaultValue: T): T {
 
 const emptySubscribe = () => () => {};
 
+
+/** The facts `getMyExchanges` computes on the server, derived from the demo's own data. */
+function demoDashboardFacts(ex: Exchange, userId: string, wishes: Wish[]) {
+  const ownPaperState: OwnPaperState = ex.status === 'sorteado' && ex.assignment
+    ? (ex.assignment.revealed ? 'abierto' : 'sin_abrir')
+    : 'sin_asignacion';
+  return {
+    participantCount: ex.participants.filter((p) => (p.status ?? 'approved') === 'approved').length,
+    pendingRequestCount: ex.isCurrentUserOrganizer ? ex.participants.filter((p) => p.status === 'pending').length : 0,
+    myWishCount: wishes.filter((w) => (w.selectedInExchanges ?? (w.exchangeId ? [w.exchangeId] : [])).includes(ex.id)).length,
+    ownPaperState,
+    currentUserMemberStatus: ex.participants.find((p) => p.id === userId)?.status ?? ('approved' as const),
+  };
+}
+
 export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -137,6 +153,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const visibleExchanges = exchanges.map((ex) => ({
     ...ex,
+    ...demoDashboardFacts(ex, userProfile.id, userWishes),
     participants: ex.participants.map((p) => {
       if (p.id !== userProfile.id) return p;
       const count = userWishes.filter((w) =>
