@@ -8,6 +8,8 @@ import {
   EXPECTED_PAPELITO_SCHEMA,
   ALL_PAPELITO_SCHEMA,
   EXPECTED_NEON_CONFIG,
+  MIGRATION_LEDGER_TABLE,
+  applyVersionedMigrations,
 } from "./db-migrate.mjs";
 
 // Opt-in remote verification: a new child is completely sanitized before use, with fictional identities and finally-delete.
@@ -159,7 +161,7 @@ try {
       assert.match(row.id, /^[0-9a-f-]{36}$/i);
       api(`/auth/users/${row.id}`, "DELETE");
     }
-    const tables = Object.keys(ALL_PAPELITO_SCHEMA);
+    const tables = [...Object.keys(ALL_PAPELITO_SCHEMA), MIGRATION_LEDGER_TABLE];
     const actual = await pool.query(
       "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",
     );
@@ -172,8 +174,10 @@ try {
     // Additive migration only after all copied application rows are removed.
     await pool.query(fs.readFileSync(path.resolve('neon/migrations/20261018_social_and_reminders.sql'), 'utf8'));
     await pool.query(fs.readFileSync(path.resolve('neon/migrations/20261018_z_selected_features.sql'), 'utf8'));
+    const ledgerClient = await pool.connect();
+    try { await applyVersionedMigrations(ledgerClient); } finally { ledgerClient.release(); }
     for (const table of tables) {
-      if (table === 'app_locks') continue; // Two fixed lock names contain no copied personal data.
+      if (table === 'app_locks' || table === MIGRATION_LEDGER_TABLE) continue; // Fixed lock names and migration records contain no personal data.
       assert.equal(
         Number(
           (await pool.query(`SELECT count(*) AS n FROM public."${table}"`))

@@ -8,6 +8,8 @@ const requests = new AsyncLocalStorage();
 const pools = [];
 const httpCalls = [];
 let rejectConnect = false;
+let failRollback = false;
+let failEnd = false;
 
 // Simulate Workers' I/O ownership: sockets belong to their creating request.
 class RequestPool {
@@ -27,14 +29,16 @@ class RequestPool {
         assert.equal(this.closed, false);
         this.statements.push(sql);
         await Promise.resolve();
+        if (sql === 'ROLLBACK' && failRollback) throw new Error('Rollback failed on a broken socket');
         return { rows: [{ value: params?.[0] ?? 1 }], rowCount: 1 };
       },
-      release: () => { this.released = true; },
+      release: (error) => { this.released = true; this.releasedWithError = !!error; },
     };
   }
   async end() {
     assert.equal(requests.getStore(), this.owner, 'Close the connection before the request ends');
     this.closed = true;
+    if (failEnd) throw new Error('Socket close failed');
   }
 }
 
@@ -86,7 +90,28 @@ try {
     await assert.rejects(dbTransaction(async () => assert.fail('Callback must not run')), /Connect failed/);
   });
   assert.ok(pools.at(-1).closed, 'A failed connection attempt must also dispose its pool');
-  console.log('PASS Workers DB: concurrent HTTP reads, request-owned transactions, commit, rollback and cleanup on connect failure');
+  rejectConnect = false;
+  failRollback = true;
+  const logged = [];
+  const originalError = console.error;
+  console.error = (line) => logged.push(String(line));
+  try {
+    await requests.run('rollback-fails', async () => {
+      await assert.rejects(dbTransaction(async () => { throw new Error('Original business error'); }), /Original business error/,
+        'a failed ROLLBACK must not replace the original error');
+    });
+    assert.ok(pools.at(-1).releasedWithError, 'a connection whose ROLLBACK failed is destroyed, not reused');
+    failRollback = false;
+    failEnd = true;
+    const committed = await requests.run('end-fails', () => dbTransaction(async (client) => (await client.query('SELECT $1 AS value', ['ok'])).rows[0].value));
+    assert.equal(committed, 'ok', 'a committed transaction is not reported as failed because closing the socket failed');
+    failEnd = false;
+  } finally {
+    console.error = originalError;
+  }
+  assert.ok(logged.some((line) => line.includes('db.rollback_failed')) && logged.some((line) => line.includes('db.pool_end_failed')), 'cleanup failures are logged, not hidden');
+  assert.ok(logged.every((line) => !line.includes('broken socket') && !line.includes('Socket close failed')), 'logs carry the error class, not its message');
+  console.log('PASS Workers DB: concurrent HTTP reads, request-owned transactions, commit, rollback, cleanup on connect failure and failed ROLLBACK/close');
 } finally {
   if (originalNavigator) Object.defineProperty(globalThis, 'navigator', originalNavigator);
   else delete globalThis.navigator;

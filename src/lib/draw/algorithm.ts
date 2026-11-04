@@ -12,7 +12,7 @@ export interface DrawPair {
 
 export type DrawResult =
   | { success: true; pairs: DrawPair[] }
-  | { success: false; reason: string };
+  | { success: false; reason: string; participantId?: string; code?: 'NO_RECEIVER' | 'NO_GIVER' | 'IMPOSSIBLE' };
 
 /**
  * Maximum supported participants per exchange to guarantee deterministic
@@ -172,7 +172,9 @@ export function computeSecretSantaDraw(
     if (adj[u].length === 0) {
       return {
         success: false,
-        reason: `El participante con ID ${giverId} no tiene ningún destinatario posible debido a las exclusiones configuradas.`,
+        reason: 'Una persona no tiene a quién regalar con las restricciones configuradas.',
+        participantId: giverId,
+        code: 'NO_RECEIVER',
       };
     }
   }
@@ -190,7 +192,9 @@ export function computeSecretSantaDraw(
       const receiverId = uniqueParticipants[v];
       return {
         success: false,
-        reason: `El participante con ID ${receiverId} no puede recibir regalo de nadie debido a las exclusiones configuradas.`,
+        reason: 'Una persona no puede recibir regalo de nadie con las restricciones configuradas.',
+        participantId: receiverId,
+        code: 'NO_GIVER',
       };
     }
   }
@@ -202,7 +206,8 @@ export function computeSecretSantaDraw(
     return {
       success: false,
       reason:
-        'Las exclusiones configuradas impiden encontrar una combinación donde todos reciban y entreguen un regalo (incompatibilidad de subconjunto según condición de Hall). Por favor reduce las exclusiones.',
+        'Las restricciones no permiten que todas las personas regalen y reciban. Quitá alguna restricción y volvé a intentar.',
+      code: 'IMPOSSIBLE',
     };
   }
 

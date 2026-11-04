@@ -64,9 +64,10 @@ async function runTests() {
   const migrationSql = fs.readFileSync(migrationPath, 'utf8');
   assert(!migrationSql.includes('CREATE EXTENSION'), 'La migración no debe requerir CREATE EXTENSION pgcrypto');
   await pg.exec(migrationSql);
-  await pg.exec(fs.readFileSync(path.join(rootDir, 'neon/migrations/20261017_retention_and_lifecycle.sql'), 'utf8'));
-  await pg.exec(fs.readFileSync(path.join(rootDir, 'neon/migrations/20261018_social_and_reminders.sql'), 'utf8'));
-  await pg.exec(fs.readFileSync(path.join(rootDir, 'neon/migrations/20261018_z_selected_features.sql'), 'utf8'));
+  // Every later migration, in file order (new ones are picked up automatically).
+  for (const file of fs.readdirSync(path.join(rootDir, 'neon/migrations')).sort().filter((f) => f !== '20261016_init_papelito_neon.sql')) {
+    await pg.exec(fs.readFileSync(path.join(rootDir, 'neon/migrations', file), 'utf8'));
+  }
   console.log('✓ 1. Esquema SQL de Neon ejecutado limpiamente en PostgreSQL (PGlite, gen_random_uuid nativo)');
 
   // 2. Verificar guardia NODE_ENV==='test' en setTestDbAdapter e inyectar adaptador PGlite
@@ -415,7 +416,7 @@ async function runTests() {
 
   await assertThrows(
     () => getExchangeDetails(exchangeId, userF),
-    'No tienes acceso',
+    'No tenés acceso',
     'Usuario externo no debe poder leer detalles del intercambio'
   );
   console.log('✓ 5. Gestión de miembros, preservación de estado rejected, tema y conteo real verificados');
@@ -456,7 +457,7 @@ async function runTests() {
   ]);
   await assertThrows(
     () => executeAndCommitDraw(exchangeId, userA, 0),
-    'no tiene ningún destinatario posible',
+    'no tiene a quién regalar',
     'Sorteo imposible por exclusiones debe abortar sin persistir cambios'
   );
 
@@ -529,12 +530,12 @@ async function runTests() {
   // Hallazgo 9: revealAssignment debe lanzar error si el usuario no tiene asignación activa
   await assertThrows(
     () => revealAssignment(exchangeId, userD),
-    'No tienes una asignación activa',
+    'No tenés una asignación activa',
     'Hallazgo 9: revealAssignment debe fallar para miembro pendiente sin asignación'
   );
   await assertThrows(
     () => revealAssignment(exchangeId, userF),
-    'No tienes una asignación activa',
+    'No tenés una asignación activa',
     'Hallazgo 9: revealAssignment debe fallar para usuario externo'
   );
 
@@ -552,12 +553,12 @@ async function runTests() {
   );
   await assertThrows(
     () => revealAssignment(exchangeId, userB),
-    'No tienes una asignación activa',
+    'No tenés una asignación activa',
     'Punto 3: revealAssignment debe rechazar si la membresía ya no es approved'
   );
   await assertThrows(
     () => toggleWishPurchase(exchangeId, userB, wishClaraLinked.wishId, true),
-    'No tienes asignación autorizada',
+    'No tenés una asignación vigente para regalar',
     'Punto 3: toggleWishPurchase debe rechazar si la membresía ya no es approved'
   );
   const exportRejectedB = await exportUserData(userB);

@@ -2,7 +2,7 @@
 
 **Dirección pública:** https://papelitocr.pages.dev
 
-Papelito necesita un Worker para SSR, rutas API, autenticación y conexión a Neon. El proyecto Pages **papelitocr** ofrece una dirección corta, como la de ParqueoEV, mediante cloudflare/pages-alias/dist/_worker.js. Esa función usa el service binding **PAPELITO_WEB** para reenviar cada petición al Worker **papelitocr**. El Worker y sus assets se despliegan en cada cambio de main mediante cloudflare-production.yml. Pages no requiere un nuevo despliegue por cada cambio del Worker: el binding llama a su versión activa.
+Papelito necesita un Worker para SSR, rutas API, autenticación y conexión a Neon. El proyecto Pages **papelitocr** ofrece una dirección corta, como la de ParqueoEV, mediante cloudflare/pages-alias/dist/_worker.js. Esa función usa el service binding **PAPELITO_WEB** para reenviar cada petición al Worker **papelitocr**. El Worker y sus assets se despliegan en cada cambio de main mediante el job deploy-web de ci.yml, después de que pasen las pruebas. Pages no requiere un nuevo despliegue por cada cambio del Worker: el binding llama a su versión activa.
 
 El proyecto Pages fue creado y su despliegue inicial se realizó con la API de Cloudflare. cloudflare/pages-alias/wrangler.jsonc conserva la configuración del alias para futuras modificaciones. La automatización de Pages se retiró porque el token actual de GitHub Actions solo permite desplegar Workers y Cloudflare rechazó la operación Pages con el código 10000. Si se modifica la función del alias, se debe desplegar de nuevo con credenciales que tengan Pages Edit; la actualización normal de la aplicación no lo requiere.
 

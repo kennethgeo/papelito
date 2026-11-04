@@ -1,7 +1,8 @@
 'use server';
 import { cookies, headers } from 'next/headers';
 import { requireUser, safeAction, PublicError } from './access';
-import { registrationOptions, authenticationOptions, finishRegistration, finishAuthentication, listAccountAccess, removePasskey, revokeAccountSession } from '@/lib/repositories/passkeys';
+import { registrationOptions, authenticationOptions, finishRegistration, finishAuthentication, listAccountAccess, removePasskey, revokeAccountSession, type ProviderRevocation } from '@/lib/repositories/passkeys';
+import { logError } from '@/lib/observability/log';
 import { clearPasskeySession, getPasskeySession, passkeyCookie } from '@/lib/auth/passkey-session';
 import { getNeonAuth } from '@/lib/auth/server';
 import type { RegistrationResponseJSON, AuthenticationResponseJSON } from '@simplewebauthn/server';
@@ -27,5 +28,21 @@ export async function accountAccessAction() { return safeAction(async () => {
   return { ...data, currentCredentialId: own?.credentialId, neon: data.neon.map(s => ({ ...s, current: !own && s.id === neon?.data?.session?.id })) };
 }); }
 export async function removePasskeyAction(id: string) { return safeAction(async () => { const u = await requireUser(true); if (typeof id !== 'string') throw new PublicError('Passkey inválida.'); await removePasskey(u.id, id); return true; }); }
-export async function revokeSessionAction(id: string, kind: 'neon' | 'passkey') { return safeAction(async () => revokeAccountSession((await requireUser()).id, id, kind)); }
+/** Revokes a Neon Auth session by its public id; the secret token is looked up and used only here. */
+async function revokeAtNeonAuth(sessionId: string): Promise<ProviderRevocation> {
+  const auth = getNeonAuth();
+  if (!auth) return 'unavailable';
+  const listed = await auth.listSessions();
+  if (listed.error) return 'unavailable';
+  const sessions = (Array.isArray(listed.data) ? listed.data : []) as Array<{ id?: unknown; token?: unknown }>;
+  const target = sessions.find((session) => session.id === sessionId);
+  if (!target) return 'not-found';
+  if (typeof target.token !== 'string') return 'unavailable';
+  const revoked = await auth.revokeSession({ token: target.token });
+  if (revoked.error) { logError('auth.provider_revoke_failed', revoked.error); return 'unavailable'; }
+  return 'revoked';
+}
+export async function revokeSessionAction(id: string, kind: 'neon' | 'passkey') {
+  return safeAction(async () => revokeAccountSession((await requireUser()).id, id, kind, kind === 'neon' ? revokeAtNeonAuth : undefined));
+}
 export async function clearPasskeyLoginAction() { return safeAction(async () => { await clearPasskeySession(); return true; }); }

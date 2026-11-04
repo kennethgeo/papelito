@@ -40,7 +40,7 @@ export const ConsentGateCard: React.FC<ConsentGateCardProps> = ({
     setLocalError(null);
 
     if (!termsBox || !privacyBox) {
-      setLocalError('Debes marcar ambas casillas para confirmar tu consentimiento informado.');
+      setLocalError('Marcá ambas casillas para confirmar tu consentimiento informado.');
       return;
     }
 
@@ -49,13 +49,13 @@ export const ConsentGateCard: React.FC<ConsentGateCardProps> = ({
       const result = await onConfirm(true, true);
       if (typeof result === 'boolean') {
         if (!result) {
-          setLocalError('No se pudo registrar el consentimiento. Inténtalo nuevamente.');
+          setLocalError('No se pudo registrar el consentimiento. Intentá de nuevo.');
         }
       } else if (!result.ok) {
-        setLocalError(result.error || 'No se pudo registrar el consentimiento. Inténtalo nuevamente.');
+        setLocalError(result.error || 'No se pudo registrar el consentimiento. Intentá de nuevo.');
       }
     } catch {
-      setLocalError('Ocurrió un error al registrar tu consentimiento. Inténtalo nuevamente.');
+      setLocalError('Ocurrió un error al registrar tu consentimiento. Intentá de nuevo.');
     } finally {
       setSubmitting(false);
     }

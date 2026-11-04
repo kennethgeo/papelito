@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOptionalDemoData } from "@/context/DemoDataContext";
 import { useOptionalRealData } from "@/context/RealDataContext";
 import { THEME_CONFIG } from "@/lib/theme";
 import { formatEventDate, formatMoney } from "@/lib/event-dates";
+import { getCostaRicaTodayDate } from "@/lib/date/costa-rica";
+import { countdownText } from "@/lib/calendar";
 import type { ThemeKey } from "@/types";
 import { ExchangeLifecycleControls } from "@/components/ExchangeLifecycleControls";
 import { PaperIllustration } from "@/components/PaperIllustration";
@@ -19,6 +21,7 @@ export function ExchangeDetailView() {
   const demo = useOptionalDemoData();
   const exchange = real ? real.currentExchange : demo?.currentExchange;
   const navigate = real?.navigateTo ?? demo?.navigateTo;
+  const goBack = real?.goBack ?? demo?.goBack;
   const [busy, setBusy] = useState("");
   const lock = useRef(false);
   const [message, setMessage] = useState("");
@@ -31,6 +34,9 @@ export function ExchangeDetailView() {
   const [giver, setGiver] = useState("");
   const [receiver, setReceiver] = useState("");
   const [mutual, setMutual] = useState(true);
+  const [memberConfirm, setMemberConfirm] = useState<{ id: string; action: "reject" | "remove" } | null>(null);
+  const memberConfirmTitle = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (memberConfirm) memberConfirmTitle.current?.focus(); }, [memberConfirm]);
   const [demoRules, setDemoRules] = useState<
     Array<{ giverId: string; receiverId: string }>
   >([]);
@@ -99,6 +105,10 @@ export function ExchangeDetailView() {
     (p) => (p.status ?? "approved") === "approved",
   );
   const pending = ex.participants.filter((p) => p.status === "pending");
+  const rejected = ex.participants.filter((p) => p.status === "rejected");
+  // Changing who participates is only possible before the draw.
+  const canManageMembers = !!real && ex.isCurrentUserOrganizer && ex.status === "inscripcion_abierta";
+  const confirmingMember = memberConfirm ? ex.participants.find((p) => p.id === memberConfirm.id) : undefined;
   const missing = approved.filter((p) => !p.wishCount);
   const closed = ["finalizado", "cancelado"].includes(ex.status);
   const canEnter = (ex.currentUserMemberStatus ?? "approved") === "approved";
@@ -109,6 +119,7 @@ export function ExchangeDetailView() {
   const enough = approved.length >= ex.minParticipants;
   const drawn = ex.status === "sorteado";
   const repeated = (ex.currentDrawVersion ?? 0) > 0;
+  const registrationOpen = ex.status === "inscripcion_abierta" && getCostaRicaTodayDate() <= ex.registrationDeadline;
   const alias = (id: string) =>
     ex.participants.find((p) => p.id === id)?.alias ?? "Participante";
   const invitationUrl = () =>
@@ -227,7 +238,7 @@ export function ExchangeDetailView() {
       <div className="section-heading">
         <button
           className="paper-text-button back-link"
-          onClick={() => navigate?.("intercambios_lista")}
+          onClick={() => goBack?.("intercambios_lista")}
         >
           ← Mis intercambios
         </button>
@@ -257,7 +268,10 @@ export function ExchangeDetailView() {
           <dl className="event-facts">
             <div>
               <dt>Entrega</dt>
-              <dd>{formatEventDate(ex.eventDate)}</dd>
+              <dd>
+                {formatEventDate(ex.eventDate)}
+                {!closed && <small className="event-countdown">{countdownText(ex.eventDate, getCostaRicaTodayDate(), "entrega")}</small>}
+              </dd>
             </div>
             <div>
               <dt>Por regalo</dt>
@@ -331,9 +345,127 @@ export function ExchangeDetailView() {
               </button>
             </section>
           )}
+          {/* While people can still join, inviting is the organizer's next step: first on every screen size. */}
+          {canInvite && (
+            <section className="workshop-sheet invite-sheet">
+              <p className="workshop-step">El siguiente paso</p>
+              <h2>Pasá la invitación.</h2>
+              {!shareUnavailable && <InvitationQR url={real ? `/unirse/${ex.inviteCode}` : '/?mode=demo'} name={ex.name} />}
+              {!real && <p className="field-help">El QR de ejemplo abre la demo; las invitaciones reales se crean con tu cuenta.</p>}
+              <p>
+                Compartí el enlace con tu familia o tus amigos.
+                {ex.requiresApproval && " Vos decidís quién entra."}
+              </p>
+              <div className="invite-actions">
+                <button
+                  className="paper-button"
+                  onClick={shareInvite}
+                  disabled={shareUnavailable}
+                >
+                  Compartir invitación
+                </button>
+                <button
+                  className="paper-outline-button"
+                  onClick={copyInvite}
+                  disabled={shareUnavailable}
+                >
+                  Copiar enlace
+                </button>
+                <button
+                  className="paper-text-button"
+                  onClick={() => {
+                    if (real) setShareUrl(invitationUrl());
+                    else void copyInvite();
+                  }}
+                  disabled={shareUnavailable}
+                >
+                  Preparar para WhatsApp
+                </button>
+              </div>
+              {shareUnavailable && (
+                <p className="field-help">
+                  No hay una invitación vigente. Revisá el cierre de
+                  inscripción antes de renovar el enlace.
+                </p>
+              )}
+              {shareUrl && (
+                <a
+                  className="paper-outline-button"
+                  href={`https://wa.me/?text=${encodeURIComponent(`¡Te invito a ${ex.name} en Papelito! ${shareUrl}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Abrir WhatsApp ↗
+                </a>
+              )}
+              {copyFallback && (
+                <label className="workshop-field">
+                  Copiá este enlace
+                  <input
+                    readOnly
+                    value={copyFallback}
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <small>
+                    No pudimos usar el portapapeles. Seleccioná y copiá el
+                    enlace.
+                  </small>
+                </label>
+              )}
+              {real && (
+                <details className="workshop-options">
+                  <summary>Reemplazar el enlace</summary>
+                  <p>
+                    El enlace anterior dejará de funcionar. Usalo si se
+                    compartió con personas que no conocés.
+                  </p>
+                  {!renew ? (
+                    <button
+                      className="paper-text-button"
+                      onClick={() => setRenew(true)}
+                    >
+                      Quiero cambiarlo
+                    </button>
+                  ) : (
+                    <div className="workshop-actions">
+                      <button
+                        className="paper-outline-button"
+                        disabled={!!busy}
+                        onClick={() =>
+                          void run(
+                            "invite",
+                            async () => {
+                              const token = await real.regenerateInviteLink(
+                                ex.id,
+                              );
+                              if (!token) return false;
+                              setShareUrl("");
+                              setCopyFallback("");
+                              setRenew(false);
+                              return true;
+                            },
+                            "Enlace renovado. Copiá o compartí la nueva invitación.",
+                          )
+                        }
+                      >
+                        Confirmar cambio de enlace
+                      </button>
+                      <button
+                        className="paper-text-button"
+                        onClick={() => setRenew(false)}
+                        disabled={!!busy}
+                      >
+                        Conservar enlace
+                      </button>
+                    </div>
+                  )}
+                </details>
+              )}
+            </section>
+          )}
           <div className="detail-columns">
             <div>
-              {!closed && (
+              {!closed && (owner || !drawn) && (
                 <section className="workshop-sheet readiness-sheet">
                   <p className="workshop-step">Antes de repartir secretos</p>
                   <h2>
@@ -415,9 +547,24 @@ export function ExchangeDetailView() {
                           `${pending.length} solicitudes pendientes quedarán fuera.`}{" "}
                         Cada persona verá únicamente a quien le corresponde.
                       </p>
+                      {!repeated && registrationOpen && (
+                        <p>
+                          La inscripción sigue abierta hasta el{" "}
+                          {formatEventDate(ex.registrationDeadline)}. Si sorteás
+                          ahora, nadie más podrá unirse con el enlace.
+                        </p>
+                      )}
+                      {approved.length === 3 && (
+                        <p>
+                          Con solo 3 personas, cada quien puede deducir quién le
+                          regala. Si el secreto importa, sumá a alguien más antes
+                          de sortear.
+                        </p>
+                      )}
                       {repeated && (
                         <label className="workshop-field">
                           Motivo del nuevo sorteo
+                          <small>Todas las personas del grupo van a ver este motivo; no nombres a nadie por su asignación.</small>
                           <textarea
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
@@ -471,6 +618,7 @@ export function ExchangeDetailView() {
                         <strong>
                           {p.alias}
                           {p.isOrganizer && <small> · Organiza</small>}
+                          {p.represented && <small> · A cargo de otra persona</small>}
                         </strong>
                         <span>
                           {p.wishCount
@@ -478,6 +626,16 @@ export function ExchangeDetailView() {
                             : "Todavía sin pistas"}
                         </span>
                       </div>
+                      {canManageMembers && !p.isOrganizer && (
+                        <button
+                          className="paper-text-button participant-action"
+                          disabled={!!busy}
+                          aria-label={`Quitar a ${p.alias} del intercambio`}
+                          onClick={() => setMemberConfirm({ id: p.id, action: "remove" })}
+                        >
+                          Quitar
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -487,6 +645,47 @@ export function ExchangeDetailView() {
                 >
                   Preparar mis deseos
                 </button>
+                {confirmingMember && memberConfirm && (
+                  <div className="confirmation-note" role="group" aria-labelledby="member-confirm-title">
+                    <h3 id="member-confirm-title" tabIndex={-1} ref={memberConfirmTitle}>
+                      {memberConfirm.action === "reject"
+                        ? `¿Rechazar a ${confirmingMember.alias}?`
+                        : `¿Quitar a ${confirmingMember.alias} del intercambio?`}
+                    </h3>
+                    <p>
+                      {memberConfirm.action === "reject"
+                        ? "No va a poder entrar con este enlace."
+                        : "Deja de participar en el sorteo y se borran las restricciones donde aparece. Sus deseos personales se conservan."}{" "}
+                      Si tiene personas a cargo en este intercambio, también salen. Podés volver a aprobar a {confirmingMember.alias} desde «Solicitudes rechazadas» antes del sorteo.
+                    </p>
+                    <div className="workshop-actions">
+                      <button
+                        className="paper-button"
+                        disabled={!!busy}
+                        aria-busy={busy === confirmingMember.id}
+                        onClick={async () => {
+                          const done = await run(
+                            confirmingMember.id,
+                            () => real!.manageMember(confirmingMember.id, "rejected"),
+                            memberConfirm.action === "reject"
+                              ? `Rechazaste la solicitud de ${confirmingMember.alias}.`
+                              : `${confirmingMember.alias} ya no participa.`,
+                          );
+                          if (done) setMemberConfirm(null);
+                        }}
+                      >
+                        {memberConfirm.action === "reject" ? "Sí, rechazar" : "Sí, quitar"}
+                      </button>
+                      <button
+                        className="paper-text-button"
+                        disabled={!!busy}
+                        onClick={() => setMemberConfirm(null)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {owner && pending.length > 0 && (
                   <div className="pending-members">
                     <h3>Están tocando la puerta</h3>
@@ -510,13 +709,7 @@ export function ExchangeDetailView() {
                           <button
                             className="paper-text-button"
                             disabled={!!busy}
-                            onClick={() =>
-                              void run(
-                                p.id,
-                                () => real!.manageMember(p.id, "rejected"),
-                                "Solicitud rechazada.",
-                              )
-                            }
+                            onClick={() => setMemberConfirm({ id: p.id, action: "reject" })}
                           >
                             Rechazar a {p.alias}
                           </button>
@@ -525,126 +718,33 @@ export function ExchangeDetailView() {
                     ))}
                   </div>
                 )}
+                {canManageMembers && rejected.length > 0 && (
+                  <details className="workshop-options">
+                    <summary>Solicitudes rechazadas ({rejected.length})</summary>
+                    <p className="field-help">Podés volver a aprobar a alguien mientras la inscripción esté abierta.</p>
+                    {rejected.map((p) => (
+                      <div key={p.id} className="pending-row">
+                        <strong>{p.alias}</strong>
+                        <button
+                          className="paper-outline-button"
+                          disabled={!!busy}
+                          onClick={() =>
+                            void run(
+                              p.id,
+                              () => real!.manageMember(p.id, "approved"),
+                              `${p.alias} volvió al intercambio.`,
+                            )
+                          }
+                        >
+                          Volver a aprobar a {p.alias}
+                        </button>
+                      </div>
+                    ))}
+                  </details>
+                )}
               </section>
             </div>
             <aside>
-              {canInvite && (
-                <section className="workshop-sheet invite-sheet">
-                  <p className="workshop-step">El siguiente paso</p>
-                  <h2>Pasá la invitación.</h2>
-                  {!shareUnavailable && <InvitationQR url={real ? `/unirse/${ex.inviteCode}` : '/?mode=demo'} name={ex.name} />}
-                  {!real && <p className="field-help">El QR de ejemplo abre la demo; las invitaciones reales se crean con tu cuenta.</p>}
-                  <p>
-                    Compartí el enlace con tu familia o tus amigos.
-                    {ex.requiresApproval && " Vos decidís quién entra."}
-                  </p>
-                  <div className="invite-actions">
-                    <button
-                      className="paper-button"
-                      onClick={shareInvite}
-                      disabled={shareUnavailable}
-                    >
-                      Compartir invitación
-                    </button>
-                    <button
-                      className="paper-outline-button"
-                      onClick={copyInvite}
-                      disabled={shareUnavailable}
-                    >
-                      Copiar enlace
-                    </button>
-                    <button
-                      className="paper-text-button"
-                      onClick={() => {
-                        if (real) setShareUrl(invitationUrl());
-                        else void copyInvite();
-                      }}
-                      disabled={shareUnavailable}
-                    >
-                      Preparar para WhatsApp
-                    </button>
-                  </div>
-                  {shareUnavailable && (
-                    <p className="field-help">
-                      No hay una invitación vigente. Revisá el cierre de
-                      inscripción antes de renovar el enlace.
-                    </p>
-                  )}
-                  {shareUrl && (
-                    <a
-                      className="paper-outline-button"
-                      href={`https://wa.me/?text=${encodeURIComponent(`¡Te invito a ${ex.name} en Papelito! ${shareUrl}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Abrir WhatsApp ↗
-                    </a>
-                  )}
-                  {copyFallback && (
-                    <label className="workshop-field">
-                      Copiá este enlace
-                      <input
-                        readOnly
-                        value={copyFallback}
-                        onFocus={(e) => e.target.select()}
-                      />
-                      <small>
-                        No pudimos usar el portapapeles. Seleccioná y copiá el
-                        enlace.
-                      </small>
-                    </label>
-                  )}
-                  {real && (
-                    <details className="workshop-options">
-                      <summary>Reemplazar el enlace</summary>
-                      <p>
-                        El enlace anterior dejará de funcionar. Usalo si se
-                        compartió con personas que no conocés.
-                      </p>
-                      {!renew ? (
-                        <button
-                          className="paper-text-button"
-                          onClick={() => setRenew(true)}
-                        >
-                          Quiero cambiarlo
-                        </button>
-                      ) : (
-                        <div className="workshop-actions">
-                          <button
-                            className="paper-outline-button"
-                            disabled={!!busy}
-                            onClick={() =>
-                              void run(
-                                "invite",
-                                async () => {
-                                  const token = await real.regenerateInviteLink(
-                                    ex.id,
-                                  );
-                                  if (!token) return false;
-                                  setShareUrl("");
-                                  setCopyFallback("");
-                                  setRenew(false);
-                                  return true;
-                                },
-                                "Enlace renovado. Copiá o compartí la nueva invitación.",
-                              )
-                            }
-                          >
-                            Confirmar cambio de enlace
-                          </button>
-                          <button
-                            className="paper-text-button"
-                            onClick={() => setRenew(false)}
-                            disabled={!!busy}
-                          >
-                            Conservar enlace
-                          </button>
-                        </div>
-                      )}
-                    </details>
-                  )}
-                </section>
-              )}
               {owner && !closed && (
                 <section className="workshop-sheet">
                   <details className="workshop-options">

@@ -161,7 +161,9 @@ export async function runStandaloneRetentionTransaction(
 }
 
 /**
- * Handler for the Netlify Scheduled Function (`netlify/functions/retention-cleanup.mts`).
+ * Historical: handler for the former Netlify Scheduled Function
+ * (`netlify/functions/retention-cleanup.mts`), kept for the documented Netlify
+ * rollback. Production runs retention from `cloudflare/scheduler.ts`.
  * Per Netlify Scheduled Functions specification, scheduled functions cannot be invoked via
  * public HTTP routes in production; Netlify's platform scheduler invokes them via POST
  * with `{ "next_run": "<ISO-8601 timestamp>" }`. Does not trust spoofable HTTP headers.

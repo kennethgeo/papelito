@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { buildSafeAuthDestination } from '@/lib/auth/auth-helpers';
 import { PaperBrand } from '@/components/PaperBrand';
 import { PaperIllustration } from '@/components/PaperIllustration';
 import { PaperAccessCard } from '@/components/PaperAccessCard';
@@ -10,6 +11,10 @@ import { InstallGuide } from '@/components/InstallGuide';
 
 export function PaperWelcome() {
   const router = useRouter();
+  const params = useSearchParams();
+  // After «Volver a ingresar» the person returns to the action they started.
+  const next = buildSafeAuthDestination(params.get('next'));
+  const reauth = params.get('reingreso') === '1' && next !== '/';
 
   return (
     <div className="paper-welcome">
@@ -17,7 +22,6 @@ export function PaperWelcome() {
         <PaperBrand />
         <span>Un pequeño gran secreto.</span>
       </header>
-      <InstallGuide compact />
 
       <div className="paper-welcome-grid">
         <section className="paper-welcome-story">
@@ -47,7 +51,8 @@ export function PaperWelcome() {
             Entrá con tu correo o con Google para guardar tus intercambios y volver a tu papelito cuando quieras.
           </p>
 
-          <PaperAccessCard nextUrl="/" />
+          {reauth && <p className="reauth-note" role="status"><strong>Ingresá de nuevo para continuar.</strong> Después volvés a lo que estabas haciendo.</p>}
+          <PaperAccessCard nextUrl={next} />
 
           <div className="paper-try-demo">
             <p>¿Primero una miradita?</p>
@@ -68,6 +73,9 @@ export function PaperWelcome() {
           </p>
         </section>
       </div>
+
+      {/* Installing comes after knowing what Papelito is and how to get in. */}
+      <div className="paper-welcome-install"><InstallGuide compact /></div>
 
       <footer className="paper-welcome-footer">
         <span>Para regalar con ganas.</span>

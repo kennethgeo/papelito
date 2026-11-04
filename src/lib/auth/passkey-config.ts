@@ -1,11 +1,14 @@
 import 'server-only';
-// Server-only override permits testing the same build on an isolated origin.
-// NEXT_PUBLIC_* is inlined by Next, including statically propagated aliases.
+// The origin passkeys are bound to (the WebAuthn relying party). It must be the
+// public address people open: PAPELITO_APP_URL (server-only, lets the same
+// build be tested on an isolated origin) or NEXT_PUBLIC_APP_URL (inlined by
+// Next, including statically propagated aliases). Production never guesses a
+// host: without either variable, passkeys are refused rather than bound to an
+// old or wrong origin. Local development and tests use the Next dev origin.
 export function passkeyAppURL() {
   const configured = process.env.PAPELITO_APP_URL || process.env.NEXT_PUBLIC_APP_URL;
   if (configured) return configured;
-  if (navigator.userAgent === 'Cloudflare-Workers') {
-    throw new Error('PAPELITO_APP_URL es obligatoria en Cloudflare para vincular passkeys al origen correcto.');
-  }
-  return 'https://papelitocr.netlify.app';
+  const workers = typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
+  if (!workers && process.env.NODE_ENV !== 'production') return 'http://localhost:3000';
+  throw new Error('Falta PAPELITO_APP_URL o NEXT_PUBLIC_APP_URL para vincular las passkeys al origen correcto.');
 }

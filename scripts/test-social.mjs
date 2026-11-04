@@ -13,7 +13,7 @@ const { createExchangeWithInvitation, acceptInvitationAtomic, manageMemberStatus
 const { executeAndCommitDraw } = await import('../src/lib/repositories/draw.ts');
 const { getMyAssignment } = await import('../src/lib/repositories/assignments.ts');
 const { getAnonymousThreads, sendAnonymousMessage, saveGiftPreferences } = await import('../src/lib/repositories/social.ts');
-const { createPushService, validatePushSubscription, getPushKeys } = await import('../src/lib/notifications/delivery.ts');
+const { createPushService, validatePushSubscription, getPushKeys, isReminderHour, parseMaxSendsPerRun, DEFAULT_MAX_SENDS_PER_RUN, MAX_SENDS_PER_RUN_CEILING } = await import('../src/lib/notifications/delivery.ts');
 const { LEGAL_CONSTANTS } = await import('../src/lib/legal/constants.ts');
 const pg = new PGlite();
 for (const file of fs.readdirSync('neon/migrations').sort()) await pg.exec(fs.readFileSync(`neon/migrations/${file}`, 'utf8'));
@@ -101,4 +101,59 @@ try {
   const afterThreeDays = deliveries;
   await service.sendDueReminders(new Date('2099-12-23T15:00:00Z'), mock); assert(deliveries > afterThreeDays);
   console.log('PASS recordatorios: horario de Costa Rica, cierre de inscripción, entrega a tres/un día y ejecución repetida sin duplicados.');
+
+  // Bounded runs: a cap per run, the rest on the next run, no duplicates,
+  // never-attempted people first and no batch slots taken by people without consent.
+  assert.equal(isReminderHour(new Date('2099-12-09T14:59:00Z')), false); // 08:59 Costa Rica
+  assert.equal(isReminderHour(new Date('2099-12-09T15:00:00Z')), true); // 09:00
+  assert.equal(isReminderHour(new Date('2099-12-09T23:59:00Z')), true); // 17:59
+  assert.equal(isReminderHour(new Date('2099-12-10T00:00:00Z')), false); // 18:00
+  assert.equal(parseMaxSendsPerRun(undefined), DEFAULT_MAX_SENDS_PER_RUN);
+  assert.equal(parseMaxSendsPerRun('abc'), DEFAULT_MAX_SENDS_PER_RUN);
+  assert.equal(parseMaxSendsPerRun('0'), DEFAULT_MAX_SENDS_PER_RUN);
+  assert.equal(parseMaxSendsPerRun('5'), 5);
+  assert.equal(parseMaxSendsPerRun('5000'), MAX_SENDS_PER_RUN_CEILING);
+  const crowd = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6'];
+  const crowdExchange = await createExchangeWithInvitation('a', { ...input, name: 'Grupo grande', registrationDeadline: '2099-11-20', eventDate: '2099-11-30' });
+  for (const id of crowd) {
+    await getOrCreateProfile(id, `${id}@example.com`, `Persona ${id}`); await recordConsent(id, LEGAL_CONSTANTS.VERSION, LEGAL_CONSTANTS.VERSION);
+    await acceptInvitationAtomic(crowdExchange.inviteToken, id); await manageMemberStatus(crowdExchange.exchangeId, id, 'approved', 'a');
+    await service.savePushSubscription(id, { endpoint: `https://fcm.googleapis.com/fcm/send/ficticio-${id}`, keys: sub.keys });
+  }
+  // r1 and r2 revoked consent: they must not count against the cap.
+  await revokeConsent('r1'); await revokeConsent('r2');
+  const crowdDay = new Date('2099-11-19T16:00:00Z'); // 10:00 Costa Rica, the day before registration closes.
+  const who = (target) => target.endpoint.split('ficticio-')[1] ?? 'a'; // 'a' organizes and also has a device.
+  const sentTo = []; const authorizations = new Set();
+  const crowdSend = async (target, _payload, options) => {
+    sentTo.push(who(target)); authorizations.add(options.headers.Authorization);
+    // The cached header is what web-push sends (no per-message VAPID signing).
+    assert.equal(webpush.generateRequestDetails(target, 'x', options).headers.Authorization, options.headers.Authorization);
+    return {};
+  };
+  const first = await service.sendDueReminders(crowdDay, crowdSend, { maxSends: 2 });
+  assert.equal(first.delivered, 2); assert.equal(first.pending, true);
+  assert(!sentTo.includes('r1') && !sentTo.includes('r2'));
+  assert.equal(authorizations.size, 1); assert(/^vapid t=[\w-]+\.[\w-]+\.[\w-]+, k=/.test([...authorizations][0]));
+  // The next run continues with the remaining people; a repeated send never happens.
+  const second = await service.sendDueReminders(new Date('2099-11-19T17:00:00Z'), crowdSend, { maxSends: 2 });
+  assert.equal(second.delivered, 2);
+  const third = await service.sendDueReminders(new Date('2099-11-19T18:00:00Z'), crowdSend, { maxSends: 2 });
+  assert.equal(third.delivered, 1); assert.equal(third.pending, false);
+  const fourth = await service.sendDueReminders(new Date('2099-11-19T19:00:00Z'), crowdSend, { maxSends: 2 });
+  assert.equal(fourth.delivered, 0); assert.equal(fourth.pending, false);
+  assert.deepEqual([...sentTo].sort(), ['a', 'r3', 'r4', 'r5', 'r6']);
+  // A device that keeps failing is retried later but never ahead of people not yet attempted.
+  const failing = await createExchangeWithInvitation('a', { ...input, name: 'Grupo con fallas', registrationDeadline: '2099-11-25', eventDate: '2099-11-30' });
+  for (const id of ['r3', 'r4', 'r5']) { await acceptInvitationAtomic(failing.inviteToken, id); await manageMemberStatus(failing.exchangeId, id, 'approved', 'a'); }
+  const order = [];
+  const flaky = async (target) => { const id = who(target); order.push(id); if (id === 'r3') throw { statusCode: 503 }; return {}; };
+  const dayBefore = (hour) => new Date(`2099-11-24T${hour}:00:00Z`);
+  // Claims use the database clock; age failed ones as if an hour had passed.
+  const ageFailedClaims = () => query("UPDATE notification_deliveries SET claimed_at = now() - interval '1 hour' WHERE delivered_at IS NULL");
+  for (const hour of ['16', '17', '18', '19', '20']) { await service.sendDueReminders(dayBefore(hour), flaky, { maxSends: 1 }); await ageFailedClaims(); }
+  assert.deepEqual(order, ['a', 'r3', 'r4', 'r5', 'r3'], 'everyone is attempted once before the failing device is retried');
+  const last = await service.sendDueReminders(dayBefore('21'), flaky, { maxSends: 3 });
+  assert.equal(last.delivered, 0); assert.equal(last.failed, 1); assert.deepEqual(order.slice(5), ['r3']);
+  console.log('PASS recordatorios acotados: tope por ejecución, continuidad en la siguiente hora, sin duplicados, consentimiento antes del tope, fallas sin bloquear al resto y firma VAPID reutilizada.');
 } finally { setTestDbAdapter(null); await pg.close(); }

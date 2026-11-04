@@ -14,7 +14,7 @@ const { getMyAssignment } = await import('../src/lib/repositories/assignments.ts
 const { purgeExpiredClosedExchangesWithClient, runNetlifyScheduledRetentionEvent } = await import('../src/lib/retention/cleanup.ts');
 const { parsePrivacyDeleteArgs, processPrivacyDeletion } = await import('./privacy-delete.mjs');
 const pg = new PGlite();
-for (const file of ['20261016_init_papelito_neon.sql', '20261017_retention_and_lifecycle.sql', '20261018_social_and_reminders.sql', '20261018_z_selected_features.sql']) {
+for (const file of fs.readdirSync(new URL('../neon/migrations/', import.meta.url)).sort()) {
   await pg.exec(fs.readFileSync(new URL(`../neon/migrations/${file}`, import.meta.url), 'utf8'));
 }
 const client = { async query(sql, params = []) {
@@ -86,7 +86,7 @@ try {
   await assert.rejects(requestAccountDeletion(users[3], { ...input, confirmIrreversible: false }), /confirmar/);
   await assert.rejects(requestAccountDeletion(users[3], { ...input, sessionAuthenticatedAt: '2026-10-17T17:44:59Z' }), /15 minutos/);
   await assert.rejects(requestAccountDeletion(users[3], { ...input, sessionAuthenticatedAt: '2026-10-17T18:00:01Z' }), /15 minutos/);
-  await assert.rejects(requestAccountDeletion(users[3], input), /Organizas/);
+  await assert.rejects(requestAccountDeletion(users[3], input), /Organizás/);
   const request = await requestAccountDeletion(users[3], { ...input, confirmOrganizerImpact: true });
   assert.equal(request.transferredExchanges[0].newOrganizerUserId, users[0]);
   assert.equal((await requestAccountDeletion(users[3], input)).requestId, request.requestId);

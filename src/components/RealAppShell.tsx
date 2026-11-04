@@ -12,10 +12,15 @@ import { AccountView } from "@/views/AccountView";
 import { ConsentGateCard } from "@/components/ConsentGateCard";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { ContextualGuide } from './ContextualGuide';
+import { useViewFocus } from "@/lib/use-view-focus";
+import { useKeyboardInset } from "@/lib/use-keyboard-inset";
+import { VIEW_TITLES } from "@/lib/view-history";
 
 export function RealAppShell() {
   const data = useRealData();
   const { user, activeView, currentExchange, navigateTo, switchTab } = data;
+  useKeyboardInset();
+  useViewFocus(activeView, activeView === "intercambio_detalle" && currentExchange ? currentExchange.name : VIEW_TITLES[activeView]);
   return (
     <div className="paper-app-shell">
       <a className="skip-link" href="#app-content">
@@ -60,7 +65,7 @@ export function RealAppShell() {
         </div>
       )}
       <main id="app-content" className="app-content">
-        {data.hasConsented && <ContextualGuide />}
+        {data.hasConsented && <ContextualGuide view={activeView} role={data.exchanges.length === 0 || data.exchanges.some((e) => e.isCurrentUserOrganizer) ? 'organizer' : 'participant'} />}
         {activeView === "cuenta_perfil" ? (
           <AccountView />
         ) : !data.hasConsented ? (
@@ -103,7 +108,7 @@ export function RealAppShell() {
                       data.toggleWishPurchased(currentExchange.id, id)
                     }
                     onBack={() =>
-                      navigateTo("intercambio_detalle", currentExchange.id)
+                      data.goBack("intercambio_detalle", currentExchange.id)
                     }
                   />
                 </div>

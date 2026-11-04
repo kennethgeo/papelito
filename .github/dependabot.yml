@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # Weekly, grouped and reviewed through CI. Major versions are not grouped so
+  # framework changes (Next, vinext, Neon Auth) are evaluated one by one.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: America/Costa_Rica
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: America/Costa_Rica

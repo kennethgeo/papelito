@@ -32,7 +32,6 @@ export function PaperDashboard() {
 
   return (
     <div className="paper-dashboard">
-      <InstallGuide compact />
       <div className="paper-page-heading">
         <div><p className="paper-greeting">Hola, {alias?.split(' ')[0] || 'qué gusto verte'}.</p><h1>Qué lindo tener<br />a quién sorprender.</h1></div>
         <button className="paper-button paper-button--create" onClick={() => navigate?.('intercambio_crear')}><span aria-hidden="true">+</span> Crear intercambio</button>
@@ -67,6 +66,8 @@ export function PaperDashboard() {
           {filtered.length === 0 && <div className="paper-empty"><h3>Aquí cabe una nueva celebración.</h3><p>Reuní a tu gente y dejá que la sorpresa empiece.</p><button className="paper-button" onClick={() => navigate?.('intercambio_crear')}>{exchanges.length === 0 ? 'Crear mi primer intercambio' : 'Crear otro intercambio'}</button></div>}
         </div>
       </section>
+      {/* Secondary: installing helps, but never before the person's own groups. */}
+      <div className="paper-dashboard-install"><InstallGuide compact /></div>
       <p className="paper-closing-note">Hecho para regalar con ganas.</p>
     </div>
   );

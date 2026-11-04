@@ -1,3 +1,4 @@
+import { PublicError } from './data/errors';
 export interface GiftPreferences {
   interests: string;
   colors: string;
@@ -12,11 +13,11 @@ export const GIFT_FIELDS = [
   ['avoid', 'Prefiero no recibir'],
 ] as const;
 export function parseGiftPreferences(value: unknown): GiftPreferences {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Perfil de gustos inválido.');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new PublicError('Perfil de gustos inválido.');
   const input = value as Record<string, unknown>;
   const result = { ...EMPTY_GIFT_PREFERENCES };
   for (const [key] of GIFT_FIELDS) {
-    if (typeof input[key] !== 'string' || input[key].length > 280) throw new Error('Cada respuesta debe tener hasta 280 caracteres.');
+    if (typeof input[key] !== 'string' || input[key].length > 280) throw new PublicError('Cada respuesta debe tener hasta 280 caracteres.');
     result[key] = input[key].trim();
   }
   return result;

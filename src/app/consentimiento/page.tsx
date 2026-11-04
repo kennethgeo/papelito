@@ -67,7 +67,8 @@ export default function ConsentimientoPage() {
             </li>
             <li>
               <strong>Proveedores:</strong> Neon administra la base de datos, el acceso y los correos
-              transaccionales; Netlify aloja el servicio. La base de datos y el acceso se alojan en Ohio,
+              transaccionales; Cloudflare aloja y distribuye el servicio desde su red global, procesa las
+              fotos de referencia y conserva registros técnicos. La base de datos y el acceso se alojan en Ohio,
               Estados Unidos. Google interviene si elegís ingresar con Google. Consultá la{' '}
               <Link href="/privacidad">política de privacidad</Link> para conocer la conservación y la eliminación.
             </li>

@@ -110,4 +110,4 @@ Las nuevas pruebas detectaron errores iniciales en sus fixtures (ruta de `.neon`
 - No se ha publicado el frontend en Netlify ni se han transferido secretos a ese servicio.
 - Los datos del responsable y contacto de los documentos legales siguen pendientes por decisión del titular.
 - Esta comprobación no demuestra todavía un intercambio entre tres cuentas reales ni contención simultánea de varios sorteos remotos.
-- `npm audit --omit=dev` reportó cero vulnerabilidades. La auditoría completa reportó cinco alertas altas en la cadena de herramientas de ESLint (`braces` / `micromatch` / `fast-glob`); no se aplicó una degradación forzada de Next.js para silenciarlas.
+- `npm audit --omit=dev` reportó cero vulnerabilidades en esa fecha. *(Ya no vale: el 2 de noviembre de 2026 reportaba 15 avisos, la mayoría en código que corre en el servicio gestionado de Neon Auth. Ver `docs/DEPENDENCIAS.md`.)* La auditoría completa reportó cinco alertas altas en la cadena de herramientas de ESLint (`braces` / `micromatch` / `fast-glob`); no se aplicó una degradación forzada de Next.js para silenciarlas.

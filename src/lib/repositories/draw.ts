@@ -1,4 +1,5 @@
 import 'server-only';
+import { PublicError } from '@/lib/data/errors';
 import { dbTransaction } from '@/lib/db/client';
 import { computeSecretSantaDraw, type ExclusionRule } from '@/lib/draw/algorithm';
 
@@ -9,7 +10,7 @@ export async function executeAndCommitDraw(
   invalidationReason?: string
 ): Promise<{ success: boolean; version: number; count: number }> {
   if (typeof expectedVersion !== 'number' || !Number.isInteger(expectedVersion) || expectedVersion < 0) {
-    throw new Error('Se requiere la versión esperada del sorteo (expectedVersion >= 0) para garantizar idempotencia.');
+    throw new PublicError('Se requiere la versión esperada del sorteo (expectedVersion >= 0) para garantizar idempotencia.');
   }
 
   return await dbTransaction(async (client) => {
@@ -27,32 +28,35 @@ export async function executeAndCommitDraw(
     );
 
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
 
     const ex = exRes.rows[0];
     if (ex.organizer_id !== actorUserId) {
-      throw new Error('Solo el organizador puede realizar el sorteo.');
+      throw new PublicError('Solo el organizador puede realizar el sorteo.');
     }
     const poll = await client.query('SELECT exchange_id FROM budget_polls WHERE exchange_id = $1 AND closed_at IS NULL', [exchangeId]);
-    if (poll.rowCount) throw new Error('Cerrá la encuesta de presupuesto antes de realizar el sorteo.');
+    if (poll.rowCount) throw new PublicError('Cerrá la encuesta de presupuesto antes de realizar el sorteo.');
 
     // Strict expected version check for idempotency / concurrency conflict prevention
     if (ex.current_draw_version !== expectedVersion) {
-      throw new Error(
-        `Conflicto de versión: el sorteo ya fue modificado (versión actual: ${ex.current_draw_version}, esperada: ${expectedVersion}). Actualiza la página.`
+      throw new PublicError(
+        `Conflicto de versión: el sorteo ya fue modificado (versión actual: ${ex.current_draw_version}, esperada: ${expectedVersion}). Actualizá la página.`
       );
     }
 
     if (ex.status !== 'inscripcion_abierta' && ex.status !== 'sorteado') {
-      throw new Error('El estado del intercambio no permite realizar un sorteo.');
+      throw new PublicError('El estado del intercambio no permite realizar un sorteo.');
     }
 
+    if (invalidationReason !== undefined && invalidationReason.length > 500) {
+      throw new PublicError('El motivo puede tener hasta 500 caracteres.');
+    }
     if (
       (ex.status === 'sorteado' || ex.current_draw_version > 0) &&
       (!invalidationReason || invalidationReason.trim().length < 6)
     ) {
-      throw new Error('Para repetir un sorteo existente se debe ingresar un motivo válido (mínimo 6 caracteres).');
+      throw new PublicError('Para repetir un sorteo existente se debe ingresar un motivo válido (mínimo 6 caracteres).');
     }
 
     // 2. Fetch approved participants under transaction
@@ -65,7 +69,7 @@ export async function executeAndCommitDraw(
 
     const minRequired = Math.max(3, ex.min_participants || 3);
     if (membersRes.rowCount < minRequired) {
-      throw new Error(
+      throw new PublicError(
         `Se requieren al menos ${minRequired} participantes aprobados para sortear (actuales: ${membersRes.rowCount}).`
       );
     }
@@ -100,7 +104,15 @@ export async function executeAndCommitDraw(
     // 4. Calculate secret santa matching via polynomial Kuhn algorithm & Hall theorem
     const drawResult = computeSecretSantaDraw(participantIds, exclusions);
     if (!drawResult.success) {
-      throw new Error(history.rowCount > 0 ? 'No hay una combinación que respete las restricciones y evite destinatarios de las ediciones anteriores. Revisá las restricciones o creá un intercambio independiente; no repetimos parejas sin avisar.' : drawResult.reason || 'No fue posible encontrar una combinación válida con las restricciones.');
+      // Name the person by alias (never by internal id).
+      if (drawResult.participantId && history.rowCount === 0) {
+        const named = await client.query<{ alias: string }>('SELECT alias FROM profiles WHERE user_id = $1', [drawResult.participantId]);
+        const alias = named.rows[0]?.alias ?? 'Una persona';
+        throw new PublicError(drawResult.code === 'NO_GIVER'
+          ? `${alias} no puede recibir regalo de nadie con las restricciones actuales. Quitá alguna restricción donde aparece.`
+          : `${alias} no tiene a quién regalar con las restricciones actuales. Quitá alguna restricción donde aparece.`);
+      }
+      throw new PublicError(history.rowCount > 0 ? 'No hay una combinación que respete las restricciones y evite destinatarios de las ediciones anteriores. Revisá las restricciones o creá un intercambio independiente; no repetimos parejas sin avisar.' : drawResult.reason || 'No fue posible encontrar una combinación válida con las restricciones.');
     }
 
     // 5. Invariants verification: bijection and no self-assignments

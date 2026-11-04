@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getServerSession, getFreshServerSession } from "@/lib/auth/server";
 import { isDatabaseConfigured } from "@/lib/db/client";
@@ -13,7 +12,6 @@ import {
   updateExchangeTheme,
   setExchangeExclusions,
   acceptInvitationAtomic,
-  getInvitationPreview,
   updateExchangeLifecycleStatus,
   transferExchangeOrganizer,
   deleteExchange,
@@ -45,6 +43,8 @@ import {
   type RequestAccountDeletionResult,
 } from "@/lib/repositories/profiles";
 import { LEGAL_CONSTANTS } from "@/lib/legal/constants";
+import { getCostaRicaTodayDate } from "@/lib/date/costa-rica";
+import { PublicError, publicErrorMessage } from "@/lib/data/errors";
 import { readAppSnapshot } from "@/lib/repositories/app-snapshot";
 import {
   PENDING_CONSENT_COOKIE,
@@ -62,21 +62,13 @@ const VALID_THEMES = new Set(["navidad", "amistad", "cumpleanos", "general"]);
 const VALID_CURRENCIES = new Set(["CRC", "USD"]);
 const VALID_PRIORITIES = new Set(["alta", "media", "baja"]);
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_URL_LENGTH = 2048;
+const MAX_REASON_LENGTH = 500;
+const MAX_EXCLUSION_RULES = 2000;
 
 function sanitizeErrorMessage(err: unknown, fallback: string): string {
-  if (!(err instanceof Error)) return fallback;
-  const msg = err.message;
-  // Filter out raw PostgreSQL / driver internal diagnostics
-  if (
-    msg.includes("syntax error") ||
-    msg.includes('relation "') ||
-    msg.includes("violates foreign key") ||
-    msg.includes("violates check constraint") ||
-    msg.includes("duplicate key value")
-  ) {
-    return fallback;
-  }
-  return msg;
+  return publicErrorMessage(err, fallback);
 }
 
 function validateIsoDate(dateStr: unknown): dateStr is string {
@@ -91,7 +83,8 @@ function validateIsoDate(dateStr: unknown): dateStr is string {
 function validateCreateExchange(input: CreateExchangeInput): string | null {
   if (!input || typeof input !== "object")
     return "Datos de intercambio inválidos.";
-  if (input.previousExchangeId !== undefined && !/^[0-9a-f-]{36}$/i.test(input.previousExchangeId)) return 'Intercambio anterior inválido.';
+  if (input.previousExchangeId !== undefined && !UUID_REGEX.test(input.previousExchangeId)) return 'Intercambio anterior inválido.';
+  if (input.clientRequestId !== undefined && (typeof input.clientRequestId !== "string" || !UUID_REGEX.test(input.clientRequestId))) return "Intento de creación inválido. Recargá la página.";
   if (
     typeof input.name !== "string" ||
     input.name.trim().length < 2 ||
@@ -113,6 +106,11 @@ function validateCreateExchange(input: CreateExchangeInput): string | null {
   }
   if (input.registrationDeadline > input.eventDate) {
     return "El cierre de inscripción no puede ser posterior a la fecha del intercambio.";
+  }
+  // Costa Rica calendar: a new group cannot start already closed.
+  const today = getCostaRicaTodayDate();
+  if (input.registrationDeadline < today) {
+    return "La inscripción no puede cerrar en una fecha pasada.";
   }
   if (
     typeof input.budgetAmount !== "number" ||
@@ -152,6 +150,11 @@ function validateSaveWish(input: SaveWishInput): string | null {
   ) {
     return "La descripción no puede superar los 500 caracteres.";
   }
+  if (input.clientRequestId !== undefined && (typeof input.clientRequestId !== "string" || !UUID_REGEX.test(input.clientRequestId))) {
+    return "Intento de guardado inválido. Recargá la página.";
+  }
+  if (input.url !== undefined && typeof input.url !== "string") return "El enlace ingresado no es válido.";
+  if (input.url !== undefined && input.url.length > MAX_URL_LENGTH) return "El enlace es demasiado largo.";
   if (input.url !== undefined && input.url.trim().length > 0) {
     try {
       const parsed = new URL(input.url.trim());
@@ -183,14 +186,14 @@ function validateSaveWish(input: SaveWishInput): string | null {
 
 async function requireAuth() {
   if (!isDatabaseConfigured()) {
-    throw new Error(
+    throw new PublicError(
       "El almacenamiento en la nube no está configurado en este entorno.",
     );
   }
 
   const session = await getServerSession();
   if (!session || !session.user) {
-    throw new Error("Debes iniciar sesión para realizar esta acción.");
+    throw new PublicError("Iniciá sesión para realizar esta acción.");
   }
 
   // Ensure user profile exists idempotently
@@ -212,8 +215,8 @@ async function requireConsentedUser() {
     return user;
   }
 
-  throw new Error(
-    "Debes confirmar el consentimiento informado vigente para realizar esta acción.",
+  throw new PublicError(
+    "Confirmá el consentimiento informado vigente para realizar esta acción.",
   );
 }
 
@@ -226,7 +229,6 @@ export async function createExchangeAction(
 
     const user = await requireConsentedUser();
     const result = await createExchangeWithInvitation(user.id, formData);
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
@@ -248,7 +250,6 @@ export async function regenerateInvitationAction(
     }
     const user = await requireConsentedUser();
     const result = await regenerateExchangeInvitation(exchangeId, user.id);
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
@@ -341,7 +342,6 @@ export async function manageMemberStatusAction(
     }
     const user = await requireConsentedUser();
     await manageMemberStatus(exchangeId, targetUserId, newStatus, user.id);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -370,7 +370,6 @@ export async function updateExchangeThemeAction(
     }
     const user = await requireConsentedUser();
     await updateExchangeTheme(exchangeId, user.id, newTheme);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -391,7 +390,8 @@ export async function setExchangeExclusionsAction(
     if (
       !exchangeId ||
       typeof exchangeId !== "string" ||
-      !Array.isArray(rules)
+      !Array.isArray(rules) ||
+      rules.length > MAX_EXCLUSION_RULES
     ) {
       return { success: false, error: "Datos de restricciones inválidos." };
     }
@@ -406,7 +406,6 @@ export async function setExchangeExclusionsAction(
     }
     const user = await requireConsentedUser();
     await setExchangeExclusions(exchangeId, user.id, rules);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -432,6 +431,9 @@ export async function triggerDrawAction(
     ) {
       return { success: false, error: "Versión esperada del sorteo inválida." };
     }
+    if (invalidationReason !== undefined && (typeof invalidationReason !== "string" || invalidationReason.length > MAX_REASON_LENGTH)) {
+      return { success: false, error: `El motivo puede tener hasta ${MAX_REASON_LENGTH} caracteres.` };
+    }
     const user = await requireConsentedUser();
     const result = await executeAndCommitDraw(
       exchangeId,
@@ -439,7 +441,6 @@ export async function triggerDrawAction(
       expectedVersion,
       invalidationReason,
     );
-    revalidatePath("/");
     return {
       success: true,
       data: { version: result.version, count: result.count },
@@ -473,7 +474,6 @@ export async function revealAssignmentAction(
   try {
     const user = await requireConsentedUser();
     await revealAssignment(exchangeId, user.id);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -494,7 +494,6 @@ export async function toggleWishPurchaseAction(
     }
     const user = await requireConsentedUser();
     await toggleWishPurchase(exchangeId, user.id, wishId, purchased);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -531,7 +530,6 @@ export async function saveWishAction(
 
     const user = await requireConsentedUser();
     const result = await saveWish(user.id, input);
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
@@ -545,7 +543,6 @@ export async function deleteWishAction(wishId: string): Promise<ActionResult> {
   try {
     const user = await requireConsentedUser();
     await deleteWish(user.id, wishId);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -566,7 +563,6 @@ export async function toggleWishInExchangeAction(
     }
     const user = await requireConsentedUser();
     await toggleWishInExchange(user.id, exchangeId, wishId, selected);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -595,7 +591,6 @@ export async function updateProfileAliasAction(
     }
     const user = await requireConsentedUser();
     await updateProfileAlias(user.id, newAlias);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -639,7 +634,7 @@ export async function recordConsentAction(input: {
       return {
         success: false,
         error:
-          "Debes aceptar explícitamente tanto los términos como el consentimiento de datos.",
+          "Aceptá explícitamente los términos y el consentimiento de datos.",
       };
     }
     if (input.version !== LEGAL_CONSTANTS.VERSION) {
@@ -656,7 +651,6 @@ export async function recordConsentAction(input: {
     } catch {
       // Ignore if cookies cannot be mutated
     }
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -671,7 +665,6 @@ export async function revokeConsentAction(): Promise<ActionResult> {
     const user = await requireAuth();
     const cookieStore = await cookies();
     await revokeConsentAndClearCookie(user.id, cookieStore);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -746,36 +739,11 @@ export async function acceptInvitationAction(
     }
     const user = await requireConsentedUser();
     const result = await acceptInvitationAtomic(token.trim(), user.id);
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {
       success: false,
       error: sanitizeErrorMessage(err, "Error al unirse al intercambio."),
-    };
-  }
-}
-
-export async function getInvitationPreviewAction(
-  token: string,
-): Promise<ActionResult<Awaited<ReturnType<typeof getInvitationPreview>>>> {
-  try {
-    if (!isDatabaseConfigured()) {
-      return {
-        success: false,
-        error:
-          "El servicio de base de datos no está configurado en este entorno.",
-      };
-    }
-    if (!token || typeof token !== "string") {
-      return { success: false, error: "Token de invitación inválido." };
-    }
-    const preview = await getInvitationPreview(token.trim());
-    return { success: true, data: preview };
-  } catch (err: unknown) {
-    return {
-      success: false,
-      error: sanitizeErrorMessage(err, "Error al previsualizar la invitación."),
     };
   }
 }
@@ -802,7 +770,6 @@ export async function updateExchangeLifecycleStatusAction(
       user.id,
       nextStatus,
     );
-    revalidatePath("/");
     return { success: true, data: res };
   } catch (err: unknown) {
     return {
@@ -835,7 +802,6 @@ export async function deleteExchangeAction(exchangeId: string, input: {
     await deleteExchange(exchangeId, session.user.id, {
       ...input, sessionAuthenticatedAt: session.authenticatedAt,
     });
-    revalidatePath('/');
     return { success: true };
   } catch (err: unknown) {
     return { success: false, error: sanitizeErrorMessage(err, 'No se pudo eliminar el intercambio.') };
@@ -857,12 +823,11 @@ export async function transferExchangeOrganizerAction(
       return {
         success: false,
         error:
-          "Selecciona el participante aprobado a quien transferir la organización.",
+          "Elegí a la persona aprobada que va a organizar.",
       };
     }
     const user = await requireConsentedUser();
     await transferExchangeOrganizer(exchangeId, user.id, newOrganizerUserId);
-    revalidatePath("/");
     return { success: true };
   } catch (err: unknown) {
     return {
@@ -924,7 +889,7 @@ export async function requestAccountDeletionAction(input: {
       return {
         success: false,
         error:
-          "Debes iniciar sesión con una sesión activa verificada para solicitar la baja de tu cuenta.",
+          "Iniciá sesión para solicitar la baja de tu cuenta.",
       };
     }
 
@@ -942,8 +907,6 @@ export async function requestAccountDeletionAction(input: {
       notes: input.notes,
       sessionAuthenticatedAt: freshSession.authenticatedAt,
     });
-
-    revalidatePath("/");
     return { success: true, data: result };
   } catch (err: unknown) {
     return {

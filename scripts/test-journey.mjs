@@ -28,12 +28,7 @@ const { readAppSnapshot } =
 const { LEGAL_CONSTANTS } = await import("../src/lib/legal/constants.ts");
 const pg = new PGlite();
 let queries = 0;
-for (const file of [
-  "20261016_init_papelito_neon.sql",
-  "20261017_retention_and_lifecycle.sql",
-  "20261018_social_and_reminders.sql",
-  "20261018_z_selected_features.sql",
-])
+for (const file of fs.readdirSync(new URL("../neon/migrations/", import.meta.url)).sort())
   await pg.exec(
     fs.readFileSync(
       new URL(`../neon/migrations/${file}`, import.meta.url),

@@ -9,7 +9,7 @@ export async function getInvitationPreviewService(token: string) {
 export async function acceptInvitationService(token: string) {
   const session = await getServerSession();
   if (!session || !session.user) {
-    return { success: false, error: 'Debes iniciar sesión para unirte.' };
+    return { success: false, error: 'Iniciá sesión para unirte.' };
   }
   try {
     const res = await acceptInvitationAtomic(token, session.user.id);

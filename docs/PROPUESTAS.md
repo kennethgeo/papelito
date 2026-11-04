@@ -1,0 +1,33 @@
+# Propuestas y decisiones pendientes
+
+Este documento separa lo que **no** se implementó en las correcciones de la auditoría (commit `ae706a8`) porque depende de una decisión de producto, legal u operativa. Nada de esto está activo. El registro general de ideas sigue en [PENDIENTES_PRODUCTO.md](../PENDIENTES_PRODUCTO.md).
+
+## Decisiones legales (titular y revisión jurídica)
+
+| Tema | Situación | Opciones |
+| --- | --- | --- |
+| Versión legal tras corregir el proveedor de alojamiento | `/privacidad` y `/consentimiento` ya nombran a Cloudflare en lugar de Netlify; `LEGAL_CONSTANTS.VERSION` sigue en `2026-10-31.1`, igual que la fecha de actualización | (a) Tratarlo como corrección editorial y dejar la versión. (b) Publicar una versión nueva: todas las cuentas vuelven a aceptar y los recordatorios se pausan hasta entonces |
+| Identidad jurídica y domicilio del responsable | Pendientes, como indican los textos | Completar antes de abrir el servicio al público |
+| Plazos de retención | Sin cambios: 12 meses tras el cierre y 30 días para registros de entrega | Cualquier cambio requiere actualizar los textos y, probablemente, la versión |
+| Registros técnicos de Cloudflare | Los registros de invocación de Workers guardan la ruta visitada (con la consulta redactada). En `/unirse/<token>` la ruta incluye el token de invitación. Solo accede la cuenta del titular | Aceptarlo, reducir el muestreo de registros o desactivar los registros de invocación y conservar solo los registros propios saneados |
+
+## Decisiones operativas
+
+| Tema | Recomendación |
+| --- | --- |
+| Activar la reversión automática (`PAPELITO_AUTO_ROLLBACK`) | Solo después de ensayar una reversión manual (ver `docs/OPERACION.md`) |
+| Aplicar la CSP (dejar el modo reporte) | Revisar primero los informes `csp_violation` de una o dos semanas de uso real. Para quitar `'unsafe-inline'` de los scripts hace falta un nonce por petición; eso obliga a renderizar dinámicamente y puede afectar el prerenderizado parcial y el costo de CPU |
+| Tope de recordatorios por ejecución | 15 por hora (9 ejecuciones diarias). Si las métricas muestran CPU holgada, subir `PUSH_MAX_SENDS_PER_RUN` (máximo 45 en el plan gratuito) |
+| Dominio propio y remitente de correo | Siguen pospuestos por el titular |
+
+## Funciones nuevas (fuera de esta entrega)
+
+Cada una cambia lo que ven o reciben las personas, así que necesita definición antes de construirse:
+
+1. **Aviso de sorteo realizado y de aprobación.** Push cuando el sorteo está listo o cuando el organizador aprueba una inscripción. Decidir texto, si incluye el nombre del grupo (hoy los avisos no incluyen nombres) y cómo afecta el tope por ejecución.
+2. **Recordatorio al organizador.** Por ejemplo: «hay inscripciones pendientes» o «falta sortear y la entrega es en tres días». Decidir el umbral y la frecuencia.
+3. **Editar un intercambio después de crearlo.** Nombre, fechas o presupuesto. Hay que definir qué se permite después del sorteo y si se avisa a los participantes.
+4. **Que un participante salga por su cuenta.** Hoy solo el organizador quita o rechaza. Definir qué pasa con un sorteo vigente: invalidarlo y avisar, o bloquear la salida.
+5. **Cierre automático.** Cerrar el grupo cierto tiempo después de la fecha de entrega para que empiece la retención de 12 meses. Es una decisión de retención.
+6. **Moderación de mensajes anónimos.** Reportar o bloquear una conversación. Implica revisar contenido y definir quién lo hace.
+7. **Aviso de eliminación del grupo.** Avisar a los participantes cuando el organizador elimina un intercambio. Hoy desaparece sin aviso.

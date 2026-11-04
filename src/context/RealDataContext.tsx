@@ -41,6 +41,7 @@ import { callServerAction, callServerRead } from "@/lib/client-actions";
 import type { AppSnapshot } from "@/lib/repositories/app-snapshot";
 import { LEGAL_CONSTANTS } from "@/lib/legal/constants";
 import { clearOfflineCopy } from '../../public/offline-vault.js';
+import { goBackOr, pushView, readViewFromUrl, replaceView } from "@/lib/view-history";
 import {
   Exchange,
   Wish,
@@ -86,6 +87,8 @@ interface RealDataContextType {
   errorMessage: string | null;
   switchTab: (tab: NavigationTab) => void;
   navigateTo: (view: AppView, exchangeId?: string) => void;
+  /** «Volver»: previous in-app entry, or the fallback view. */
+  goBack: (fallback: AppView, exchangeId?: string) => void;
   createExchange: (data: {
     name: string;
     description?: string;
@@ -96,6 +99,7 @@ interface RealDataContextType {
     suggestedTheme: "navidad" | "amistad" | "cumpleanos" | "general";
     selectedTheme: "navidad" | "amistad" | "cumpleanos" | "general";
     requiresApproval: boolean;
+    clientRequestId?: string;
   }) => Promise<{ success: boolean; exchangeId?: string; error?: string }>;
   manageMember: (
     targetUserId: string,
@@ -136,6 +140,7 @@ interface RealDataContextType {
     approximatePrice?: number;
     currency?: "CRC" | "USD";
     priority?: "alta" | "media" | "baja";
+    clientRequestId?: string;
   }) => Promise<boolean>;
   deleteWish: (wishId: string) => Promise<boolean>;
   toggleWishInExchange: (
@@ -257,6 +262,7 @@ export function RealDataProvider({
         isReady: p.wishCount > 0,
         joinedAt: p.joinedAt,
         wishCount: p.wishCount,
+        represented: p.represented,
         status: p.status,
       }));
       setCurrentExchange({
@@ -349,27 +355,21 @@ export function RealDataProvider({
 
   useEffect(() => {
     let active = true;
-    const deepLink =
-      new URLSearchParams(window.location.search).get("intercambio") ??
-      initialDeepLink.current;
-    if (
-      deepLink &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        deepLink,
-      )
-    ) {
-      selectedRef.current = deepLink;
-      initialDeepLink.current = deepLink;
-      queueMicrotask(() => {
-        if (active) {
-          setSelectedExchangeId(deepLink);
-          setActiveView("intercambio_detalle");
-        }
-      });
-      const url = new URL(window.location.href);
-      url.searchParams.delete("intercambio");
-      window.history.replaceState(null, "", url);
+    // Restore the view from the URL (reload, notification or invitation link).
+    const initial = readViewFromUrl(window.location.search);
+    if (initial.exchangeId) {
+      selectedRef.current = initial.exchangeId;
+      initialDeepLink.current = initial.exchangeId;
     }
+    queueMicrotask(() => {
+      if (active) showView(initial.view, initial.exchangeId ?? undefined, false);
+    });
+    replaceView(initial.view, initial.exchangeId);
+    const onPopState = () => {
+      const target = readViewFromUrl(window.location.search);
+      showView(target.view, target.exchangeId ?? undefined, true);
+    };
+    window.addEventListener("popstate", onPopState);
     queueMicrotask(() => {
       if (active) void refreshApp();
     });
@@ -392,19 +392,14 @@ export function RealDataProvider({
       document.removeEventListener("visibilitychange", refreshOnReturn);
       window.removeEventListener("focus", refreshOnReturn);
       window.removeEventListener("online", refreshOnline);
+      window.removeEventListener("popstate", onPopState);
     };
+    // showView only uses state setters and refs; it is stable in practice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshApp]);
 
-  const switchTab = (tab: NavigationTab) => {
-    setErrorMessage(null);
-    setActiveTab(tab);
-    if (tab === "intercambios") setActiveView("intercambios_lista");
-    else if (tab === "deseos") setActiveView("deseos_lista");
-    else if (tab === "cuenta") setActiveView("cuenta_perfil");
-    window.scrollTo({ top: 0 });
-  };
-
-  const navigateTo = (view: AppView, exchangeId?: string) => {
+  /** Applies a view without touching history (initial load and Back). */
+  function showView(view: AppView, exchangeId?: string, refresh = true) {
     setErrorMessage(null);
     setActiveView(view);
     if (view.startsWith("intercambio") || view === "asignacion_revelar")
@@ -412,15 +407,33 @@ export function RealDataProvider({
     else if (view === "deseos_lista") setActiveTab("deseos");
     else if (view === "cuenta_perfil") setActiveTab("cuenta");
     if (exchangeId) {
-      if (exchangeId !== selectedExchangeId) {
+      if (exchangeId !== selectedRef.current) {
         setCurrentExchange(null);
         setCurrentAssignment(null);
       }
       setSelectedExchangeId(exchangeId);
       selectedRef.current = exchangeId;
-      void refreshApp();
+      if (refresh) void refreshApp();
     }
     window.scrollTo({ top: 0 });
+  }
+
+  const switchTab = (tab: NavigationTab) => {
+    const view: AppView = tab === "deseos" ? "deseos_lista" : tab === "cuenta" ? "cuenta_perfil" : "intercambios_lista";
+    showView(view);
+    pushView(view);
+  };
+
+  const navigateTo = (view: AppView, exchangeId?: string) => {
+    showView(view, exchangeId);
+    pushView(view, exchangeId ?? selectedRef.current);
+  };
+
+  const goBack = (fallback: AppView, exchangeId?: string) => {
+    goBackOr(() => {
+      showView(fallback, exchangeId);
+      replaceView(fallback, exchangeId ?? selectedRef.current);
+    });
   };
 
   const createExchange = async (data: {
@@ -433,6 +446,7 @@ export function RealDataProvider({
     suggestedTheme: "navidad" | "amistad" | "cumpleanos" | "general";
     selectedTheme: "navidad" | "amistad" | "cumpleanos" | "general";
     requiresApproval: boolean;
+    clientRequestId?: string;
   }) => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -674,6 +688,7 @@ export function RealDataProvider({
     approximatePrice?: number;
     currency?: "CRC" | "USD";
     priority?: "alta" | "media" | "baja";
+    clientRequestId?: string;
   }) => {
     setErrorMessage(null);
     const res = await callServerAction(() => saveWishAction(wish));
@@ -789,7 +804,7 @@ export function RealDataProvider({
   };
 
   const getAccountDeletionImpactHandler = useCallback(async () => {
-    const res = await callServerAction(() => getAccountDeletionImpactAction());
+    const res = await callServerRead(() => getAccountDeletionImpactAction(), 'el impacto de la baja');
     if (res.success && res.data) {
       return res.data;
     }
@@ -820,7 +835,7 @@ export function RealDataProvider({
 
   const exportAllUserDataHandler = async () => {
     setErrorMessage(null);
-    const res = await callServerAction(() => exportUserDataAction());
+    const res = await callServerRead(() => exportUserDataAction(), 'tus datos');
     if (res.success && res.data) {
       return res.data as Record<string, unknown>;
     }
@@ -846,6 +861,7 @@ export function RealDataProvider({
         errorMessage,
         switchTab,
         navigateTo,
+        goBack,
         createExchange,
         manageMember,
         updateExchangeTheme: updateExchangeThemeHandler,

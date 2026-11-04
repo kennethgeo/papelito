@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { budgetPollAction, changeBudgetPollAction, representedAction, addRepresentedAction, representedWishAction, removeRepresentedAction, deleteRepresentedWishAction, revealRepresentedAction } from '@/lib/data/selected-actions';
-import { callServerAction } from '@/lib/client-actions';
+import { callServerAction, callServerRead } from '@/lib/client-actions';
 import { formatMoney } from '@/lib/event-dates';
 import type { Exchange } from '@/types';
 import type { getBudgetPoll, getRepresented } from '@/lib/repositories/selected-features';
@@ -16,7 +16,7 @@ export function BudgetPoll({ exchange }: { exchange: Exchange }) {
   const isReal = !!real;
   useEffect(() => { let active = true; queueMicrotask(async () => {
     if (!active) return;
-    if (isReal) { const r = await callServerAction(() => budgetPollAction(exchange.id)); if (!active) return; if (r.success) setPoll(r.data || null); else setError(r.error || 'No pudimos cargar la encuesta.'); }
+    if (isReal) { const r = await callServerRead(() => budgetPollAction(exchange.id), 'la encuesta'); if (!active) return; if (r.success) setPoll(r.data || null); else setError(r.error || 'No pudimos cargar la encuesta.'); }
     else { try { setPoll(JSON.parse(localStorage.getItem(`papelito-poll:${exchange.id}`) || 'null')); } catch {} }
     setLoaded(true);
   }); return () => { active = false; }; }, [exchange.id, isReal]);
@@ -26,7 +26,7 @@ export function BudgetPoll({ exchange }: { exchange: Exchange }) {
       if (real) {
         const r = await callServerAction(() => changeBudgetPollAction(exchange.id, operation, value));
         if (!r.success) { setError(r.error || 'No pudimos guardar.'); return; }
-        const latest = await callServerAction(() => budgetPollAction(exchange.id)); if (latest.success) setPoll(latest.data || null);
+        const latest = await callServerRead(() => budgetPollAction(exchange.id), 'la encuesta'); if (latest.success) setPoll(latest.data || null);
         if (operation === 'close') await real.refreshNow();
       } else {
         const next: Poll = operation === 'create' ? { options: value as number[], closed: false, chosen: null, myVote: null, counts: [] } : operation === 'vote' ? { ...poll!, myVote: Number(value), counts: [{ amount: Number(value), count: 1 }] } : { ...poll!, closed: true, chosen: Number(value) };
@@ -60,10 +60,10 @@ export function RepresentedParticipants({ exchange }: { exchange: Exchange }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({}), [opened, setOpened] = useState<string[]>([]), [removing, setRemoving] = useState('');
   const [deletingWish, setDeletingWish] = useState('');
   const isReal = !!real;
-  useEffect(() => { let active = true; if (!isReal) return; queueMicrotask(async () => { const r = await callServerAction(() => representedAction(exchange.id)); if (active) { if (r.success && r.data) setPeople(r.data); else setError(r.error || 'No pudimos cargar las personas a tu cargo.'); } }); return () => { active = false; }; }, [exchange.id, isReal]);
+  useEffect(() => { let active = true; if (!isReal) return; queueMicrotask(async () => { const r = await callServerRead(() => representedAction(exchange.id), 'las personas a tu cargo'); if (active) { if (r.success && r.data) setPeople(r.data); else setError(r.error || 'No pudimos cargar las personas a tu cargo.'); } }); return () => { active = false; }; }, [exchange.id, isReal]);
   async function run(action: () => Promise<{ success: boolean; error?: string }>) {
     if (busy) return; setBusy(true); setError('');
-    try { const r = await action(); if (!r.success) { setError(r.error || 'No se pudo guardar.'); return; } const next = await callServerAction(() => representedAction(exchange.id)); if (next.success && next.data) setPeople(next.data); await real?.refreshNow(); }
+    try { const r = await action(); if (!r.success) { setError(r.error || 'No se pudo guardar.'); return; } const next = await callServerRead(() => representedAction(exchange.id), 'las personas a tu cargo'); if (next.success && next.data) setPeople(next.data); await real?.refreshNow(); }
     finally { setBusy(false); }
   }
   return <section className="workshop-sheet"><details><summary>Personas a mi cargo</summary><h2>Una cuenta, un poquito de ayuda.</h2>

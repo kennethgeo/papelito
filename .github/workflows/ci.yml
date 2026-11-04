@@ -1,76 +1,129 @@
 name: CI
 
+# One pipeline: production can only be published after `verify` succeeds for
+# the same commit, including manual runs. Pull requests never reach the deploy
+# job, so they never receive the Cloudflare token.
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   verify:
-    name: Type-check, Lint, Tests & Build
+    name: verify
+    uses: ./.github/workflows/verify.yml
+
+  deploy-web:
+    name: Publicar producción
+    needs: verify
+    if: >-
+      github.repository == 'kennethgeo/papelito' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://papelitocr.pages.dev
+    concurrency:
+      group: cloudflare-production
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 2740f49f030ac787611fd720a5ab682a
+      NEXT_PUBLIC_APP_URL: https://papelitocr.pages.dev
+      PAPELITO_BUILD_ID: ${{ github.sha }}
+      WRANGLER_SEND_METRICS: 'false'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7.0.1
-
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v7.1.0
+      - name: Checkout verified commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: '24'
-          cache: 'npm'
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
+      - name: Setup Node.js from .nvmrc
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # The token is not present while dependency install scripts run.
       - name: Install dependencies
         run: npm ci
 
-      - name: TypeScript type-check
-        run: npm run type-check
+      - name: Build Workers bundle
+        run: npm run build:vinext
 
-      - name: ESLint
-        run: npm run lint
+      - name: Record active version and publish
+        id: publish
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not available to the production environment."
+            exit 1
+          fi
+          previous=""
+          if npx wrangler deployments status --name papelitocr --json > previous-deployment.json; then
+            previous=$(node scripts/active-version.mjs previous-deployment.json)
+          else
+            echo "::warning::Could not read the active version; automatic rollback will stay disabled for this run."
+          fi
+          echo "previous_version=$previous" >> "$GITHUB_OUTPUT"
+          npm run deploy:vinext
 
-      - name: Draw algorithm unit tests
-        run: npm run test:draw
+      - name: Check published routes
+        id: smoke
+        run: >-
+          node scripts/smoke-check.mjs
+          --base https://papelitocr.pages.dev
+          --profile production
+          --expect-version "$PAPELITO_BUILD_ID"
+          --wait-for-version 180
 
-      - name: Backend integration tests (PGlite PostgreSQL)
-        run: npm run test:backend
+      - name: Rollback instructions
+        if: failure() && steps.publish.outcome == 'success'
+        env:
+          VERDICT: ${{ steps.smoke.outputs.verdict }}
+          PREVIOUS: ${{ steps.publish.outputs.previous_version }}
+        run: |
+          {
+            echo "## Publication check failed"
+            echo ""
+            echo "- Verdict: \`${VERDICT:-unknown}\` (see docs/OPERACION.md#verificación-posterior)"
+            echo "- Published commit: \`$GITHUB_SHA\`"
+            echo "- Previous active version: \`${PREVIOUS:-unknown}\`"
+            if [ -n "$PREVIOUS" ]; then
+              echo ""
+              echo "Manual rollback (requires CLOUDFLARE_API_TOKEN):"
+              echo ""
+              echo "\`\`\`bash"
+              echo "npx wrangler rollback $PREVIOUS --name papelitocr --message \"Rollback after failed checks for $GITHUB_SHA\" -y"
+              echo "\`\`\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Calendar and connection tests
-        run: npm run test:ux
-
-      - name: Public-only PWA caching and update lifecycle
-        run: npm run test:pwa
-
-      - name: Four-person repository journey and snapshot privacy
-        run: npm run test:journey
-
-      - name: Private messages, tastes, history and push delivery
-        run: npm run test:social
-
-      - name: Selected features, permissions, photos and offline encryption
-        run: npm run test:selected
-
-      - name: Production build (without external secrets)
-        run: npm run build
-
-      - name: Lifecycle, deletion and retention integration tests
-        run: npm run test:lifecycle
-
-      - name: Install test browser
-        run: npx playwright install --with-deps chromium
-
-      - name: Desktop and mobile browser regression
-        run: npm run test:e2e
-
-      - name: Keep browser evidence on failure
-        if: failure()
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: browser-failure-evidence
-          path: test-results/
-          retention-days: 7
+      # Disabled unless the repository variable PAPELITO_AUTO_ROLLBACK is "true".
+      # Only a deterministic defect (the new version answers, but with wrong
+      # status or content) triggers it; transient network or edge failures do not.
+      - name: Automatic rollback for a defective publication
+        if: >-
+          failure() &&
+          vars.PAPELITO_AUTO_ROLLBACK == 'true' &&
+          steps.smoke.outputs.verdict == 'defective' &&
+          steps.publish.outputs.previous_version != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PREVIOUS: ${{ steps.publish.outputs.previous_version }}
+        run: |
+          npx wrangler rollback "$PREVIOUS" --name papelitocr --message "Automatic rollback after failed checks for $GITHUB_SHA" -y

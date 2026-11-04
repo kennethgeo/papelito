@@ -1,6 +1,6 @@
 import { Pool } from '@neondatabase/serverless';
 import { runStandaloneRetentionTransaction } from '../src/lib/retention/cleanup';
-import { createPushService } from '../src/lib/notifications/delivery';
+import { createPushService, isReminderHour, parseMaxSendsPerRun } from '../src/lib/notifications/delivery';
 
 interface SchedulerEnv {
   DATABASE_URL: string;
@@ -8,6 +8,8 @@ interface SchedulerEnv {
   PUSH_VAPID_PUBLIC_KEY?: string;
   PUSH_VAPID_PRIVATE_KEY?: string;
   RETENTION_DRY_RUN?: string;
+  /** Optional: sends per hourly run (default and ceiling in delivery.ts). */
+  PUSH_MAX_SENDS_PER_RUN?: string;
 }
 
 // Cron-only Worker: no public HTTP endpoint. Times in Cloudflare config are UTC.
@@ -23,6 +25,12 @@ const scheduler = {
       return;
     }
     if (event.cron !== '0 * * * *') throw new Error('Cron no configurado para Papelito.');
+    const now = new Date(event.scheduledTime);
+    // Outside 09:00–17:59 Costa Rica there is nothing to send: do not wake the database.
+    if (!isReminderHour(now)) {
+      console.log(JSON.stringify({ job: 'push-reminders', skipped: 'outside_hours' }));
+      return;
+    }
     if (!env.INVITATION_TOKEN_SECRET && !(env.PUSH_VAPID_PUBLIC_KEY && env.PUSH_VAPID_PRIVATE_KEY)) {
       throw new Error('Falta configurar las claves Web Push.');
     }
@@ -32,7 +40,7 @@ const scheduler = {
         const r = await pool.query(sql, params);
         return { rows: r.rows as T[], rowCount: r.rowCount ?? 0 };
       });
-      const result = await service.sendDueReminders();
+      const result = await service.sendDueReminders(now, undefined, { maxSends: parseMaxSendsPerRun(env.PUSH_MAX_SENDS_PER_RUN) });
       console.log(JSON.stringify({ job: 'push-reminders', ...result }));
     } finally {
       await pool.end();

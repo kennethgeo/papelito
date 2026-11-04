@@ -3,10 +3,13 @@ import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { connection } from "next/server";
 import { RibbonLogo } from "@/components/RibbonLogo";
-import { RibbonDivider } from "@/components/RibbonDivider";
+import { PaperIllustration } from "@/components/PaperIllustration";
 import { isDatabaseConfigured } from "@/lib/db/client";
-import { getServerSession } from "@/lib/auth/server";
-import { getInvitationPreviewAction } from "@/lib/data/server-actions";
+import { getSessionState } from "@/lib/auth/server";
+import { isNeonAuthConfigured } from "@/lib/auth/config";
+import { getInvitationPreview } from "@/lib/repositories/exchanges";
+import { logError } from "@/lib/observability/log";
+import { SessionUnavailable } from "@/components/SessionUnavailable";
 import {
   getLatestConsentStatus,
   getOrCreateProfile,
@@ -25,6 +28,7 @@ interface PreviewState {
   currency?: string;
   requiresApproval?: boolean;
   organizerAlias?: string;
+  theme?: string;
   reason?: string;
 }
 
@@ -36,270 +40,118 @@ async function UnirseContent({
   // Invitation expiry and membership must be evaluated for the incoming request.
   await connection();
   const { token } = await tokenPromise;
+  const retryHref = `/unirse/${encodeURIComponent(token)}`;
 
   let preview: PreviewState = {
     valid: false,
-    reason: "El servicio de base de datos no está configurado en este entorno.",
+    reason: "Las invitaciones no están disponibles en este entorno.",
   };
 
   if (isDatabaseConfigured()) {
     try {
-      const res = await getInvitationPreviewAction(token);
-      if (res.success && res.data && res.data.valid) {
-        preview = {
-          valid: true,
-          exchangeId: res.data.exchangeId,
-          name: res.data.name,
-          description: res.data.description || "",
-          eventDate: res.data.eventDate,
-          budgetAmount: Number(res.data.budgetAmount),
-          currency: res.data.currency || "CRC",
-          requiresApproval: res.data.requiresApproval || false,
-          organizerAlias: res.data.organizerAlias || "Organizador",
-        };
-      } else {
-        preview = {
-          valid: false,
-          reason:
-            res.data?.reason ||
-            res.error ||
-            "Enlace de invitación no válido o inexistente.",
-        };
-      }
+      const result = await getInvitationPreview(token.trim());
+      preview = result.valid
+        ? {
+            valid: true,
+            exchangeId: result.exchangeId,
+            name: result.name,
+            description: result.description || "",
+            eventDate: result.eventDate,
+            budgetAmount: Number(result.budgetAmount),
+            currency: result.currency || "CRC",
+            requiresApproval: result.requiresApproval || false,
+            organizerAlias: result.organizerAlias || "Organizador",
+            theme: result.theme,
+          }
+        : { valid: false, reason: result.reason };
     } catch (err) {
       unstable_rethrow(err);
-      preview = {
-        valid: false,
-        reason: "Error al consultar la invitación en el servidor.",
-      };
+      // An outage is not an invalid invitation: never show driver messages.
+      logError("join.preview_failed", err);
+      return <SessionUnavailable context="invitación" retryHref={retryHref} />;
     }
   }
 
-  const session = await getServerSession();
-  const currentUser = session?.user || null;
+  const session = isNeonAuthConfigured() ? await getSessionState() : { status: "anonymous" as const };
+  if (session.status === "unavailable") return <SessionUnavailable retryHref={retryHref} />;
+  const currentUser = session.status === "authenticated" ? session.user : null;
   let initialHasConsented = false;
+  let visibleName = currentUser?.name || "";
 
   if (currentUser && isDatabaseConfigured()) {
     try {
-      await getOrCreateProfile(
+      const profile = await getOrCreateProfile(
         currentUser.id,
         currentUser.email,
         currentUser.name,
         currentUser.avatarColor || "#46245D",
       );
+      visibleName = profile.alias;
       const consentStatus = await getLatestConsentStatus(currentUser.id);
       initialHasConsented = consentStatus.hasCurrentConsent;
     } catch (err) {
       unstable_rethrow(err);
-      initialHasConsented = false;
+      logError("join.account_state_failed", err);
+      return <SessionUnavailable retryHref={retryHref} />;
     }
   }
 
+  const theme = (["navidad", "amistad", "cumpleanos", "general"] as const).find((t) => t === preview.theme) ?? "general";
   return (
-    <div
-      style={{
-        maxWidth: "480px",
-        width: "100%",
-        backgroundColor: "#FFFFFF",
-        borderRadius: "24px",
-        border: "1px solid var(--border-subtle)",
-        padding: "2rem 1.5rem",
-        boxShadow: "0 8px 30px rgba(70, 36, 93, 0.08)",
-        textAlign: "center",
-      }}
-    >
-      <RibbonLogo size="md" />
-
+    <article className={`join-invitation occasion-${theme}`}>
+      <RibbonLogo size="sm" />
       {!preview.valid ? (
-        <div style={{ marginTop: "1.5rem" }}>
-          <h1
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "1.4rem",
-              fontWeight: 800,
-              color: "var(--color-tinta)",
-              margin: "0 0 0.5rem 0",
-            }}
-          >
-            Invitación no disponible
-          </h1>
-          <p
-            style={{
-              fontSize: "0.9rem",
-              color: "var(--text-secondary)",
-              marginBottom: "1.5rem",
-              lineHeight: 1.5,
-            }}
-          >
-            {preview.reason}
+        <div className="join-body">
+          <p className="workshop-step">Invitación</p>
+          <h1>Invitación no disponible</h1>
+          <p>{preview.reason}</p>
+          <p className="field-help">
+            Pedile a quien organiza una invitación nueva. Si ya formás parte
+            del intercambio, lo encontrás en tus intercambios.
           </p>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
-          >
-            <p className="field-help">
-              Pedile a quien organiza una invitación nueva. Si ya formás parte
-              del intercambio, podés encontrarlo desde tu cuenta en el inicio.
-            </p>
-            <Link
-              href="/"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "var(--color-tinta)",
-                color: "#FFFFFF",
-                padding: "0.75rem 1.25rem",
-                borderRadius: "12px",
-                textDecoration: "none",
-                fontWeight: 700,
-              }}
-            >
-              ← Volver al inicio
-            </Link>
-          </div>
+          <Link className="paper-button" href="/">Ir a mis intercambios</Link>
         </div>
       ) : (
-        <div style={{ marginTop: "1.25rem" }}>
-          <span
-            style={{
-              display: "inline-block",
-              backgroundColor: "var(--color-celeste)",
-              color: "var(--color-tinta)",
-              fontSize: "0.72rem",
-              fontWeight: 800,
-              textTransform: "none",
-              letterSpacing: "0.06em",
-              padding: "0.25rem 0.65rem",
-              borderRadius: "999px",
-              marginBottom: "0.75rem",
-            }}
-          >
-            Invitación a intercambio
-          </span>
-
-          <h1
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "1.55rem",
-              fontWeight: 800,
-              color: "var(--color-tinta)",
-              margin: "0 0 0.4rem 0",
-              lineHeight: 1.2,
-            }}
-          >
-            {preview.name}
-          </h1>
-
-          <p
-            style={{
-              fontSize: "0.88rem",
-              color: "var(--text-secondary)",
-              margin: "0 0 1rem 0",
-            }}
-          >
-            Organizado por <strong>{preview.organizerAlias}</strong>
+        <div className="join-body">
+          <p className="workshop-step">Te invitaron a un intercambio</p>
+          <h1>{preview.name}</h1>
+          <p className="occasion-label">Organiza {preview.organizerAlias}</p>
+          <dl className="event-facts">
+            <div>
+              <dt>Entrega</dt>
+              <dd>{formatEventDate(preview.eventDate || "")}</dd>
+            </div>
+            <div>
+              <dt>Por regalo</dt>
+              <dd>{formatMoney(preview.budgetAmount || 0, preview.currency || "CRC")}</dd>
+            </div>
+          </dl>
+          {preview.description && <p className="handwritten-message">{preview.description}</p>}
+          <div className="join-art" aria-hidden="true"><PaperIllustration theme={theme} /></div>
+          <ol className="join-steps" aria-label="Cómo unirte">
+            <li className={currentUser ? "done" : undefined}>Entrá con tu cuenta.</li>
+            <li className={initialHasConsented ? "done" : undefined}>Confirmá los documentos de Papelito (una sola vez).</li>
+            <li>{preview.requiresApproval ? "Pedí tu lugar: quien organiza lo confirma." : "Unite al intercambio."}</li>
+          </ol>
+          <p className="join-privacy">
+            El grupo ve tu nombre visible. Tus ideas de regalo solo las ve la
+            persona a la que le toque regalarte.
           </p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "0.65rem",
-              backgroundColor: "var(--surface-subtle)",
-              borderRadius: "14px",
-              padding: "0.85rem",
-              marginBottom: "1.25rem",
-              textAlign: "left",
-            }}
-          >
-            <div>
-              <span
-                style={{
-                  fontSize: "0.7rem",
-                  color: "var(--text-secondary)",
-                  textTransform: "none",
-                }}
-              >
-                Entrega
-              </span>
-              <strong
-                style={{
-                  display: "block",
-                  fontSize: "0.92rem",
-                  color: "var(--color-tinta)",
-                }}
-              >
-                {formatEventDate(preview.eventDate || "")}
-              </strong>
-            </div>
-            <div>
-              <span
-                style={{
-                  fontSize: "0.7rem",
-                  color: "var(--text-secondary)",
-                  textTransform: "none",
-                }}
-              >
-                Presupuesto
-              </span>
-              <strong
-                style={{
-                  display: "block",
-                  fontSize: "0.92rem",
-                  color: "var(--color-tinta)",
-                }}
-              >
-                {formatMoney(
-                  preview.budgetAmount || 0,
-                  preview.currency || "CRC",
-                )}
-              </strong>
-            </div>
-          </div>
-
-          <RibbonDivider />
-
-          <div style={{ marginBottom: "1.5rem", textAlign: "left" }}>
-            <p
-              style={{
-                fontSize: "0.78rem",
-                color: "var(--text-secondary)",
-                margin: 0,
-                lineHeight: 1.4,
-              }}
-            >
-              🔒 <strong>Privacidad protegida:</strong> Al unirte, los demás
-              participantes solo verán tu nombre o alias visible. Tus ideas de
-              regalo solo serán compartidas con la persona a la que le
-              corresponda regalarte una vez realizado el sorteo.
-            </p>
-          </div>
-
           {currentUser ? (
             <JoinExchangeClientAction
               token={token}
               userEmail={currentUser.email || currentUser.name || "tu cuenta"}
+              visibleName={visibleName}
+              requiresApproval={!!preview.requiresApproval}
               initialHasConsented={initialHasConsented}
             />
           ) : (
             <GoogleJoinButton nextUrl={`/unirse/${token}`} />
           )}
-
-          <div style={{ marginTop: "1rem" }}>
-            <Link
-              href="/"
-              style={{
-                fontSize: "0.82rem",
-                color: "var(--text-secondary)",
-                textDecoration: "none",
-              }}
-            >
-              Volver al inicio
-            </Link>
-          </div>
+          <p className="join-footer"><Link href="/">Volver al inicio</Link></p>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -307,25 +159,10 @@ export default function UnirsePage(props: {
   params: Promise<{ token: string }>;
 }) {
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "var(--bg-app)",
-        padding: "2rem 1rem 4rem 1rem",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Suspense
-        fallback={
-          <div style={{ textAlign: "center", padding: "2rem" }}>
-            Cargando invitación...
-          </div>
-        }
-      >
+    <main className="join-page">
+      <Suspense fallback={<p className="paper-loading" role="status">Abriendo la invitación…</p>}>
         <UnirseContent tokenPromise={props.params} />
       </Suspense>
-    </div>
+    </main>
   );
 }

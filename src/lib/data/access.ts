@@ -2,6 +2,7 @@ import 'server-only';
 import { getFreshServerSession, getServerSession } from '@/lib/auth/server';
 import { getLatestConsentStatus } from '@/lib/repositories/profiles';
 import { PublicError } from './errors';
+import { logError } from '@/lib/observability/log';
 export { PublicError } from './errors';
 export async function requireUser(fresh = false) {
   const session = fresh ? await getFreshServerSession() : await getServerSession();
@@ -13,5 +14,9 @@ export async function requireUser(fresh = false) {
 }
 export async function safeAction<T>(fn: () => Promise<T>) {
   try { return { success: true as const, data: await fn() }; }
-  catch (e) { return { success: false as const, error: e instanceof PublicError ? e.message : 'No pudimos completar la operación. Revisá la conexión e intentá de nuevo.' }; }
+  catch (e) {
+    if (e instanceof PublicError) return { success: false as const, error: e.message };
+    logError('server_action.failed', e);
+    return { success: false as const, error: 'No pudimos completar la operación. Revisá la conexión e intentá de nuevo.' };
+  }
 }

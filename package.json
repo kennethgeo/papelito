@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,14 +17,18 @@
     "privacy:delete": "node --conditions=react-server --experimental-strip-types scripts/privacy-delete.mjs",
     "test:draw": "node --experimental-strip-types scripts/test-draw.mjs",
     "test:lifecycle": "node --conditions=react-server --experimental-strip-types scripts/test-lifecycle.mjs",
+    "test:hardening": "node --conditions=react-server --experimental-strip-types scripts/test-hardening.mjs",
+    "test:concurrency": "node --conditions=react-server --experimental-strip-types scripts/test-concurrency.mjs",
     "test:backend": "node --conditions=react-server --experimental-strip-types scripts/test-backend.mjs",
     "test:neon": "node --conditions=react-server --experimental-strip-types scripts/test-neon.mjs",
     "test:ux": "node --experimental-strip-types scripts/test-ux.mjs && npm run test:db:workers",
     "test:db:workers": "node --experimental-test-module-mocks --conditions=react-server --experimental-strip-types scripts/test-db-workers.mjs",
     "test:journey": "node --conditions=react-server --experimental-strip-types scripts/test-journey.mjs",
     "test:e2e": "playwright test",
+    "test:e2e:workerd": "PAPELITO_E2E_WORKERD=1 playwright test",
     "test:neon:e2e": "node --conditions=react-server --experimental-strip-types scripts/test-neon-journey.mjs",
     "test:pwa": "node scripts/test-pwa.mjs",
+    "test:workerd": "node scripts/test-workerd.mjs && node scripts/test-workerd-push.mjs",
     "test:selected": "node --conditions=react-server --experimental-strip-types scripts/test-selected.mjs",
     "support:list": "node scripts/support-list.mjs",
     "test:social": "node --conditions=react-server --experimental-strip-types scripts/test-social.mjs",
@@ -65,8 +73,9 @@
     "cf": "1.0.0-beta.26",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "pg": "8.16.3",
     "typescript": "^5",
-    "vite": "8.3.0",
+    "vite": "8.3.5",
     "wrangler": "4.156.0"
   }
 }

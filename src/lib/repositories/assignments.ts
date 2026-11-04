@@ -1,61 +1,36 @@
 import 'server-only';
+import { PublicError } from '@/lib/data/errors';
 import { EMPTY_GIFT_PREFERENCES } from '@/lib/gift-preferences';
-import { getGiftPreferences } from './social';
 import { dbQuery, dbTransaction } from '@/lib/db/client';
+import { toIsoTimestamp } from '@/lib/date/timestamps';
 import type { Assignment, Wish, Currency } from '@/types';
 
 export async function getMyAssignment(
   exchangeId: string,
   userId: string
 ): Promise<Assignment | null> {
-  // 1. Fetch current exchange status and draw version
-  const exRes = await dbQuery<{
-    status: string;
-    current_draw_version: number;
-    budget_amount: string;
-    currency: Currency;
-  }>(
-    `SELECT status, current_draw_version, budget_amount::text, currency
-     FROM exchanges
-     WHERE id = $1`,
-    [exchangeId]
-  );
-
-  if (exRes.rowCount === 0) {
-    return null;
-  }
-
-  const ex = exRes.rows[0];
-  if (ex.status !== 'sorteado' || ex.current_draw_version === 0) {
-    return null;
-  }
-
-  // 2. Fetch current draw version ID
-  const verRes = await dbQuery<{ id: string }>(
-    `SELECT id FROM draw_versions
-     WHERE exchange_id = $1 AND version_number = $2`,
-    [exchangeId, ex.current_draw_version]
-  );
-
-  if (verRes.rowCount === 0) {
-    return null;
-  }
-
-  const versionId = verRes.rows[0].id;
-
-  // 3. Find user's assignment as giver (must be an approved member in the exchange)
+  // One round trip resolves the same conditions as before: drawn exchange,
+  // current draw version, the caller as giver and an approved membership.
   const assignRes = await dbQuery<{
     id: string;
     receiver_id: string;
     revealed_at: string | null;
+    budget_amount: string;
+    currency: Currency;
+    alias: string | null;
+    full_name: string | null;
+    avatar_color: string | null;
+    gift_preferences: Record<string, string> | null;
   }>(
-    `SELECT a.id, a.receiver_id, a.revealed_at::text
-     FROM assignments a
-     JOIN memberships m ON m.exchange_id = a.exchange_id AND m.user_id = a.giver_id
-     WHERE a.draw_version_id = $1
-       AND a.giver_id = $2
-       AND m.status = 'approved'`,
-    [versionId, userId]
+    `SELECT a.id, a.receiver_id, a.revealed_at::text, e.budget_amount::text, e.currency,
+            p.alias, p.full_name, p.avatar_color, p.gift_preferences
+     FROM exchanges e
+     JOIN draw_versions dv ON dv.exchange_id = e.id AND dv.version_number = e.current_draw_version
+     JOIN assignments a ON a.draw_version_id = dv.id AND a.giver_id = $2
+     JOIN memberships m ON m.exchange_id = a.exchange_id AND m.user_id = a.giver_id AND m.status = 'approved'
+     LEFT JOIN profiles p ON p.user_id = a.receiver_id
+     WHERE e.id = $1 AND e.status = 'sorteado' AND e.current_draw_version > 0`,
+    [exchangeId, userId]
   );
 
   if (assignRes.rowCount === 0) {
@@ -63,23 +38,11 @@ export async function getMyAssignment(
   }
 
   const assignment = assignRes.rows[0];
-
-  // 4. Fetch receiver profile
-  const recRes = await dbQuery<{
-    alias: string;
-    full_name: string;
-    avatar_color: string;
-  }>(
-    `SELECT alias, full_name, avatar_color
-     FROM profiles
-     WHERE user_id = $1`,
-    [assignment.receiver_id]
-  );
-
-  const receiver = recRes.rows[0] || {
-    alias: 'Amigo secreto',
-    full_name: 'Amigo secreto',
-    avatar_color: '#46245D',
+  const ex = { budget_amount: assignment.budget_amount, currency: assignment.currency };
+  const receiver = {
+    alias: assignment.alias ?? 'Amigo secreto',
+    full_name: assignment.full_name ?? 'Amigo secreto',
+    avatar_color: assignment.avatar_color ?? '#46245D',
   };
 
   // 5. Fetch receiver's selected wishes for this exchange with buyer purchase marks
@@ -128,7 +91,7 @@ export async function getMyAssignment(
     priority: w.priority,
     isPurchasedByGiver: w.is_purchased_by_giver,
     isPurchased: w.is_purchased_by_giver,
-    createdAt: w.created_at,
+    createdAt: toIsoTimestamp(w.created_at) ?? '',
   }));
 
   return {
@@ -138,12 +101,12 @@ export async function getMyAssignment(
     receiverId: assignment.receiver_id,
     receiverName: receiver.full_name,
     receiverAlias: receiver.alias,
-    receiverPreferences: { ...EMPTY_GIFT_PREFERENCES, ...await getGiftPreferences(assignment.receiver_id) },
+    receiverPreferences: { ...EMPTY_GIFT_PREFERENCES, ...(assignment.gift_preferences ?? {}) },
     receiverAvatarColor: receiver.avatar_color,
     budgetAmount: Number(ex.budget_amount),
     currency: ex.currency,
     revealed: Boolean(assignment.revealed_at),
-    revealedAt: assignment.revealed_at || undefined,
+    revealedAt: toIsoTimestamp(assignment.revealed_at) ?? undefined,
     wishes,
   };
 }
@@ -155,7 +118,7 @@ export async function revealAssignment(exchangeId: string, userId: string): Prom
     [exchangeId]
   );
   if (exRes.rowCount === 0 || exRes.rows[0].status !== 'sorteado' || exRes.rows[0].current_draw_version === 0) {
-    throw new Error('No hay un sorteo activo en este intercambio.');
+    throw new PublicError('No hay un sorteo activo en este intercambio.');
   }
 
   const verRes = await dbQuery<{ id: string }>(
@@ -163,7 +126,7 @@ export async function revealAssignment(exchangeId: string, userId: string): Prom
     [exchangeId, exRes.rows[0].current_draw_version]
   );
   if (verRes.rowCount === 0) {
-    throw new Error('Versión de sorteo no encontrada.');
+    throw new PublicError('Versión de sorteo no encontrada.');
   }
 
   // 2. Verify caller is an approved member and has an assignment in this draw version
@@ -178,7 +141,7 @@ export async function revealAssignment(exchangeId: string, userId: string): Prom
   );
 
   if (existing.rowCount === 0) {
-    throw new Error('No tienes una asignación activa en este intercambio.');
+    throw new PublicError('No tenés una asignación activa en este intercambio.');
   }
 
   const row = existing.rows[0];
@@ -205,10 +168,10 @@ export async function toggleWishPurchase(
       [exchangeId]
     );
     if (exRes.rowCount === 0) {
-      throw new Error('Intercambio no encontrado.');
+      throw new PublicError('Intercambio no encontrado.');
     }
     if (exRes.rows[0].status !== 'sorteado' || exRes.rows[0].current_draw_version === 0) {
-      throw new Error('No hay un sorteo activo para este intercambio.');
+      throw new PublicError('No hay un sorteo activo para este intercambio.');
     }
 
     const verRes = await client.query<{ id: string }>(
@@ -216,7 +179,7 @@ export async function toggleWishPurchase(
       [exchangeId, exRes.rows[0].current_draw_version]
     );
     if (verRes.rowCount === 0) {
-      throw new Error('No hay un sorteo activo para este intercambio.');
+      throw new PublicError('No hay un sorteo activo para este intercambio.');
     }
 
     // 2. Verify buyer is an approved member and has assignment as giver
@@ -228,7 +191,7 @@ export async function toggleWishPurchase(
       [verRes.rows[0].id, buyerId]
     );
     if (assignRes.rowCount === 0) {
-      throw new Error('No tienes asignación autorizada como regalador en este intercambio.');
+      throw new PublicError('No tenés una asignación vigente para regalar en este intercambio.');
     }
 
     const receiverId = assignRes.rows[0].receiver_id;
@@ -242,7 +205,7 @@ export async function toggleWishPurchase(
       [exchangeId, wishId, receiverId]
     );
     if (selRes.rowCount === 0) {
-      throw new Error('El deseo no pertenece a la persona asignada o no fue seleccionado en este intercambio.');
+      throw new PublicError('El deseo no pertenece a la persona asignada o no fue seleccionado en este intercambio.');
     }
 
     // 4. Insert or remove purchase mark atomically

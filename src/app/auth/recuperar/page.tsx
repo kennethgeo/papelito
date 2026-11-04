@@ -40,7 +40,7 @@ function RecuperarPasswordContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
     rawError?.toUpperCase() === 'INVALID_TOKEN'
-      ? 'El enlace de recuperación no es válido o ya expiró. Solicita uno nuevo a continuación.'
+      ? 'El enlace de recuperación no es válido o ya expiró. Pedí uno nuevo a continuación.'
       : null
   );
   const [resetCompleted, setResetCompleted] = useState(false);
@@ -63,7 +63,7 @@ function RecuperarPasswordContent() {
     }
 
     if (newPassword !== confirmPassword) {
-      setErrorMessage('Las contraseñas no coinciden. Verifica que ambas sean idénticas.');
+      setErrorMessage('Las contraseñas no coinciden. Revisá que ambas sean idénticas.');
       return;
     }
 
@@ -158,10 +158,10 @@ function RecuperarPasswordContent() {
         </h1>
         <p className="paper-welcome-subtitle">
           {resetCompleted
-            ? 'Tu nueva contraseña quedó guardada. Ya puedes iniciar sesión con tu correo.'
+            ? 'Tu nueva contraseña quedó guardada. Ya podés iniciar sesión con tu correo.'
             : tokenInvalid
-              ? 'Solicita un enlace seguro para definir o restablecer la contraseña de tu cuenta.'
-              : 'Elige una contraseña segura de al menos 8 caracteres para tu cuenta de Papelito.'}
+              ? 'Pedí un enlace seguro para definir o restablecer la contraseña de tu cuenta.'
+              : 'Elegí una contraseña segura de al menos 8 caracteres para tu cuenta de Papelito.'}
         </p>
       </div>
 

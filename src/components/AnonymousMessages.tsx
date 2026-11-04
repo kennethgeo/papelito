@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { anonymousThreadsAction, sendAnonymousMessageAction } from '@/lib/data/social-actions';
-import { callServerAction } from '@/lib/client-actions';
+import { callServerAction, callServerRead } from '@/lib/client-actions';
+import { formatTimestamp } from '@/lib/date/timestamps';
 import type { AnonymousThread } from '@/lib/repositories/social';
 
 export function AnonymousMessages({ exchangeId, version }: { exchangeId: string; version: number }) {
@@ -24,7 +25,7 @@ export function AnonymousMessages({ exchangeId, version }: { exchangeId: string;
       } catch { setError('No pudimos cargar la conversación de demo.'); }
       return;
     }
-    const res = await callServerAction(() => anonymousThreadsAction(exchangeId));
+    const res = await callServerRead(() => anonymousThreadsAction(exchangeId));
     if (request !== generation.current) return;
     if (res.success && res.data) { setThreads(res.data); setError(''); }
     else setError(res.error || 'No pudimos actualizar los mensajes.');
@@ -60,7 +61,7 @@ export function AnonymousMessages({ exchangeId, version }: { exchangeId: string;
     <div className="message-list" aria-label="Historial de mensajes">
       {thread?.messages.map(m => <article key={m.id} className={`message-bubble ${m.mine ? 'mine' : ''}`}>
         <strong>{m.mine ? 'Vos' : direction === 'receiving' ? 'Tu amigo secreto' : 'La persona a quien regalás'}</strong>
-        <p>{m.body}</p><time dateTime={m.createdAt}>{new Intl.DateTimeFormat('es-CR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(m.createdAt))}</time>
+        <p>{m.body}</p><time dateTime={m.createdAt}>{formatTimestamp(m.createdAt, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }, 'hace un momento')}</time>
       </article>)}
       {thread?.messages.length === 0 && <p className="message-empty">Un pequeño mensaje puede dar una gran pista.</p>}
     </div>

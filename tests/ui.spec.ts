@@ -71,11 +71,26 @@ test('preferencias, guía, ayuda y copia cifrada de lectura sin conexión', asyn
   await context.setOffline(false);
 });
 
+// Every test also checks the report-only CSP: nothing the app does may be
+// reported, so the policy can later be enforced without breaking a flow.
+const policyViolations = new WeakMap<import("@playwright/test").Page, string[]>();
 test.beforeEach(async ({ page }) => {
+  const violations: string[] = [];
+  policyViolations.set(page, violations);
+  await page.exposeBinding("__papelitoPolicyViolation", (_source, text: string) => { violations.push(text); });
+  await page.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", (event) => {
+      (window as unknown as { __papelitoPolicyViolation: (text: string) => void }).__papelitoPolicyViolation(`${event.effectiveDirective} ${event.blockedURI} (${event.disposition}) ${event.sourceFile}:${event.lineNumber}:${event.columnNumber}`);
+    });
+  });
   await page.goto("/?mode=demo");
   await expect(
     page.getByRole("button", { name: "Crear intercambio", exact: true }),
   ).toBeVisible();
+});
+
+test.afterEach(async ({ page }) => {
+  expect(policyViolations.get(page) ?? [], "la política de seguridad en modo reporte no debe registrar violaciones").toEqual([]);
 });
 
 async function noOverflow(page: import("@playwright/test").Page) {
@@ -284,4 +299,91 @@ test('gustos, instalación visible, mensajes de demo, QR y nueva edición', asyn
   await expect(page.getByRole('heading', { name: 'Segunda edición', exact: true })).toBeVisible();
   await noOverflow(page);
   await context.clearPermissions();
+});
+
+test('Atrás del sistema, recarga y foco conservan la vista sin datos privados en la URL', async ({ page }) => {
+  await page.locator('.paper-invitation').first().click();
+  const heading = page.getByRole('heading', { level: 1 }).first();
+  await expect(heading).toBeVisible();
+  const exchangeName = await heading.innerText();
+  expect(page.url()).toMatch(/vista=intercambio&intercambio=/);
+  await expect(page).toHaveTitle(new RegExp(exchangeName.slice(0, 12)));
+  await page.getByRole('button', { name: 'Mis deseos', exact: true }).click();
+  await expect(page).toHaveURL(/vista=deseos/);
+  await expect(page.getByRole('heading', { level: 1 }).first()).toBeFocused();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: exchangeName, level: 1 })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: exchangeName, level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: '← Mis intercambios' }).click();
+  await expect(page).not.toHaveURL(/vista=/);
+  await expect(page.getByRole('button', { name: 'Crear intercambio', exact: true })).toBeVisible();
+  expect(decodeURIComponent(page.url())).not.toMatch(/regalo|deseo=|asignaci|alias|@/i);
+  await noOverflow(page);
+});
+
+test('la vista previa de tiendas solo se ofrece donde el servidor puede consultarla', async ({ page }) => {
+  await page.getByRole('button', { name: 'Mis deseos', exact: true }).click();
+  await page.getByText('Agregar enlace, precio o detalles', { exact: true }).click();
+  await page.locator('#wish-url').fill('https://tienda.example/producto');
+  const button = page.getByRole('button', { name: 'Preparar vista previa del enlace' });
+  // The Workers bundle cannot pin DNS for store lookups; next start can.
+  if (process.env.PAPELITO_E2E_WORKERD === '1') await expect(button).toHaveCount(0);
+  else await expect(button).toBeVisible();
+});
+
+test('la navegación inferior se oculta solo con teclado en pantalla y no tapa campos', async ({ page }) => {
+  await page.getByRole('button', { name: 'Mis deseos', exact: true }).click();
+  const nav = page.getByRole('navigation', { name: 'Navegación principal' });
+  const field = page.getByLabel('Idea de regalo', { exact: true });
+  await field.focus();
+  await expect(nav).toBeVisible(); // focusing a field without a keyboard (desktop, emulation) keeps it
+  await page.evaluate(() => {
+    const viewport = window.visualViewport!;
+    Object.defineProperty(viewport, 'height', { configurable: true, get: () => window.innerHeight - 320 });
+    viewport.dispatchEvent(new Event('resize'));
+  });
+  await expect(nav).toBeHidden();
+  await page.getByRole('heading', { level: 1 }).first().focus();
+  await expect(nav).toBeVisible();
+  await page.evaluate(() => { const viewport = window.visualViewport!; Reflect.deleteProperty(viewport, 'height'); viewport.dispatchEvent(new Event('resize')); });
+  const layout = await page.evaluate(() => {
+    const navBox = document.querySelector('.paper-navigation')!.getBoundingClientRect();
+    return { navTop: navBox.top, scrollPadding: getComputedStyle(document.documentElement).scrollPaddingBottom };
+  });
+  expect(parseFloat(layout.scrollPadding)).toBeGreaterThanOrEqual(96);
+  expect(layout.navTop).toBeGreaterThan(0);
+});
+
+test('guía solo en la lista y página de error 404 en español', async ({ page }) => {
+  await expect(page.getByRole('complementary', { name: 'Guía de Papelito' })).toBeVisible();
+  await page.getByRole('button', { name: 'Mis deseos', exact: true }).click();
+  await expect(page.getByRole('complementary', { name: 'Guía de Papelito' })).toHaveCount(0);
+  await page.goto('/esta-pagina-no-existe');
+  await expect(page.getByRole('heading', { name: 'No encontramos esta página.' })).toBeVisible();
+});
+
+test('acceso: Google primero, luego correo y la passkey como opción secundaria', async ({ page }) => {
+  await page.goto('/');
+  const card = page.locator('.paper-access');
+  const google = card.getByRole('button', { name: 'Continuar con Google' });
+  const email = card.getByLabel('Correo electrónico');
+  await expect(google).toBeVisible();
+  const [googleBox, emailBox] = [await google.boundingBox(), await email.boundingBox()];
+  expect(googleBox!.y).toBeLessThan(emailBox!.y);
+  await noOverflow(page);
+});
+
+test('cabeceras de seguridad: CSP en modo reporte, Permissions-Policy y detección de recursos externos', async ({ page }) => {
+  const response = await page.goto('/?mode=demo');
+  const headers = response!.headers();
+  expect(headers['content-security-policy-report-only']).toContain("default-src 'self'");
+  expect(headers['content-security-policy']).toBeUndefined();
+  expect(headers['permissions-policy']).toContain('camera=()');
+  // Report-only never blocks: an external image is reported (so the collector works) but still requested.
+  await page.evaluate(() => { const img = document.createElement('img'); img.src = 'https://tienda.invalid/foto.png'; document.body.append(img); });
+  const violations = policyViolations.get(page)!;
+  await expect.poll(() => violations.length).toBe(1);
+  expect(violations[0]).toMatch(/^img-src https:\/\/tienda\.invalid\/foto\.png \(report\) /);
+  violations.length = 0;
 });

@@ -1,6 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { RecentLoginGate } from '@/components/RecentLoginGate';
+import { consumeOpenSection } from '@/lib/view-history';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import type { AccountDeletionImpact } from '@/lib/repositories/profiles';
 import { LEGAL_CONSTANTS } from '@/lib/legal/constants';
@@ -18,6 +20,14 @@ export function AccountDeletionPanel() {
   const [organizerConfirmed, setOrganizerConfirmed] = useState(false);
   const [notes, setNotes] = useState('');
   const inFlight = useRef(false);
+  // Back from «Volver a ingresar»: reopen the request where it was.
+  useEffect(() => {
+    if (!consumeOpenSection('baja')) return;
+    const panel = document.querySelector<HTMLDetailsElement>('[data-section="privacidad"]');
+    if (panel) panel.open = true;
+    queueMicrotask(() => void showImpact());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const pending = received || ['received', 'processing'].includes(impact?.activeDeleteRequest?.status ?? '');
 
   async function showImpact() {
@@ -70,7 +80,7 @@ export function AccountDeletionPanel() {
       {open && <div className="management-note">
         <h3>Antes de despedirnos</h3>
         {busy && <p role="status">{impact ? 'Registrando tu solicitud…' : 'Revisando tus intercambios…'}</p>}
-        {pending ? <p role="status"><strong>Solicitud registrada.</strong> La cuenta aún no se ha eliminado. La solicitud se tramita administrativamente; podés consultar su estado en <a href={`mailto:${LEGAL_CONSTANTS.CONTACT_EMAIL}`}>{LEGAL_CONSTANTS.CONTACT_EMAIL}</a>.</p> : impact && <form onSubmit={submit}>
+        {pending ? <p role="status"><strong>Solicitud registrada.</strong> La cuenta aún no se ha eliminado. La solicitud se tramita administrativamente; podés consultar su estado en <a href={`mailto:${LEGAL_CONSTANTS.CONTACT_EMAIL}`}>{LEGAL_CONSTANTS.CONTACT_EMAIL}</a>.</p> : impact && <RecentLoginGate purpose="solicitar la eliminación de tu cuenta" returnTo="/?vista=cuenta&abrir=baja"><form onSubmit={submit}>
           <p>Al procesarla se borrarán tu acceso, perfil, deseos y datos personales de la base activa. Exportá primero los datos que quieras conservar.</p>
           {impact.soloOrganizedExchanges.length > 0 && <p>Tus intercambios sin otros participantes se eliminarán junto con la cuenta.</p>}
           {impact.participatingDrawnExchanges.length > 0 && <p><strong>Hay sorteos en curso:</strong> {impact.participatingDrawnExchanges.map(e => e.name).join(', ')}. Al eliminar tu cuenta, sus asignaciones quedarán invalidadas y el organizador deberá repetir el sorteo con las personas restantes.</p>}
@@ -82,9 +92,8 @@ export function AccountDeletionPanel() {
           <label className="management-field">Notas opcionales<textarea maxLength={500} rows={2} value={notes} onChange={e => setNotes(e.target.value)} disabled={busy} /></label>
           <label className="management-check"><input type="checkbox" required checked={confirmed} onChange={e => setConfirmed(e.target.checked)} disabled={busy} /><span>Entiendo que la eliminación, cuando se procese, será irreversible en la base activa.</span></label>
           <label className="management-field">Escribí ELIMINAR MI CUENTA para confirmar<input autoComplete="off" required value={phrase} onChange={e => setPhrase(e.target.value)} disabled={busy} /></label>
-          <p>Para proteger tu cuenta, tenés que haber iniciado sesión en los últimos 15 minutos.</p>
           <div className="management-actions"><button type="submit" className="management-button danger" disabled={busy || !confirmed || phrase.trim().toUpperCase() !== 'ELIMINAR MI CUENTA'} aria-busy={busy}>Confirmar y enviar solicitud</button><button type="button" className="management-button" onClick={() => setOpen(false)} disabled={busy}>Volver</button></div>
-        </form>}
+        </form></RecentLoginGate>}
         {error && <p role="alert" className="management-error">{error}</p>}
         {!impact && !busy && <button className="management-button" onClick={showImpact}>Volver a revisar</button>}
       </div>}

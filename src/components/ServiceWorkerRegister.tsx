@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { setInstallPrompt, type InstallPrompt } from "@/lib/pwa-install";
+import { NEW_VERSION_EVENT } from "@/lib/version";
 
+/**
+ * Registers the public service worker. A waiting worker is announced through
+ * the same «nueva versión» banner as a new deployment (VersionWatcher), which
+ * activates it only when the person chooses to reload.
+ */
 export function ServiceWorkerRegister() {
-  const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
-  const [dismissed, setDismissed] = useState(false);
-  const applying = useRef(false);
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     let active = true;
@@ -25,7 +28,7 @@ export function ServiceWorkerRegister() {
         if (!active) return;
         const detect = () => {
           if (registration.waiting && navigator.serviceWorker.controller)
-            setWaiting(registration.waiting);
+            window.dispatchEvent(new CustomEvent(NEW_VERSION_EVENT));
         };
         detect();
         const update = () => {
@@ -47,10 +50,6 @@ export function ServiceWorkerRegister() {
         /* Installation help remains usable when the browser does not support workers. */
       }
     };
-    const changed = () => {
-      if (applying.current) window.location.reload();
-    };
-    navigator.serviceWorker.addEventListener("controllerchange", changed);
     if (document.readyState === "complete") void register();
     else window.addEventListener("load", register, { once: true });
     return () => {
@@ -58,27 +57,9 @@ export function ServiceWorkerRegister() {
       window.removeEventListener("load", register);
       window.removeEventListener("beforeinstallprompt", readyToInstall);
       window.removeEventListener("appinstalled", installed);
-      navigator.serviceWorker.removeEventListener("controllerchange", changed);
       cleanupWorker?.();
       cleanupRegistration?.();
     };
   }, []);
-  if (!waiting || dismissed) return null;
-  return (
-    <aside className="update-banner" role="status">
-      <p>
-        Hay una nueva versión de Papelito. Guardá lo que estás escribiendo antes
-        de actualizar.
-      </p>
-      <button
-        onClick={() => {
-          applying.current = true;
-          waiting.postMessage({ type: "ACTIVATE_UPDATE" });
-        }}
-      >
-        Actualizar ahora
-      </button>
-      <button onClick={() => setDismissed(true)}>Más tarde</button>
-    </aside>
-  );
+  return null;
 }

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -83,6 +84,50 @@ export const SELECTED_SCHEMA = {
   webauthn_challenges: ['token_hash', 'challenge', 'kind', 'user_id', 'origin', 'rp_id', 'expires_at'],
   app_session_revocations: ['session_id', 'user_id', 'expires_at'],
 };
+/**
+ * Migrations from 2026-11-02 onwards are recorded in a ledger with their
+ * SHA-256, applied in order, each in its own transaction, and verified by the
+ * columns they add. Earlier migrations keep the detection logic below.
+ */
+export const MIGRATION_LEDGER_TABLE = 'papelito_schema_migrations';
+export const VERSIONED_MIGRATIONS = [
+  { name: '20261102_idempotency_and_limits.sql', columns: { exchanges: ['client_request_id'], wishes: ['client_request_id'] } },
+];
+
+export async function applyVersionedMigrations(client, migrations = VERSIONED_MIGRATIONS) {
+  const run = (sql) => (typeof client.exec === 'function' ? client.exec(sql) : client.query(sql));
+  await client.query(`CREATE TABLE IF NOT EXISTS ${MIGRATION_LEDGER_TABLE} (
+    name text PRIMARY KEY, sha256 text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
+  const applied = [];
+  for (const migration of migrations) {
+    const sql = fs.readFileSync(path.join(rootDir, 'neon/migrations', migration.name), 'utf8');
+    const sha256 = crypto.createHash('sha256').update(sql).digest('hex');
+    const recorded = await client.query(`SELECT sha256 FROM ${MIGRATION_LEDGER_TABLE} WHERE name = $1`, [migration.name]);
+    if (recorded.rows[0]) {
+      if (recorded.rows[0].sha256 !== sha256) {
+        throw new Error(`Rechazado: ${migration.name} cambió después de aplicarse (SHA-256 distinto). Creá una migración nueva en lugar de editarla.`);
+      }
+      continue;
+    }
+    await client.query('BEGIN');
+    try {
+      await run(sql);
+      const columns = await fetchColumnsByTable(client);
+      for (const [table, required] of Object.entries(migration.columns)) {
+        const missing = required.filter((column) => !columns.get(table)?.has(column));
+        if (missing.length) throw new Error(`La migración ${migration.name} no dejó ${table}.${missing.join(', ')}.`);
+      }
+      await client.query(`INSERT INTO ${MIGRATION_LEDGER_TABLE} (name, sha256) VALUES ($1, $2)`, [migration.name, sha256]);
+      await client.query('COMMIT');
+      applied.push(migration.name);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    }
+  }
+  return applied;
+}
+
 export const ALL_PAPELITO_SCHEMA = {
   ...EXPECTED_PAPELITO_SCHEMA,
   profiles: [...EXPECTED_PAPELITO_SCHEMA.profiles, 'gift_preferences', 'guardian_user_id', 'represented_exchange_id', 'preview_checked_at', 'representation_authorized_at'],
@@ -274,7 +319,7 @@ async function inspectCoreSchema(client, migrationSql, incrementalSqlOverride) {
 
   const allTables = tablesRes.rows.map((r) => r.table_name);
   const existingTables = allTables.filter(t => expectedTableSet.has(t));
-  const foreignTables = allTables.filter((t) => !expectedTableSet.has(t) && !(t in SOCIAL_SCHEMA) && !(t in SELECTED_SCHEMA));
+  const foreignTables = allTables.filter((t) => !expectedTableSet.has(t) && !(t in SOCIAL_SCHEMA) && !(t in SELECTED_SCHEMA) && t !== MIGRATION_LEDGER_TABLE);
 
   if (foreignTables.length > 0) {
     throw new Error(
@@ -401,6 +446,10 @@ async function runCliMigration() {
   try {
     client = await pool.connect();
     const result = await inspectAndMigratePublicSchema(client, migrationSql);
+    const versioned = await applyVersionedMigrations(client);
+    console.log(versioned.length
+      ? `✓ Migraciones versionadas aplicadas: ${versioned.join(', ')}.`
+      : `✓ Migraciones versionadas al día (${VERSIONED_MIGRATIONS.length}).`);
     if (result.socialUpgrade) console.log(`✓ Ampliación aditiva aplicada: ${Object.keys(ALL_PAPELITO_SCHEMA).length} tablas verificadas.`);
     if (result.socialUpgrade && result.coreStatus === 'noop') {
       console.log('✓ Esquema base existente conservado. Ampliación aditiva completada sin eliminar datos.');

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { serviceStatusAction } from '@/lib/data/selected-actions';
-import { callServerAction } from '@/lib/client-actions';
+import { callServerRead } from '@/lib/client-actions';
 import { HelpCenter } from './HelpCenter';
 export function PersonalTools() {
   const real = useOptionalRealData();
@@ -18,7 +18,7 @@ export function PersonalTools() {
     setBusy(true); setStatus(''); setError('');
     if (!navigator.onLine) { setError('Este dispositivo está sin conexión. Reconectá para comprobar tu cuenta.'); setBusy(false); return; }
     if (!real) { setStatus('La demo está cargada; no consulta la cuenta ni los servicios reales.'); setBusy(false); return; }
-    const r = await callServerAction(() => serviceStatusAction());
+    const r = await callServerRead(() => serviceStatusAction(), 'el estado de tu cuenta');
     if (r.success && r.data) setStatus(`Pudimos consultar tu cuenta y sus datos a las ${new Intl.DateTimeFormat('es-CR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Costa_Rica' }).format(new Date(r.data.checkedAt))}.`);
     else setError(r.error || 'No pudimos confirmar el acceso a tus datos. Intentá actualizar o volver a entrar.');
     setBusy(false);

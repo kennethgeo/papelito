@@ -174,7 +174,7 @@ export function AccountView() {
         </section>
       )}
       <section className="workshop-sheet">
-        <details>
+        <details data-section="privacidad">
           <summary className="account-privacy-summary">
             Mis datos y privacidad
           </summary>

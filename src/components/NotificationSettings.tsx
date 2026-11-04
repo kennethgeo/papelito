@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { pushSettingsAction, subscribePushAction, unsubscribePushAction, testPushAction } from '@/lib/data/social-actions';
-import { callServerAction } from '@/lib/client-actions';
+import { callServerAction, callServerRead } from '@/lib/client-actions';
 
 export function NotificationSettings() {
   const real = useOptionalRealData();
@@ -26,7 +26,7 @@ export function NotificationSettings() {
       try {
         const registration = await navigator.serviceWorker.getRegistration();
         const sub = await registration?.pushManager.getSubscription();
-        const result = await callServerAction(() => pushSettingsAction(sub?.endpoint));
+        const result = await callServerRead(() => pushSettingsAction(sub?.endpoint));
         if (!active) return;
         if (result.success && result.data) { setConfigured(result.data.configured); setEnabled(!!sub && result.data.subscribed && Notification.permission === 'granted'); }
         else setError(result.error || 'No pudimos consultar tus recordatorios.');
@@ -43,7 +43,7 @@ export function NotificationSettings() {
     try {
       const result = await permissionRequest; setPermission(result);
       if (result !== 'granted') { setStatus('No activamos avisos. Podés cambiar el permiso en los ajustes del navegador.'); return; }
-      const settings = await callServerAction(() => pushSettingsAction());
+      const settings = await callServerRead(() => pushSettingsAction());
       if (!settings.success || !settings.data?.publicKey) throw new Error('No pudimos preparar los recordatorios.');
       const registration = await navigator.serviceWorker.getRegistration();
       if (!registration?.active) throw new Error('La app todavía se está preparando. Recargá e intentá de nuevo.');

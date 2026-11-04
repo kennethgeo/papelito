@@ -314,7 +314,7 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
       }
 
       setStatusMessage(
-        `Si existe una cuenta asociada a ${normalizedEmail}, recibirás un enlace para establecer o recuperar tu contraseña. Si entraste antes con Google, también puedes usar «Continuar con Google».`
+        `Si existe una cuenta asociada a ${normalizedEmail}, recibirás un enlace para establecer o recuperar tu contraseña. Si entraste antes con Google, también podés usar «Continuar con Google».`
       );
       setLoadingAction(null);
     } catch (err) {
@@ -338,7 +338,7 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
 
     const cleanOtp = otpCode.trim();
     if (cleanOtp.length < 4) {
-      setErrorMessage('Ingresa el código de verificación enviado a tu correo.');
+      setErrorMessage('Ingresá el código de verificación enviado a tu correo.');
       return;
     }
 
@@ -467,8 +467,42 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
         </div>
       )}
 
+      {/* Google first: the most common way in. Then e-mail; passkey last. */}
+      {(mode === 'signin' || mode === 'signup') && (
+        <>
+          <button
+            type="button"
+            onClick={handleGoogleAccess}
+            disabled={isBusy}
+            className="paper-btn-google"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="#4285F4"
+                d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z"
+              />
+            </svg>
+            {loadingAction === 'google' ? 'Conectando con Google…' : 'Continuar con Google'}
+          </button>
+          <div className="paper-auth-divider" role="separator">
+            <span>o con tu correo</span>
+          </div>
+        </>
+      )}
+
       {/* MODE 1: SIGN IN */}
-      {mode === 'signin' && <PasskeyLoginButton next={safeNext} />}
       {mode === 'signin' && (
         <form onSubmit={handleEmailSignIn} className="paper-auth-form" noValidate>
           <div className="paper-auth-field">
@@ -542,6 +576,8 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
           </button>
         </form>
       )}
+
+      {mode === 'signin' && <PasskeyLoginButton next={safeNext} />}
 
       {/* MODE 2: SIGN UP */}
       {mode === 'signup' && (
@@ -636,7 +672,7 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
           <div className="paper-auth-subview-header">
             <h3 className="paper-auth-subview-title">Recuperar o definir contraseña</h3>
             <p className="paper-auth-subview-desc">
-              Ingresa tu correo electrónico y te enviaremos un enlace seguro para establecer una nueva contraseña.
+              Ingresá tu correo electrónico y te enviaremos un enlace seguro para establecer una nueva contraseña.
             </p>
           </div>
 
@@ -681,9 +717,9 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
       {mode === 'verify-otp' && (
         <form onSubmit={handleVerifyOtp} className="paper-auth-form" noValidate>
           <div className="paper-auth-subview-header">
-            <h3 className="paper-auth-subview-title">Verifica tu correo electrónico</h3>
+            <h3 className="paper-auth-subview-title">Verificá tu correo electrónico</h3>
             <p className="paper-auth-subview-desc">
-              Ingresa el código de verificación enviado a <strong>{normalizeEmailInput(email)}</strong>.
+              Ingresá el código de verificación enviado a <strong>{normalizeEmailInput(email)}</strong>.
             </p>
           </div>
 
@@ -736,42 +772,6 @@ export const PaperAccessCard: React.FC<PaperAccessCardProps> = ({
             </button>
           </div>
         </form>
-      )}
-
-      {/* Google OAuth divider & button (available in signin and signup modes) */}
-      {(mode === 'signin' || mode === 'signup') && (
-        <>
-          <div className="paper-auth-divider" role="separator" aria-label="O continúa con Google">
-            <span>o también puedes</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGoogleAccess}
-            disabled={isBusy}
-            className="paper-btn-google"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="#4285F4"
-                d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z"
-              />
-            </svg>
-            {loadingAction === 'google' ? 'Conectando con Google...' : 'Continuar con Google'}
-          </button>
-        </>
       )}
 
       {/* Non-blocking legal links footer (consent is requested only once after authentication if missing) */}

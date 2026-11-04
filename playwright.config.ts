@@ -1,10 +1,13 @@
 import { defineConfig } from "@playwright/test";
 
 const remote = process.env.PAPELITO_E2E_REMOTE === "1";
-const baseURL = remote ? "http://localhost:3042" : "http://127.0.0.1:3041";
+// PAPELITO_E2E_WORKERD=1 runs the same UI suite against the Workers bundle
+// served by workerd (vinext router), instead of `next start`.
+const workerd = process.env.PAPELITO_E2E_WORKERD === "1";
+const baseURL = remote ? "http://localhost:3042" : workerd ? "http://127.0.0.1:3043" : "http://127.0.0.1:3041";
 export default defineConfig({
   testDir: "./tests",
-  outputDir: remote ? 'test-results/neon' : 'test-results/ui',
+  outputDir: remote ? 'test-results/neon' : workerd ? 'test-results/workerd' : 'test-results/ui',
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -61,9 +64,9 @@ export default defineConfig({
   webServer: remote
     ? undefined
     : {
-        command: "node scripts/test-web-server.mjs",
+        command: workerd ? "node scripts/serve-workerd.mjs" : "node scripts/test-web-server.mjs",
         url: `${baseURL}/?mode=demo`,
         reuseExistingServer: false,
-        timeout: 90_000,
+        timeout: 120_000,
       },
 });

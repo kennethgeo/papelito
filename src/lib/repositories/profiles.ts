@@ -1,4 +1,6 @@
 import 'server-only';
+import { PublicError } from '@/lib/data/errors';
+import { toIsoTimestamp } from '@/lib/date/timestamps';
 import { dbQuery, dbTransaction, type TransactionClient } from '@/lib/db/client';
 import { LEGAL_CONSTANTS } from '@/lib/legal/constants';
 import { wishPhotoContentType } from './photos';
@@ -46,7 +48,7 @@ export async function getOrCreateProfile(
 export async function updateProfileAlias(userId: string, newAlias: string): Promise<boolean> {
   const trimmed = newAlias.trim();
   if (trimmed.length < 2 || trimmed.length > 40) {
-    throw new Error('El alias debe tener entre 2 y 40 caracteres.');
+    throw new PublicError('El alias debe tener entre 2 y 40 caracteres.');
   }
 
   const res = await dbQuery(
@@ -66,7 +68,7 @@ export async function recordConsent(
   userAgent?: string
 ): Promise<string> {
   if (termsVersion !== LEGAL_CONSTANTS.VERSION || privacyVersion !== LEGAL_CONSTANTS.VERSION) {
-    throw new Error(`Versión legal inválida. La versión vigente requerida es ${LEGAL_CONSTANTS.VERSION}.`);
+    throw new PublicError(`Versión legal inválida. La versión vigente requerida es ${LEGAL_CONSTANTS.VERSION}.`);
   }
 
   const res = await dbQuery<{ id: string }>(
@@ -138,7 +140,7 @@ export async function submitPrivacyRequest(
   notes?: string
 ): Promise<string> {
   if (requestType !== 'export' && requestType !== 'delete') {
-    throw new Error('Tipo de solicitud inválido.');
+    throw new PublicError('Tipo de solicitud inválido.');
   }
 
   const res = await dbQuery<{ id: string }>(
@@ -311,21 +313,26 @@ export async function getAccountDeletionImpactWithClient(
       user_id: string;
       status: string;
       alias: string;
+      represented: boolean;
     }>(
-      `SELECT m.user_id, m.status, p.alias
+      // People represented by this account are deleted with it, so they are not
+      // "others"; people represented by someone else have no account of their own
+      // and can never organize (their adult is the eligible successor).
+      `SELECT m.user_id, m.status, p.alias, (p.guardian_user_id IS NOT NULL) AS represented
        FROM memberships m
        JOIN profiles p ON p.user_id = m.user_id
        WHERE m.exchange_id = $1
          AND m.user_id <> $2
          AND m.status IN ('approved', 'pending')
+         AND (p.guardian_user_id IS NULL OR p.guardian_user_id <> $2)
        ORDER BY m.joined_at ASC, m.user_id ASC`,
       [ex.id, userId]
     );
 
     const otherApprovedMembers = othersRes.rows
-      .filter((r) => r.status === 'approved')
+      .filter((r) => r.status === 'approved' && !r.represented)
       .map((r) => ({ userId: r.user_id, alias: r.alias }));
-    const otherPendingCount = othersRes.rows.filter((r) => r.status === 'pending').length;
+    const otherPendingCount = othersRes.rows.filter((r) => r.status === 'pending' || r.represented).length;
 
     if (otherApprovedMembers.length === 0 && otherPendingCount === 0) {
       soloOrganizedExchanges.push({
@@ -393,8 +400,8 @@ export async function getAccountDeletionImpactWithClient(
           id: latestReq.id,
           status: latestReq.status,
           notes: latestReq.notes,
-          createdAt: latestReq.created_at,
-          processedAt: latestReq.processed_at,
+          createdAt: toIsoTimestamp(latestReq.created_at) ?? '',
+          processedAt: toIsoTimestamp(latestReq.processed_at),
         }
       : null,
   };
@@ -436,7 +443,7 @@ export async function requestAccountDeletion(
   input: RequestAccountDeletionInput
 ): Promise<RequestAccountDeletionResult> {
   if (!input.confirmIrreversible) {
-    throw new Error('Debes confirmar expresamente que comprendes el alcance de la solicitud de baja.');
+    throw new PublicError('Tenés que confirmar expresamente que entendés el alcance de la solicitud de baja.');
   }
 
   const normalizedPhrase = (input.confirmPhrase || '').trim().toUpperCase();
@@ -445,16 +452,16 @@ export async function requestAccountDeletion(
     normalizedPhrase !== 'SOLICITAR ELIMINACIÓN' &&
     normalizedPhrase !== 'ELIMINAR MI CUENTA'
   ) {
-    throw new Error(
-      'Debes escribir exactamente SOLICITAR ELIMINACION (o ELIMINAR MI CUENTA) para confirmar la solicitud.'
+    throw new PublicError(
+      'Escribí exactamente ELIMINAR MI CUENTA para confirmar la solicitud.'
     );
   }
 
   const referenceNow = input.referenceNow ?? new Date();
   const maxAgeSec = input.maxSessionAgeSeconds ?? RECENT_AUTH_MAX_AGE_SECONDS;
   if (!input.sessionAuthenticatedAt) {
-    throw new Error(
-      'Por seguridad, esta operación requiere una sesión autenticada recientemente. Cierra sesión y vuelve a ingresar antes de continuar.'
+    throw new PublicError(
+      'Por seguridad, esta operación requiere una sesión autenticada recientemente. Volvé a ingresar antes de continuar.'
     );
   }
 
@@ -464,8 +471,8 @@ export async function requestAccountDeletion(
     sessionAuthMs > referenceNow.getTime() ||
     referenceNow.getTime() - sessionAuthMs > maxAgeSec * 1000
   ) {
-    throw new Error(
-      `Por seguridad, para solicitar la eliminación de tu cuenta debes haber iniciado sesión en los últimos ${Math.floor(maxAgeSec / 60)} minutos. Cierra sesión y vuelve a entrar para renovar tu autenticación.`
+    throw new PublicError(
+      `Por seguridad, para solicitar la eliminación de tu cuenta tenés que haber iniciado sesión en los últimos ${Math.floor(maxAgeSec / 60)} minutos. Volvé a ingresar para renovar tu autenticación.`
     );
   }
 
@@ -475,7 +482,7 @@ export async function requestAccountDeletion(
       [userId]
     );
     if (profLock.rowCount === 0) {
-      throw new Error('Perfil de usuario no encontrado.');
+      throw new PublicError('Perfil de usuario no encontrado.');
     }
 
     // Lock all exchanges organized by this user
@@ -497,8 +504,8 @@ export async function requestAccountDeletion(
     if (impact.activeOrganizedWithOthers.length > 0) {
       if (!input.confirmOrganizerImpact) {
         const names = impact.activeOrganizedWithOthers.map((e) => `«${e.name}»`).join(', ');
-        throw new Error(
-          `Organizas intercambios activos con otras personas (${names}). Transfiere la organización o finaliza/cancela esos intercambios desde su detalle, o marca la confirmación adicional para transferir automáticamente la organización al participante aprobado más antiguo.`
+        throw new PublicError(
+          `Organizás intercambios activos con otras personas (${names}). Transferí la organización o finalizá/cancelá esos intercambios desde su detalle, o marcá la confirmación adicional para transferir automáticamente la organización al participante aprobado más antiguo.`
         );
       }
 
@@ -580,7 +587,7 @@ export async function requestAccountDeletion(
       return {
         requestId: upd.rows[0].id,
         status: 'received',
-        createdAt: upd.rows[0].created_at,
+        createdAt: toIsoTimestamp(upd.rows[0].created_at) ?? '',
         transferredExchanges,
         canceledExchanges,
       };
@@ -596,7 +603,7 @@ export async function requestAccountDeletion(
     return {
       requestId: inserted.rows[0].id,
       status: 'received',
-      createdAt: inserted.rows[0].created_at,
+      createdAt: toIsoTimestamp(inserted.rows[0].created_at) ?? '',
       transferredExchanges,
       canceledExchanges,
     };
@@ -685,20 +692,23 @@ export async function purgeUserAppDataWithClient(
       user_id: string;
       status: string;
       alias: string;
+      represented: boolean;
     }>(
-      `SELECT m.user_id, m.status, p.alias
+      `SELECT m.user_id, m.status, p.alias, (p.guardian_user_id IS NOT NULL) AS represented
        FROM memberships m
        JOIN profiles p ON p.user_id = m.user_id
        WHERE m.exchange_id = $1
          AND m.user_id <> $2
          AND m.status IN ('approved', 'pending')
+         AND (p.guardian_user_id IS NULL OR p.guardian_user_id <> $2)
        ORDER BY m.joined_at ASC, m.user_id ASC
        FOR UPDATE`,
       [ex.id, userId]
     );
 
-    const otherApproved = othersRes.rows.filter((r) => r.status === 'approved');
-    const otherPending = othersRes.rows.filter((r) => r.status === 'pending');
+    // Only a person with an account can organize (never a represented alias).
+    const otherApproved = othersRes.rows.filter((r) => r.status === 'approved' && !r.represented);
+    const otherPending = othersRes.rows.filter((r) => r.status === 'pending' || r.represented);
 
     if (otherApproved.length === 0 && otherPending.length === 0) {
       await client.query(`DELETE FROM exchanges WHERE id = $1`, [ex.id]);
@@ -709,7 +719,7 @@ export async function purgeUserAppDataWithClient(
 
     const isActive = ACTIVE_EXCHANGE_STATUSES.has(ex.status);
     if (isActive && !options.confirmOrganizerImpact) {
-      throw new Error(
+      throw new PublicError(
         `No se puede eliminar la cuenta mientras organiza el intercambio activo «${ex.name}» con terceros sin transferir la organización o confirmar explícitamente el impacto.`
       );
     }
