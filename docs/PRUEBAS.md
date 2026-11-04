@@ -6,6 +6,7 @@ Todas las suites de esta tabla corren en `verify` (`.github/workflows/verify.yml
 | --- | --- | --- |
 | `npm run type-check`, `npm run lint` | Tipos estrictos y ESLint (sin avisos) | — |
 | `npm run test:draw` | Algoritmo de sorteo, exclusiones e imposibilidad | — |
+| `npm run test:draw-writes` | Asignaciones y exclusiones en una sola sentencia con 100 participantes: duplicados, valores con comillas, reversión completa ante una fila rechazada, bloqueo y control de versión | PGlite |
 | `npm run test:backend` | Repositorios, permisos, invitaciones, sorteo, deseos, privacidad | PGlite |
 | `npm run test:ux` | Mensajes de lectura y escritura; incluye `test:db:workers` (conexiones por petición, rollback y cierre con fallas) | Driver simulado |
 | `npm run test:pwa` | Service Worker: nada privado en caché, recuperación sin caché | — |
@@ -14,7 +15,7 @@ Todas las suites de esta tabla corren en `verify` (`.github/workflows/verify.yml
 | `npm run test:selected` | Encuestas, representación de menores, fotos privadas y su cuota, soporte, passkeys y revocación de accesos, copia cifrada sin conexión, calendario y filtro SSRF | PGlite |
 | `npm run test:lifecycle` | Cierre, transferencia, eliminación, baja y retención | PGlite |
 | `npm run test:hardening` | Revocación de sesiones en el proxy de Auth, estado de sesión desconocido, versiones, participantes, fechas ISO, errores públicos, registros sin datos personales, cupos y validaciones, desafíos de passkeys, origen de passkeys, reautenticación, informe CSP y número de consultas | PGlite |
-| `npm run test:concurrency` | Seis reintentos simultáneos crean un solo intercambio y un solo deseo; la carrera por el último cupo deja pasar exactamente una creación | PostgreSQL 16 temporal |
+| `npm run test:concurrency` | Seis reintentos simultáneos crean un solo intercambio y un solo deseo; la carrera por el último cupo deja pasar exactamente una creación; de cuatro sorteos simultáneos con escrituras agrupadas queda uno | PostgreSQL 16 temporal |
 | `npm run build`, `npm run build:vinext` | Compilación de Next y bundle de Workers | — |
 | `npm run deploy:vinext -- --dry-run`, `check:cloudflare:jobs` | Configuración de los Workers web y de cron (pausado y activo) | — |
 | `npm run test:workerd` | El bundle real en workerd: smoke check sin servicios; base y Neon Auth caídos (sesión desconocida explícita, sin bienvenida ni consentimiento falsos, `/unirse` con aviso de falla, proxy de Auth cerrado con 503, cierre de sesión que limpia cookies); transporte push del código real en workerd contra un destino de loopback inalcanzable | Direcciones inalcanzables |

@@ -106,6 +106,25 @@ try {
 
   await assert.rejects(pool.query("INSERT INTO exchanges (organizer_id, name, event_date, registration_deadline, budget_amount, currency, suggested_theme, selected_theme, client_request_id) VALUES ('org','x','2099-01-01','2099-01-01',1,'CRC','general','general',$1)", [requestId]), /uq_exchanges_client_request/);
   console.log('PASS base de datos: el índice único impide duplicar un intento aunque se salte el repositorio.');
+  // Batched writes through the real driver: arrays, odd values and the exchange lock.
+  const { executeAndCommitDraw } = await import('../src/lib/repositories/draw.ts');
+  await getOrCreateProfile('draw-owner', 'draw-owner@example.com', 'Organiza');
+  const drawGroup = await ex.createExchangeWithInvitation('draw-owner', { ...input, name: 'Sorteo simultáneo' });
+  const drawPeople = ['draw-owner', ...Array.from({ length: 11 }, (_, i) => `persona,"rara'${i}\{}`)];
+  for (const id of drawPeople.slice(1)) {
+    await pool.query('INSERT INTO profiles (user_id, alias, full_name) VALUES ($1, $2, $2)', [id, 'Persona']);
+    await pool.query("INSERT INTO memberships (exchange_id, user_id, status) VALUES ($1, $2, 'approved')", [drawGroup.exchangeId, id]);
+  }
+  const drawRules = drawPeople.slice(1).map((id, i) => ({ giverUserId: drawPeople[i], excludedReceiverUserId: id }));
+  await ex.setExchangeExclusions(drawGroup.exchangeId, 'draw-owner', [...drawRules, ...drawRules]);
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM exclusions WHERE exchange_id = $1', [drawGroup.exchangeId])).rows[0].n, drawRules.length);
+  const drawRace = await Promise.allSettled(Array.from({ length: 4 }, () => executeAndCommitDraw(drawGroup.exchangeId, 'draw-owner', 0)));
+  assert.equal(drawRace.filter((r) => r.status === 'fulfilled').length, 1, 'only one simultaneous draw commits');
+  const drawnRows = (await pool.query('SELECT giver_id, receiver_id FROM assignments WHERE exchange_id = $1', [drawGroup.exchangeId])).rows;
+  assert.equal(drawnRows.length, drawPeople.length, 'losers of the race leave no assignments behind');
+  assert.deepEqual(new Set(drawnRows.map((r) => r.giver_id)), new Set(drawPeople));
+  assert.deepEqual(new Set(drawnRows.map((r) => r.receiver_id)), new Set(drawPeople));
+  console.log('PASS concurrencia: escrituras agrupadas con el driver real; de cuatro sorteos simultáneos queda uno.');
   if (idleErrors.length) throw idleErrors[0];
 } finally {
   stopping = true;

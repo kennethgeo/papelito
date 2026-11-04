@@ -139,14 +139,13 @@ export async function executeAndCommitDraw(
     );
     const versionId = versionRes.rows[0].id;
 
-    // 7. Insert assignments for this version
-    for (const pair of drawResult.pairs) {
-      await client.query(
-        `INSERT INTO assignments (exchange_id, draw_version_id, giver_id, receiver_id)
-         VALUES ($1, $2, $3, $4)`,
-        [exchangeId, versionId, pair.giverId, pair.receiverId]
-      );
-    }
+    // 7. Insert assignments for this version, in one round trip whatever the group size
+    await client.query(
+      `INSERT INTO assignments (exchange_id, draw_version_id, giver_id, receiver_id)
+       SELECT $1::uuid, $2::uuid, pair.giver, pair.receiver
+       FROM unnest($3::text[], $4::text[]) AS pair(giver, receiver)`,
+      [exchangeId, versionId, drawResult.pairs.map((pair) => pair.giverId), drawResult.pairs.map((pair) => pair.receiverId)]
+    );
 
     // 8. Update exchange status and current version
     await client.query(
