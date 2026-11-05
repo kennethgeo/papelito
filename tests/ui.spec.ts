@@ -498,3 +498,110 @@ test("demo: aprobar una solicitud ficticia no simula una falla de conexión", as
   await expect(page.locator(".workshop-error")).toHaveCount(0);
   await expect(page.locator(".workshop-success").filter({ hasText: "de ejemplo" })).toBeVisible();
 });
+
+const REQUESTS = "Solicitudes por revisar";
+const COLEGIO = "Generación 2015 del colegio";
+async function boardAt(page: import("@playwright/test").Page, moment: string) {
+  await page.clock.setFixedTime(new Date(moment));
+  await page.evaluate(() => localStorage.setItem("papelito-guide-seen", "yes"));
+  await page.goto("/?mode=demo");
+  await expect(page.getByRole("heading", { name: "Mis intercambios", level: 1 })).toBeVisible();
+}
+async function reviewSize(page: import("@playwright/test").Page, project: string) {
+  if (project === "mobile-320") await page.setViewportSize({ width: 320, height: 640 });
+  if (project === "desktop") await page.setViewportSize({ width: 1280, height: 800 });
+}
+
+test("detalle: desde el tablero se llega directo a las solicitudes y se decide ahí mismo", async ({ page }, testInfo) => {
+  await reviewSize(page, testInfo.project.name);
+  await openBoard(page);
+  const more = page.getByRole("region", { name: "Por hacer" }).getByRole("button", { name: /^Ver \d+ más$/ });
+  if (await more.count()) await more.click();
+  await page.locator(".paper-task").filter({ hasText: "Revisar 3 solicitudes" }).click();
+
+  const section = page.getByRole("region", { name: REQUESTS });
+  await expect(section.getByRole("heading", { name: REQUESTS })).toBeFocused();
+  expect(page.url()).not.toContain("abrir=");
+  const approve = section.getByRole("button", { name: "Aprobar a Sofía C.", exact: true });
+  const reject = section.getByRole("button", { name: "Rechazar a Sofía C.", exact: true });
+  await expect.poll(() => aboveNav(page, approve), "Aprobar se ve sin desplazarse").toBe(true);
+  await expect.poll(() => aboveNav(page, reject), "Rechazar se ve sin desplazarse").toBe(true);
+  for (const button of [approve, reject]) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await noOverflow(page);
+
+  // Cada decisión se confirma dentro de la sección, a la vista.
+  await approve.click();
+  const success = section.locator(".workshop-success");
+  await expect(success).toContainText("de ejemplo");
+  await expect.poll(() => aboveNav(page, success), "la confirmación se ve donde ocurrió").toBe(true);
+  await expect(page.locator(".workshop-error")).toHaveCount(0);
+
+  const rejectJorge = section.getByRole("button", { name: "Rechazar a Jorge", exact: true });
+  await rejectJorge.click();
+  const confirmation = section.getByRole("group", { name: "¿Rechazar a Jorge?" });
+  await expect(confirmation.getByRole("heading", { name: "¿Rechazar a Jorge?" })).toBeFocused();
+  await expect(section.locator(".workshop-success")).toHaveCount(0);
+  await confirmation.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(rejectJorge).toBeFocused();
+  await rejectJorge.click();
+  await section.getByRole("button", { name: "Sí, rechazar", exact: true }).click();
+  await expect(section.locator(".workshop-success")).toContainText("de ejemplo");
+  await expect(section.getByRole("group")).toHaveCount(0);
+  await noOverflow(page);
+
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "Mis intercambios", level: 1 })).toBeVisible();
+});
+
+test("detalle: la tarjeta con solicitudes llega directo y las demás abren desde arriba", async ({ page }) => {
+  await openBoard(page);
+  await page.locator(".paper-invitation").filter({ hasText: COLEGIO }).click();
+  await expect(page.getByRole("heading", { name: REQUESTS })).toBeFocused();
+
+  await page.goBack();
+  await page.locator(".paper-invitation").filter({ hasText: "Fútbol de los jueves" }).click();
+  await expect(page.getByRole("heading", { name: "Fútbol de los jueves", level: 1 })).toBeVisible();
+  await expect(page.getByRole("region", { name: REQUESTS })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test("detalle: último día de inscripción y el día siguiente, en hora de Costa Rica", async ({ page }) => {
+  const open = () => page.locator(".paper-invitation").filter({ hasText: COLEGIO }).click();
+  await boardAt(page, "2026-11-20T23:30:00-06:00");
+  await open();
+  await expect(page.getByRole("heading", { name: "Pasá la invitación." })).toBeVisible();
+  await expect(page.getByText("La inscripción venció", { exact: false })).toHaveCount(0);
+  await expect(page.getByText("Reuní a tu gente", { exact: true })).toBeVisible();
+
+  await boardAt(page, "2026-11-21T00:30:00-06:00");
+  await open();
+  await expect(page.locator(".next-note")).toContainText("La inscripción venció el");
+  await expect(page.locator(".next-note")).toContainText("El enlace ya no admite personas nuevas.");
+  await expect(page.getByText("Inscripción vencida", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pasá la invitación." })).toHaveCount(0);
+  // Vencida no significa cerrada: quien organiza sigue pudiendo decidir y sortear.
+  await expect(page.getByRole("button", { name: "Aprobar a Sofía C.", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Preparar sorteo", exact: true })).toBeEnabled();
+  await noOverflow(page);
+});
+
+test("detalle: tras el sorteo las solicitudes se informan, sin botones para gestionarlas", async ({ page }) => {
+  await openBoard(page);
+  await page.evaluate(() => {
+    const key = "el_lazo_demo_exchanges_v1";
+    const groups = JSON.parse(localStorage.getItem(key)!) as { id: string; status: string }[];
+    localStorage.setItem(key, JSON.stringify(groups.map((group) => group.id === "exc-colegio-2026" ? { ...group, status: "sorteado" } : group)));
+  });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Mis intercambios", level: 1 })).toBeVisible();
+  await expect(page.locator(".paper-task").filter({ hasText: "solicitud" })).toHaveCount(0);
+  await expect(page.locator(".paper-invitation").filter({ hasText: COLEGIO })).not.toContainText("solicitud");
+
+  await page.locator(".paper-invitation").filter({ hasText: COLEGIO }).click();
+  await expect(page.getByRole("heading", { name: COLEGIO, level: 1 })).toBeVisible();
+  await expect(page.getByRole("region", { name: REQUESTS })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^(Aprobar|Rechazar) a / })).toHaveCount(0);
+  await expect(page.getByText("3 solicitudes quedaron fuera de este sorteo", { exact: false })).toBeVisible();
+  await expect(page.getByText("por aprobar", { exact: false })).toHaveCount(0);
+  await noOverflow(page);
+});

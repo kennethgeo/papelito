@@ -488,6 +488,9 @@ export function RealDataProvider({
       await loadExchangeDetails(selectedExchangeId);
       return true;
     }
+    // The group may have changed elsewhere (a draw, for one): show what is true now,
+    // keeping the reason, since refreshing clears the previous error.
+    await loadExchangeDetails(selectedExchangeId);
     setErrorMessage(res.error || "Error al gestionar participante");
     return false;
   };

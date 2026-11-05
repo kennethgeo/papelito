@@ -27,6 +27,8 @@ const { revealAssignment } = await import("../src/lib/repositories/assignments.t
 const { readAppSnapshot } = await import("../src/lib/repositories/app-snapshot.ts");
 const { LEGAL_CONSTANTS } = await import("../src/lib/legal/constants.ts");
 const { nextAction, buildDashboard } = await import("../src/lib/dashboard/next-action.ts");
+const { canManageRequests, registrationExpired } = await import("../src/lib/exchanges/join-requests.ts");
+const { getCostaRicaTodayDate } = await import("../src/lib/date/costa-rica.ts");
 
 const pg = new PGlite();
 let queries = 0;
@@ -202,6 +204,15 @@ try {
   for (const id of [uno, dos]) assert.equal((await summary(id, lateGroup)).ownPaperState, "sin_abrir");
   for (const id of [uno, dos]) assert.equal((await summary(id, lateGroup)).pendingRequestCount, 0);
 
+  // La regla de la interfaz coincide con la del servidor, estado por estado.
+  for (const status of ["borrador", "inscripcion_abierta", "inscripcion_cerrada", "sorteado", "finalizado", "cancelado"]) {
+    await pg.query(`UPDATE exchanges SET status = $1 WHERE id = $2`, [status, lateGroup]);
+    const allowed = await manageMemberStatus(lateGroup, tardia, "approved", dueno).then(() => true, () => false);
+    assert.equal(canManageRequests(status), allowed, `solicitudes en ${status}`);
+    await pg.query(`UPDATE memberships SET status = 'pending' WHERE exchange_id = $1 AND user_id = $2`, [lateGroup, tardia]);
+  }
+  await pg.query(`UPDATE exchanges SET status = 'sorteado' WHERE id = $1`, [lateGroup]);
+
   // De 6 a 20 grupos: la misma cantidad de consultas, sin y con detalle abierto.
   const [volumen, otra] = await Promise.all(["Volumen", "Otra"].map(person));
   const consent = await getLatestConsentStatus(volumen);
@@ -350,5 +361,12 @@ assert.equal(noPaper.showRoleFilter, false, "el filtro de rol no aporta si todos
 const noApproved = buildDashboard([make({ id: "a", status: "sorteado", ownPaperState: "sin_abrir", currentUserMemberStatus: "pending" })], TODAY);
 assert.equal(noApproved.envelope, null);
 assert.deepEqual(noApproved.tasks, []);
+
+// Inscripción vencida: el último día sigue vigente, y el corte es el de Costa Rica.
+assert.equal(registrationExpired("inscripcion_abierta", "2026-11-20", "2026-11-20"), false);
+assert.equal(registrationExpired("inscripcion_abierta", "2026-11-20", "2026-11-21"), true);
+assert.equal(registrationExpired("sorteado", "2026-11-20", "2026-11-21"), false, "solo aplica mientras sigue abierta");
+assert.equal(registrationExpired("inscripcion_abierta", "2026-11-20", getCostaRicaTodayDate(new Date("2026-11-21T05:59:00Z"))), false);
+assert.equal(registrationExpired("inscripcion_abierta", "2026-11-20", getCostaRicaTodayDate(new Date("2026-11-21T06:00:00Z"))), true);
 
 console.log("PASS regla de siguiente acción y armado del tablero.");

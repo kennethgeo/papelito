@@ -27,6 +27,7 @@
     "test:dashboard": "node --conditions=react-server --experimental-strip-types scripts/test-dashboard.mjs",
     "test:e2e": "playwright test",
     "test:e2e:workerd": "PAPELITO_E2E_WORKERD=1 playwright test",
+    "test:e2e:session": "PAPELITO_E2E_SESSION=1 playwright test",
     "test:neon:e2e": "node --conditions=react-server --experimental-strip-types scripts/test-neon-journey.mjs",
     "test:pwa": "node scripts/test-pwa.mjs",
     "test:workerd": "node scripts/test-workerd.mjs && node scripts/test-workerd-push.mjs",

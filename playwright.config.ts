@@ -4,10 +4,14 @@ const remote = process.env.PAPELITO_E2E_REMOTE === "1";
 // PAPELITO_E2E_WORKERD=1 runs the same UI suite against the Workers bundle
 // served by workerd (vinext router), instead of `next start`.
 const workerd = process.env.PAPELITO_E2E_WORKERD === "1";
-const baseURL = remote ? "http://localhost:3042" : workerd ? "http://127.0.0.1:3043" : "http://127.0.0.1:3041";
+// PAPELITO_E2E_SESSION=1 runs tests/session.spec.ts with real sessions on a
+// temporary local PostgreSQL (scripts/serve-session.mjs).
+const session = process.env.PAPELITO_E2E_SESSION === "1";
+const baseURL = remote ? "http://localhost:3042" : session ? "http://127.0.0.1:3044" : workerd ? "http://127.0.0.1:3043" : "http://127.0.0.1:3041";
+const browserSuite = session ? "session.spec.ts" : "ui.spec.ts";
 export default defineConfig({
   testDir: "./tests",
-  outputDir: remote ? 'test-results/neon' : workerd ? 'test-results/workerd' : 'test-results/ui',
+  outputDir: remote ? 'test-results/neon' : session ? 'test-results/session' : workerd ? 'test-results/workerd' : 'test-results/ui',
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -39,12 +43,12 @@ export default defineConfig({
     : [
         {
           name: "desktop",
-          testMatch: "ui.spec.ts",
+          testMatch: browserSuite,
           use: { viewport: { width: 1280, height: 900 } },
         },
         {
           name: "mobile-390",
-          testMatch: "ui.spec.ts",
+          testMatch: browserSuite,
           use: {
             viewport: { width: 390, height: 844 },
             isMobile: true,
@@ -53,7 +57,7 @@ export default defineConfig({
         },
         {
           name: "mobile-320",
-          testMatch: "ui.spec.ts",
+          testMatch: browserSuite,
           use: {
             viewport: { width: 320, height: 740 },
             isMobile: true,
@@ -64,7 +68,7 @@ export default defineConfig({
   webServer: remote
     ? undefined
     : {
-        command: workerd ? "node scripts/serve-workerd.mjs" : "node scripts/test-web-server.mjs",
+        command: session ? "node scripts/serve-session.mjs" : workerd ? "node scripts/serve-workerd.mjs" : "node scripts/test-web-server.mjs",
         url: `${baseURL}/?mode=demo`,
         reuseExistingServer: false,
         timeout: 120_000,

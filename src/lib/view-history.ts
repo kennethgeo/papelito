@@ -80,6 +80,14 @@ export function goBackOr(fallback: () => void) {
   else fallback();
 }
 
+/** Asks the current view to bring a section into view once; see consumeOpenSection. */
+export function markOpenSection(section: string) {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  url.searchParams.set("abrir", section);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 /**
  * `?abrir=<section>` reopens a section after re-authentication. Returns true
  * once for the matching section and removes the parameter from the URL.
