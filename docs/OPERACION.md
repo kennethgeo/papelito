@@ -26,7 +26,7 @@ Con workflows reutilizables, GitHub nombra el check como `<job que llama> / <job
 
 ### Qué verifica `verify`
 
-Tipos, lint, pruebas de algoritmo, backend, conexión, PWA, recorrido, social, funciones seleccionadas, ciclo de vida, endurecimiento y concurrencia (PostgreSQL real temporal); compilación de Next y de Workers; `wrangler deploy --dry-run` del Worker web y del scheduler (pausado y activo); el bundle servido por workerd (`npm run test:workerd`, incluido el transporte push) y 63 casos de navegador sobre `next start` y otros 63 sobre workerd. El detalle y los límites de cada suite están en `docs/PRUEBAS.md`.
+Tipos, lint, pruebas de algoritmo, backend, conexión, PWA, recorrido, social, funciones seleccionadas, ciclo de vida, endurecimiento y concurrencia (PostgreSQL real temporal); compilación de Next y de Workers; `wrangler deploy --dry-run` del Worker web y del scheduler (pausado y activo); el bundle servido por workerd (`npm run test:workerd`, incluido el transporte push) y 63 casos de navegador sobre `next start`, otros 63 sobre workerd y 15 con sesiones reales sobre un PostgreSQL temporal. El detalle y los límites de cada suite están en `docs/PRUEBAS.md`.
 
 `test:workerd` levanta el bundle real de Workers con `wrangler dev` en modo local y comprueba rutas, cabeceras y estados de falla. No contacta Cloudflare, Neon ni Neon Auth: los escenarios usan configuración vacía o direcciones de loopback inalcanzables. No reemplaza la verificación posterior en producción.
 

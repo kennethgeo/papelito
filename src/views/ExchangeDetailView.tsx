@@ -44,14 +44,20 @@ export function ExchangeDetailView() {
   const [memberConfirm, setMemberConfirm] = useState<{ id: string } | null>(null);
   const memberConfirmTitle = useRef<HTMLHeadingElement>(null);
   useEffect(() => { if (memberConfirm) memberConfirmTitle.current?.focus(); }, [memberConfirm]);
-  // Arriving from «Revisar solicitudes»: straight to the list once the group has loaded.
+  // Arriving from «Revisar solicitudes»: straight to the list as soon as it is on screen.
   const requestsHeading = useRef<HTMLHeadingElement>(null);
-  const detailReady = !!exchange && !real?.isRefreshing;
+  const goToRequests = useRef(false);
+  const requestsShown = exchange?.participants.some((p) => p.status === "pending") ?? false;
   useEffect(() => {
-    if (!detailReady || !consumeOpenSection("solicitudes")) return;
-    requestsHeading.current?.focus({ preventScroll: true });
-    requestsHeading.current?.closest("section")?.scrollIntoView({ block: "start" });
-  }, [detailReady]);
+    if (consumeOpenSection("solicitudes")) goToRequests.current = true;
+  }, []);
+  useEffect(() => {
+    const heading = requestsHeading.current;
+    if (!goToRequests.current || !heading) return;
+    goToRequests.current = false;
+    heading.focus({ preventScroll: true });
+    heading.closest("section")?.scrollIntoView({ block: "start" });
+  }, [requestsShown]);
   const [demoRules, setDemoRules] = useState<
     Array<{ giverId: string; receiverId: string }>
   >([]);
@@ -163,8 +169,6 @@ export function ExchangeDetailView() {
             : `Rechazaste la solicitud de ${person.alias}.`,
         };
       }
-      // The group may have changed elsewhere (a draw, for one): show what is true now.
-      void real.refreshNow();
       return { ok: false, text: "" };
     } catch {
       return { ok: false, text: "Se interrumpió la conexión. Revisá el estado antes de repetir el cambio." };
@@ -399,9 +403,11 @@ export function ExchangeDetailView() {
                 : "Falta que quien organiza haga el sorteo."}
             </p>
           )}
-          {canDecide && (
+          {canEnter && (
             <JoinRequests
               requests={pending}
+              locked={!canDecide}
+              drawn={drawn}
               busy={!!busy}
               serverError={real?.errorMessage}
               headingRef={requestsHeading}

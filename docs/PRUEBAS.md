@@ -21,6 +21,8 @@ Todas las suites de esta tabla corren en `verify` (`.github/workflows/verify.yml
 | `npm run test:workerd` | El bundle real en workerd: smoke check sin servicios; base y Neon Auth caídos (sesión desconocida explícita, sin bienvenida ni consentimiento falsos, `/unirse` con aviso de falla, proxy de Auth cerrado con 503, cierre de sesión que limpia cookies); transporte push del código real en workerd contra un destino de loopback inalcanzable | Direcciones inalcanzables |
 | `npm run test:e2e`, `npm run test:e2e:workerd` | 21 recorridos de navegador en 1280, 390 y 320 px (63 casos) sobre `next start` y sobre workerd. Cada caso falla si el navegador informa una violación de la CSP en modo reporte | Modo demo |
 
+`npm run test:e2e:session` corre en CI, tras `npm run build`, y usa 390, 320 y 1280 px. Sirve la app con un PostgreSQL temporal local (`scripts/serve-session.mjs`) y personas ficticias, con sesiones reales de la tabla propia de la app, acciones de servidor y escrituras. Cubre aprobar y rechazar, el foco cuando desaparece una fila (incluida la última), el acceso directo desde el tablero y dos sesiones donde una sortea mientras la otra decide. No cubre el inicio de sesión con Neon Auth o Google, ni el bundle de Workers: el controlador de Neon llega a la base por un socket local.
+
 Fuera de CI, con credenciales del titular: `npm run test:neon` (SQL real en Neon con `ROLLBACK`) y `npm run test:neon:e2e -- --sanitized-clone` (rama temporal saneada con cuentas ficticias).
 
 ## Lo que estas pruebas no demuestran
