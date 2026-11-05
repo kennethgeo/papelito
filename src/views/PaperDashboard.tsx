@@ -1,71 +1,177 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState, useSyncExternalStore } from 'react';
 import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { useOptionalRealData } from '@/context/RealDataContext';
-import type { ExchangeStatus } from '@/types';
+import { buildDashboard, type DashboardItem } from '@/lib/dashboard/next-action';
+import { getCostaRicaTodayDate } from '@/lib/date/costa-rica';
 import { PaperIllustration } from '@/components/PaperIllustration';
 import { InstallGuide } from '@/components/InstallGuide';
 
-const statusNames: Record<ExchangeStatus, string> = {
-  sorteado: 'Sorteo listo', inscripcion_abierta: 'Sumando personas', inscripcion_cerrada: 'Inscripción cerrada',
-  borrador: 'En preparación', finalizado: 'Celebrado', cancelado: 'Cancelado',
-};
-const occasionNames = { navidad: 'Navidad', amistad: 'Entre amigos', cumpleanos: 'Cumpleaños', general: 'Para celebrar' };
-const money = (amount: number, currency: string) => new Intl.NumberFormat('es-CR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
+type RoleFilter = 'todos' | 'organizo' | 'invitaron';
+
+const SHORT_SCREEN = '(max-height: 700px)';
+function subscribeToShortScreen(onChange: () => void) {
+  const query = window.matchMedia(SHORT_SCREEN);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
 function dateParts(value: string) {
   const date = new Date(`${value}T12:00:00`);
   if (Number.isNaN(date.getTime())) return { day: '—', month: '', full: value };
-  return { day: date.getDate(), month: date.toLocaleDateString('es-CR', { month: 'short' }).replace('.', ''), full: date.toLocaleDateString('es-CR', { day: 'numeric', month: 'long' }) };
+  return {
+    day: date.getDate(),
+    month: date.toLocaleDateString('es-CR', { month: 'short' }).replace('.', ''),
+    full: date.toLocaleDateString('es-CR', { day: 'numeric', month: 'long', year: 'numeric' }),
+  };
+}
+
+function ExchangeCard({ item, onOpen }: { item: DashboardItem; onOpen: () => void }) {
+  const { exchange, action } = item;
+  const date = dateParts(exchange.eventDate);
+  const count = exchange.participantCount ?? exchange.participants.length;
+  const people = `${count} ${count === 1 ? 'persona' : 'personas'}`;
+  const role = exchange.isCurrentUserOrganizer ? 'Organizás' : `Te invitó ${exchange.organizerName}`;
+  const unopened = action.kind === 'open_paper';
+  return (
+    <button
+      className={`paper-invitation paper-invitation--${exchange.selectedTheme}${unopened ? ' paper-invitation--unopened' : ''}`}
+      aria-label={`${exchange.name}. Entrega el ${date.full}. ${role}, ${people}. ${[action.text, action.due].filter(Boolean).join('. ')}.`}
+      onClick={onOpen}
+    >
+      <span className="paper-date-stamp" aria-hidden="true"><strong>{date.day}</strong><span>{date.month}</span></span>
+      <span className="paper-invitation-body">
+        <strong>{exchange.name}</strong>
+        <span className="paper-invitation-meta">{role} · {people}</span>
+        <span className={`paper-invitation-action${action.isTask ? ' is-task' : ''}${action.urgent ? ' is-urgent' : ''}`}>
+          {action.text}{action.due ? ` · ${action.due}` : ''}
+        </span>
+      </span>
+      <svg className="paper-invitation-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+    </button>
+  );
 }
 
 export function PaperDashboard() {
   const real = useOptionalRealData();
   const demo = useOptionalDemoData();
-  const exchanges = real ? real.exchanges : (demo?.exchanges || []);
+  const exchanges = useMemo(() => (real ? real.exchanges : demo?.exchanges) ?? [], [real, demo?.exchanges]);
   const navigate = real ? real.navigateTo : demo?.navigateTo;
   const alias = real ? real.user?.alias : demo?.userProfile.alias;
-  const [filter, setFilter] = useState<'todos' | 'activos' | 'borradores'>('todos');
-  const featured = exchanges.find(e => e.status === 'sorteado') || exchanges.find(e => e.status === 'inscripcion_abierta') || exchanges[0];
-  const filtered = exchanges.filter(e => filter === 'todos' || (filter === 'activos' ? ['sorteado', 'inscripcion_abierta', 'inscripcion_cerrada'].includes(e.status) : ['borrador', 'finalizado', 'cancelado'].includes(e.status)));
-  const featuredDate = featured ? dateParts(featured.eventDate) : null;
+  const [role, setRole] = useState<RoleFilter>('todos');
+  const [allTasks, setAllTasks] = useState(false);
+  const shortScreen = useSyncExternalStore(subscribeToShortScreen, () => window.matchMedia(SHORT_SCREEN).matches, () => false);
+  const today = getCostaRicaTodayDate();
+  const board = useMemo(() => buildDashboard(exchanges, today), [exchanges, today]);
+
+  const { envelope, tasks, active, archive, pendingCount, showRoleFilter } = board;
+  // The envelope counts as the first pending item, so the first screen always holds the list too.
+  const taskRoom = (shortScreen ? 1 : 3) - (envelope ? 1 : 0);
+  const shownTasks = allTasks ? tasks : tasks.slice(0, taskRoom);
+  const hiddenTasks = tasks.length - shownTasks.length;
+  const filterRole = showRoleFilter ? role : 'todos';
+  const listed = active.filter((item) =>
+    filterRole === 'todos' || (filterRole === 'organizo') === item.exchange.isCurrentUserOrganizer);
+  const greeting = alias?.split(' ')[0];
+  const pendingWords = pendingCount === 0 ? 'Todo al día.' : pendingCount === 1 ? '1 pendiente.' : `${pendingCount} pendientes.`;
+
+  function openTask(item: DashboardItem) {
+    if (item.action.kind === 'open_paper') navigate?.('asignacion_revelar', item.exchange.id);
+    else if (item.action.kind === 'add_wishes') navigate?.('deseos_lista');
+    else navigate?.('intercambio_detalle', item.exchange.id);
+  }
 
   return (
     <div className="paper-dashboard">
       <div className="paper-page-heading">
-        <div><p className="paper-greeting">Hola, {alias?.split(' ')[0] || 'qué gusto verte'}.</p><h1>Qué lindo tener<br />a quién sorprender.</h1></div>
+        <div>
+          <p className="paper-greeting">{greeting ? `Hola, ${greeting}. ` : ''}{exchanges.length > 0 ? pendingWords : ''}</p>
+          <h1>Mis intercambios</h1>
+        </div>
         <button className="paper-button paper-button--create" onClick={() => navigate?.('intercambio_crear')}><span aria-hidden="true">+</span> Crear intercambio</button>
       </div>
 
-      {featured && filter !== 'borradores' && <section className={`paper-feature paper-feature--${featured.selectedTheme}`} aria-label={`Intercambio destacado: ${featured.name}`}>
-        <div className="paper-feature-content">
-          <div className="paper-feature-top"><span className="paper-status"><span />{statusNames[featured.status]}</span><span className="paper-occasion">{occasionNames[featured.selectedTheme]}</span></div>
-          <h2>{featured.name}</h2>
-          <p className="paper-feature-copy">{featured.status === 'sorteado' ? 'Un nombre, unas pistas y una buena sorpresa por preparar.' : 'La sorpresa empieza por reunir a tu gente.'}</p>
-          <dl className="paper-event-facts"><div><dt>Nos vemos el</dt><dd>{featuredDate?.full}</dd></div><div><dt>Regalo de</dt><dd>{money(featured.budgetAmount, featured.currency)}</dd></div></dl>
-          <div className="paper-feature-actions">
-            {featured.status === 'sorteado' && <button className="paper-button" onClick={() => navigate?.('asignacion_revelar', featured.id)}>Ver a quién regalo <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM4 7l8 6 8-6" /></svg></button>}
-            <button className="paper-text-button" onClick={() => navigate?.('intercambio_detalle', featured.id)}>Ver intercambio</button>
+      {exchanges.length === 0 ? (
+        <div className="paper-empty">
+          <h2>Aquí cabe una nueva celebración.</h2>
+          <p>Reuní a tu gente y dejá que la sorpresa empiece.</p>
+          <button className="paper-button" onClick={() => navigate?.('intercambio_crear')}>Crear mi primer intercambio</button>
+        </div>
+      ) : (
+        <div className="paper-board">
+          <div className="paper-board-now">
+            {envelope && (
+              <section className="paper-envelope" aria-label="Tu papelito sin abrir">
+                <div className="paper-envelope-art"><PaperIllustration theme={envelope.selectedTheme} /></div>
+                <div className="paper-envelope-body">
+                  <div className="paper-envelope-text">
+                    <p>Tu papelito sin abrir</p>
+                    <h2>{envelope.name}</h2>
+                  </div>
+                  <div className="paper-envelope-actions">
+                    <button className="paper-button" onClick={() => navigate?.('asignacion_revelar', envelope.id)}>Abrir mi papelito</button>
+                    <button className="paper-text-button" onClick={() => navigate?.('intercambio_detalle', envelope.id)}>Ver intercambio</button>
+                  </div>
+                </div>
+              </section>
+            )}
+            {tasks.length > 0 && (
+              <section className="paper-tasks" aria-labelledby="board-tasks">
+                <div className="paper-tasks-heading">
+                  <h2 id="board-tasks">Por hacer</h2>
+                  {(hiddenTasks > 0 || allTasks) && (
+                    <button className="paper-text-button" aria-expanded={allTasks} onClick={() => setAllTasks(!allTasks)}>
+                      {allTasks ? 'Ver menos' : `Ver ${hiddenTasks} más`}
+                    </button>
+                  )}
+                </div>
+                {shownTasks.length > 0 && <ul>
+                  {shownTasks.map((item, index) => (
+                    <li key={item.exchange.id}>
+                      <button className={`paper-task${!envelope && index === 0 ? ' paper-task--first' : ''}`} onClick={() => openTask(item)}>
+                        <span className="paper-task-body">
+                          <strong>{item.action.text}</strong>
+                          <span>
+                            {item.exchange.name}
+                            {item.action.due && <> · <span className={item.action.urgent ? 'is-urgent' : undefined}>{item.action.due}</span></>}
+                          </span>
+                        </span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+                      </button>
+                    </li>
+                  ))}
+                </ul>}
+              </section>
+            )}
           </div>
-          <div className="paper-party"><span className="paper-people-mark" aria-hidden="true"><i /><i /><i /></span><span>{featured.participantCount ?? featured.participants.length} personas compartiendo la ilusión</span></div>
-        </div>
-        <div className="paper-feature-art"><PaperIllustration theme={featured.selectedTheme} /><span className="paper-art-note">Se vale dar pistas.<br />¡El nombre es secreto!</span></div>
-      </section>}
 
-      <section className="paper-exchanges" aria-labelledby="my-exchanges">
-        <div className="paper-list-heading"><h2 id="my-exchanges">Tus intercambios <span>{exchanges.length}</span></h2><p>Cada grupo, una historia.</p></div>
-        <div className="paper-filters" role="group" aria-label="Filtrar intercambios">
-          {([['todos', 'Todos'], ['activos', 'En marcha'], ['borradores', 'Otros']] as const).map(([key, label]) => <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}</button>)}
+          <section className="paper-exchanges" aria-labelledby="my-exchanges">
+            <div className="paper-list-heading">
+              <h2 id="my-exchanges">En marcha <span>{active.length}</span></h2>
+              {showRoleFilter && (
+                <div className="paper-filters" role="group" aria-label="Filtrar intercambios">
+                  {([['todos', 'Todos'], ['organizo', 'Organizo'], ['invitaron', 'Me invitaron']] as const).map(([key, label]) => (
+                    <button key={key} aria-pressed={filterRole === key} onClick={() => setRole(key)}>{label}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="paper-invitation-list">
+              {listed.map((item) => <ExchangeCard key={item.exchange.id} item={item} onOpen={() => navigate?.('intercambio_detalle', item.exchange.id)} />)}
+              {active.length === 0 && <p className="paper-empty-note">No tenés grupos en marcha. Podés crear uno cuando quieras.</p>}
+            </div>
+            {archive.length > 0 && (
+              <details className="paper-archive">
+                <summary>Terminados ({archive.length})</summary>
+                <div className="paper-invitation-list">
+                  {archive.map((item) => <ExchangeCard key={item.exchange.id} item={item} onOpen={() => navigate?.('intercambio_detalle', item.exchange.id)} />)}
+                </div>
+              </details>
+            )}
+          </section>
         </div>
-        <div className="paper-invitation-list">
-          {filtered.map(e => { const date = dateParts(e.eventDate); return <button key={e.id} className={`paper-invitation paper-invitation--${e.selectedTheme}`} onClick={() => navigate?.('intercambio_detalle', e.id)}>
-            <span className="paper-date-stamp"><strong>{date.day}</strong><span>{date.month}</span></span>
-            <span className="paper-invitation-body"><span className="paper-invitation-occasion">{occasionNames[e.selectedTheme]}<span className="paper-status-inline">{statusNames[e.status]}</span></span><strong>{e.name}</strong><span>{money(e.budgetAmount, e.currency)}<span className="paper-dot-separator" />{e.participantCount ?? e.participants.length} personas{e.isCurrentUserOrganizer && <span className="paper-organizer">Organizás vos</span>}</span></span>
-            <svg className="paper-invitation-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
-          </button>; })}
-          {filtered.length === 0 && <div className="paper-empty"><h3>Aquí cabe una nueva celebración.</h3><p>Reuní a tu gente y dejá que la sorpresa empiece.</p><button className="paper-button" onClick={() => navigate?.('intercambio_crear')}>{exchanges.length === 0 ? 'Crear mi primer intercambio' : 'Crear otro intercambio'}</button></div>}
-        </div>
-      </section>
+      )}
       {/* Secondary: installing helps, but never before the person's own groups. */}
       <div className="paper-dashboard-install"><InstallGuide compact /></div>
       <p className="paper-closing-note">Hecho para regalar con ganas.</p>

@@ -387,3 +387,114 @@ test('cabeceras de seguridad: CSP en modo reporte, Permissions-Policy y detecci�
   expect(violations[0]).toMatch(/^img-src https:\/\/tienda\.invalid\/foto\.png \(report\) /);
   violations.length = 0;
 });
+
+// Tablero con los seis grupos de la demo, en una fecha fija de Costa Rica.
+async function openBoard(page: import("@playwright/test").Page) {
+  await page.clock.setFixedTime(new Date("2026-11-04T12:00:00-06:00"));
+  await page.evaluate(() => localStorage.setItem("papelito-guide-seen", "yes"));
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Mis intercambios", level: 1 })).toBeVisible();
+}
+const aboveNav = async (page: import("@playwright/test").Page, locator: import("@playwright/test").Locator) => {
+  const navTop = (await page.locator(".paper-navigation").boundingBox())!.y;
+  const box = (await locator.boundingBox())!;
+  return box.y >= 0 && box.y + box.height <= navTop;
+};
+
+test("tablero: qué hacer primero, orden por vencimiento y sobre solo con papelito propio", async ({ page }) => {
+  await openBoard(page);
+  const envelope = page.getByRole("region", { name: "Tu papelito sin abrir" });
+  await expect(envelope.getByRole("heading", { name: "Navidad en Familia Carvajal" })).toBeVisible();
+  await expect(envelope.getByRole("button", { name: "Abrir mi papelito", exact: true })).toBeVisible();
+  const tasks = page.getByRole("region", { name: "Por hacer" }).locator(".paper-task");
+  await expect(tasks.first()).toContainText("Revisar sorteo");
+  await expect(tasks.first()).toContainText("Fútbol de los jueves");
+  await expect(tasks.first()).toContainText("Cierra mañana");
+  await expect(tasks.nth(1)).toContainText("Revisar 3 solicitudes");
+  await expect(page.locator(".paper-invitation")).toHaveCount(6);
+  await expect(page.locator(".paper-invitation").first()).toContainText("Fútbol de los jueves");
+  await expect(page.locator(".paper-invitation").filter({ hasText: "Cumpleaños de Sofi" })).toContainText("En preparación");
+  // El tablero no recibe destinatarios: el nombre real solo existe tras abrir.
+  await expect(page.locator("#app-content")).not.toContainText("María Eugenia");
+  await noOverflow(page);
+
+  await envelope.getByRole("button", { name: "Abrir mi papelito", exact: true }).click();
+  await page.locator(".paper-reveal-closed").getByRole("button", { name: "Abrir mi papelito", exact: true }).click();
+  await expect(page.locator(".paper-secret-card")).toBeVisible();
+  await page.getByRole("button", { name: "Intercambios", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Tu papelito sin abrir" })).toHaveCount(0);
+  await expect(page.locator(".paper-invitation").filter({ hasText: "Navidad en Familia Carvajal" })).toContainText("Papelito abierto");
+});
+
+test("tablero: filtro de rol y tareas adicionales", async ({ page }) => {
+  await openBoard(page);
+  const filters = page.getByRole("group", { name: "Filtrar intercambios" });
+  await filters.getByRole("button", { name: "Organizo", exact: true }).click();
+  await expect(page.locator(".paper-invitation")).toHaveCount(4);
+  await expect(page.locator(".paper-invitation").filter({ hasText: "Navidad en Familia Carvajal" })).toHaveCount(0);
+  await filters.getByRole("button", { name: "Me invitaron", exact: true }).click();
+  await expect(page.locator(".paper-invitation")).toHaveCount(2);
+  await filters.getByRole("button", { name: "Todos", exact: true }).click();
+  await expect(page.locator(".paper-invitation")).toHaveCount(6);
+});
+
+test("tablero: primera pantalla por tamaño, sin desbordes", async ({ page }, testInfo) => {
+  const tasks = () => page.getByRole("region", { name: "Por hacer" }).getByRole("button");
+  if (testInfo.project.name === "mobile-320") {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await openBoard(page);
+    expect(await aboveNav(page, page.getByRole("region", { name: "Tu papelito sin abrir" }).getByRole("button", { name: "Abrir mi papelito", exact: true }))).toBe(true);
+    expect(await aboveNav(page, page.locator(".paper-invitation").first())).toBe(true);
+    await tasks().filter({ hasText: "Ver 3 más" }).click();
+    await expect(tasks().filter({ hasText: "Revisar 3 solicitudes" })).toBeVisible();
+  } else if (testInfo.project.name === "mobile-390") {
+    await openBoard(page);
+    expect(await aboveNav(page, tasks().nth(1))).toBe(true);
+    expect(await aboveNav(page, page.locator(".paper-invitation").nth(1))).toBe(true);
+  } else {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openBoard(page);
+    for (let i = 0; i < 6; i++) expect(await aboveNav(page, page.locator(".paper-invitation").nth(i))).toBe(true);
+  }
+  await noOverflow(page);
+  for (const target of await page.locator(".paper-task, .paper-invitation, .paper-button--create").all()) {
+    expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+  const small = await page.locator(".paper-dashboard").evaluate((root) =>
+    [...root.querySelectorAll<HTMLElement>("*")].filter((el) => el.children.length === 0 && el.textContent?.trim() && parseFloat(getComputedStyle(el).fontSize) < 14).map((el) => el.textContent),
+  );
+  expect(small).toEqual([]);
+});
+
+test("tablero: teclado, foco visible y movimiento reducido", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openBoard(page);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const open = page.getByRole("region", { name: "Tu papelito sin abrir" }).getByRole("button", { name: "Abrir mi papelito", exact: true });
+  let reached = false;
+  for (let i = 0; i < 4 && !reached; i++) {
+    await page.keyboard.press("Tab");
+    reached = await open.evaluate((el) => el === document.activeElement);
+  }
+  expect(reached, "la primera tarea se alcanza en 4 tabulaciones o menos").toBe(true);
+  const outline = await open.evaluate((el) => { const s = getComputedStyle(el); return { width: parseFloat(s.outlineWidth), style: s.outlineStyle }; });
+  expect(outline.width).toBeGreaterThanOrEqual(3);
+  expect(outline.style).toBe("solid");
+  // La tarjeta se nombra completa para un lector de pantalla y abre con Enter.
+  const card = page.locator(".paper-invitation").filter({ hasText: "Las primas de San Ramón" });
+  await expect(card).toHaveAttribute("aria-label", /Las primas de San Ramón.*22 de diciembre.*Organizás.*Invitar: falta 1 persona/);
+  await card.focus();
+  const nav = (await page.locator(".paper-navigation").boundingBox())!.y;
+  expect((await card.boundingBox())!.y + (await card.boundingBox())!.height).toBeLessThanOrEqual(nav);
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Las primas de San Ramón", level: 1 })).toBeFocused();
+});
+
+test("demo: aprobar una solicitud ficticia no simula una falla de conexión", async ({ page }) => {
+  await openBoard(page);
+  await page.getByRole("region", { name: "Por hacer" }).getByRole("button").filter({ hasText: "Revisar 3 solicitudes" }).click();
+  await page.getByRole("button", { name: "Aprobar a Sofía C.", exact: true }).click();
+  await expect(page.locator(".workshop-error")).toHaveCount(0);
+  await expect(page.locator(".workshop-success").filter({ hasText: "de ejemplo" })).toBeVisible();
+});

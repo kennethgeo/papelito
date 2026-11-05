@@ -247,6 +247,9 @@ export function RealDataProvider({
         closedAt: item.closedAt,
         currentUserMemberStatus: item.memberStatus,
         participantCount: item.participantCount,
+        pendingRequestCount: item.pendingRequestCount,
+        myWishCount: item.myWishCount,
+        ownPaperState: item.ownPaperState,
         participants: [],
       })),
     );
