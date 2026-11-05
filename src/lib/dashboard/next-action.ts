@@ -99,7 +99,8 @@ export function nextAction(exchange: Exchange, today: string): NextAction {
         ? task('close_group', 'Finalizar intercambio', `La entrega fue el ${shortDate(exchange.eventDate)}`, false)
         : state('Entrega realizada');
     }
-    if (pending > 0) return task('review_requests', requestsText(pending), '', false);
+    // Requests left over from before the draw stay in the data, but the server no
+    // longer lets anyone approve or reject them, so they are not a task here.
     if (paper === 'abierto' && !hasWishes) return addWishes;
     return state(paper === 'abierto' ? 'Papelito abierto' : 'Sin papelito en este sorteo');
   }

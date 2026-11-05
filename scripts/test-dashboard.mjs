@@ -26,6 +26,7 @@ const { executeAndCommitDraw } = await import("../src/lib/repositories/draw.ts")
 const { revealAssignment } = await import("../src/lib/repositories/assignments.ts");
 const { readAppSnapshot } = await import("../src/lib/repositories/app-snapshot.ts");
 const { LEGAL_CONSTANTS } = await import("../src/lib/legal/constants.ts");
+const { nextAction, buildDashboard } = await import("../src/lib/dashboard/next-action.ts");
 
 const pg = new PGlite();
 let queries = 0;
@@ -146,6 +147,61 @@ try {
   assert.equal((await summary(owner, transferred)).isOrganizer, false);
   await pg.query(`UPDATE memberships SET is_organizer = false WHERE exchange_id = $1 AND user_id = $2`, [transferred, owner]);
 
+  // El mismo grupo antes y después del sorteo: la solicitud sigue en la base, pero
+  // solo se ofrece revisarla mientras quien organiza todavía puede gestionarla.
+  const [dueno, uno, dos, tardia] = await Promise.all(["Dueño", "Uno", "Dos", "Tardía"].map(person));
+  const { exchangeId: lateGroup, inviteToken: lateToken } = await group(dueno, "Grupo con solicitud tardía");
+  for (const id of [uno, dos, tardia]) await acceptInvitationAtomic(lateToken, id);
+  for (const id of [uno, dos]) await manageMemberStatus(lateGroup, id, "approved", dueno);
+  const boardFor = async (userId) => {
+    const item = await summary(userId, lateGroup);
+    const exchange = {
+      ...item,
+      isCurrentUserOrganizer: item.isOrganizer,
+      currentUserMemberStatus: item.memberStatus,
+      participants: [],
+      minParticipants: 3,
+    };
+    const today = "2026-11-04";
+    return { item, action: nextAction(exchange, today), board: buildDashboard([exchange], today) };
+  };
+  const antes = await boardFor(dueno);
+  assert.equal(antes.item.pendingRequestCount, 1);
+  assert.equal(antes.action.kind, "review_requests", "antes del sorteo se ofrece revisar");
+  assert.equal(antes.action.text, "Revisar 1 solicitud");
+
+  await executeAndCommitDraw(lateGroup, dueno, 0);
+  await revealAssignment(lateGroup, dueno);
+  const despues = await boardFor(dueno);
+  assert.equal(despues.item.pendingRequestCount, 1, "el dato sigue: lo que cambia es lo que se ofrece");
+  assert.equal(despues.item.ownPaperState, "abierto");
+  assert.equal(despues.action.kind, "add_wishes", "sin solicitudes que gestionar, sigue la tarea propia");
+  assert.ok(despues.board.tasks.every((task) => task.action.kind !== "review_requests"));
+  assert.equal(despues.board.envelope, null, "con el papelito abierto no hay sobre");
+
+  const ownWish = await saveWish(dueno, { title: "Un cuaderno" });
+  await toggleWishInExchange(dueno, lateGroup, ownWish.wishId, true);
+  const alDia = await boardFor(dueno);
+  assert.equal(alDia.action.kind, "none");
+  assert.equal(alDia.action.text, "Papelito abierto");
+  assert.deepEqual(alDia.board.tasks, []);
+  assert.equal(alDia.board.pendingCount, 0, "una solicitud que ya no se puede gestionar no cuenta como pendiente");
+
+  // Las reglas de aprobación no cambian: el servidor sigue rechazando y nada se mueve.
+  await assert.rejects(manageMemberStatus(lateGroup, tardia, "approved", dueno), /sorteo/);
+  await assert.rejects(manageMemberStatus(lateGroup, tardia, "rejected", dueno), /sorteo/);
+  assert.equal((await summary(tardia, lateGroup)).memberStatus, "pending");
+  assert.equal((await boardFor(dueno)).item.pendingRequestCount, 1);
+
+  // Privacidad: abrir el propio no revela al destinatario ni las aperturas ajenas.
+  const lateReceivers = await pg.query(`SELECT receiver_id FROM assignments WHERE exchange_id = $1`, [lateGroup]);
+  const boardPayload = JSON.stringify(await getMyExchanges(dueno));
+  for (const { receiver_id } of lateReceivers.rows) {
+    if (receiver_id !== dueno) assert.ok(!boardPayload.includes(receiver_id), "el tablero no expone destinatarios");
+  }
+  for (const id of [uno, dos]) assert.equal((await summary(id, lateGroup)).ownPaperState, "sin_abrir");
+  for (const id of [uno, dos]) assert.equal((await summary(id, lateGroup)).pendingRequestCount, 0);
+
   // De 6 a 20 grupos: la misma cantidad de consultas, sin y con detalle abierto.
   const [volumen, otra] = await Promise.all(["Volumen", "Otra"].map(person));
   const consent = await getLatestConsentStatus(volumen);
@@ -185,7 +241,6 @@ try {
 }
 
 // Regla de siguiente acción: pura, con el calendario de Costa Rica como entrada.
-const { nextAction, buildDashboard } = await import("../src/lib/dashboard/next-action.ts");
 const TODAY = "2026-11-04";
 const make = (over = {}) => ({
   id: over.id ?? randomUUID(),
