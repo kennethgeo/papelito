@@ -15,6 +15,12 @@ import { InvitationQR } from '@/components/InvitationQR';
 import { RepeatExchange } from '@/components/RepeatExchange';
 import { ExchangeCalendar } from '@/components/ExchangeCalendar';
 import { BudgetPoll, RepresentedParticipants } from '@/components/SelectedExchangeTools';
+import { JoinRequests, type DecisionResult, type JoinRequest, type RequestDecision } from '@/components/JoinRequests';
+import { canManageRequests, registrationExpired } from '@/lib/exchanges/join-requests';
+import { consumeOpenSection } from '@/lib/view-history';
+
+/** Where the result of an action shows: next to the control that started it. */
+type NotePlace = "page" | "invite" | "draw" | "rules" | "people" | "theme";
 
 export function ExchangeDetailView() {
   const real = useOptionalRealData();
@@ -26,6 +32,7 @@ export function ExchangeDetailView() {
   const lock = useRef(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [notePlace, setNotePlace] = useState<NotePlace>("page");
   const [copyFallback, setCopyFallback] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [renew, setRenew] = useState(false);
@@ -34,9 +41,17 @@ export function ExchangeDetailView() {
   const [giver, setGiver] = useState("");
   const [receiver, setReceiver] = useState("");
   const [mutual, setMutual] = useState(true);
-  const [memberConfirm, setMemberConfirm] = useState<{ id: string; action: "reject" | "remove" } | null>(null);
+  const [memberConfirm, setMemberConfirm] = useState<{ id: string } | null>(null);
   const memberConfirmTitle = useRef<HTMLHeadingElement>(null);
   useEffect(() => { if (memberConfirm) memberConfirmTitle.current?.focus(); }, [memberConfirm]);
+  // Arriving from «Revisar solicitudes»: straight to the list once the group has loaded.
+  const requestsHeading = useRef<HTMLHeadingElement>(null);
+  const detailReady = !!exchange && !real?.isRefreshing;
+  useEffect(() => {
+    if (!detailReady || !consumeOpenSection("solicitudes")) return;
+    requestsHeading.current?.focus({ preventScroll: true });
+    requestsHeading.current?.closest("section")?.scrollIntoView({ block: "start" });
+  }, [detailReady]);
   const [demoRules, setDemoRules] = useState<
     Array<{ giverId: string; receiverId: string }>
   >([]);
@@ -47,9 +62,11 @@ export function ExchangeDetailView() {
     key: string,
     action: () => Promise<boolean>,
     success = "",
+    place: NotePlace = "page",
   ) {
     if (lock.current) return false;
     lock.current = true;
+    setNotePlace(place);
     setBusy(key);
     setError("");
     setMessage("");
@@ -115,7 +132,10 @@ export function ExchangeDetailView() {
   const closed = ["finalizado", "cancelado"].includes(ex.status);
   const canEnter = (ex.currentUserMemberStatus ?? "approved") === "approved";
   const owner = ex.isCurrentUserOrganizer;
-  const canInvite = owner && canEnter && ex.status === "inscripcion_abierta";
+  const expiredRegistration = registrationExpired(ex.status, ex.registrationDeadline, getCostaRicaTodayDate());
+  const canDecide = owner && canManageRequests(ex.status);
+  // The server refuses new people the day after the deadline, so the link is not offered then.
+  const canInvite = owner && canEnter && ex.status === "inscripcion_abierta" && !expiredRegistration;
   const shareUnavailable = !!real && !ex.inviteCode;
   const rules = real ? (ex.exclusions ?? []) : demoRules;
   const enough = approved.length >= ex.minParticipants;
@@ -127,7 +147,35 @@ export function ExchangeDetailView() {
   const invitationUrl = () =>
     `${window.location.origin}/unirse/${ex.inviteCode}`;
 
+  async function decideRequest(person: JoinRequest, status: RequestDecision): Promise<DecisionResult | null> {
+    if (!real) return { ok: true, text: DEMO_ONLY_MESSAGE };
+    if (lock.current) return null;
+    lock.current = true;
+    setBusy(person.id);
+    setError("");
+    setMessage("");
+    try {
+      if (await real.manageMember(person.id, status)) {
+        return {
+          ok: true,
+          text: status === "approved"
+            ? `${person.alias} ya está en el intercambio.`
+            : `Rechazaste la solicitud de ${person.alias}.`,
+        };
+      }
+      // The group may have changed elsewhere (a draw, for one): show what is true now.
+      void real.refreshNow();
+      return { ok: false, text: "" };
+    } catch {
+      return { ok: false, text: "Se interrumpió la conexión. Revisá el estado antes de repetir el cambio." };
+    } finally {
+      lock.current = false;
+      setBusy("");
+    }
+  }
+
   async function copyInvite() {
+    setNotePlace("invite");
     if (!real) {
       setMessage(
         "Los enlaces de la demo son de ejemplo. Creá un intercambio con tu cuenta para invitar.",
@@ -162,6 +210,7 @@ export function ExchangeDetailView() {
     }
   }
   async function draw() {
+    setNotePlace("draw");
     if (!real) {
       setMessage(
         "Este grupo es de ejemplo. En tus intercambios reales el sorteo se guarda para cada participante.",
@@ -189,6 +238,7 @@ export function ExchangeDetailView() {
         return true;
       },
       "¡Sorteo listo! Cada persona puede abrir su propio papelito.",
+      "draw",
     );
     if (ok) {
       setConfirmDraw(false);
@@ -211,10 +261,12 @@ export function ExchangeDetailView() {
         return true;
       },
       "Restricciones guardadas.",
+      "rules",
     );
   }
   async function addRule(e: React.FormEvent) {
     e.preventDefault();
+    setNotePlace("rules");
     if (!giver || !receiver || giver === receiver) {
       setError("Elegí dos personas distintas. Nadie puede tocarse a sí mismo.");
       return;
@@ -234,6 +286,22 @@ export function ExchangeDetailView() {
       setReceiver("");
     }
   }
+
+  const note = (place: NotePlace) =>
+    notePlace === place && (
+      <>
+        {message && (
+          <p className="workshop-success" role="status">
+            {message}
+          </p>
+        )}
+        {error && (
+          <p className="workshop-error" role="alert">
+            {error}
+          </p>
+        )}
+      </>
+    );
 
   return (
     <div className={`workshop-page occasion-${ex.selectedTheme}`}>
@@ -261,7 +329,9 @@ export function ExchangeDetailView() {
               ? "Un recuerdo compartido"
               : drawn
                 ? "El secreto ya está repartido"
-                : "Reuní a tu gente"}
+                : expiredRegistration
+                  ? "Inscripción vencida"
+                  : "Reuní a tu gente"}
           </p>
           <h1>{ex.name}</h1>
           <p className="occasion-label">
@@ -290,16 +360,7 @@ export function ExchangeDetailView() {
         </div>
         <PaperIllustration theme={ex.selectedTheme} />
       </header>
-      {message && (
-        <p className="workshop-success" role="status">
-          {message}
-        </p>
-      )}
-      {error && (
-        <p className="workshop-error" role="alert">
-          {error}
-        </p>
-      )}
+      {note("page")}
       {!canEnter ? (
         <section className="workshop-sheet">
           <h2>
@@ -329,6 +390,24 @@ export function ExchangeDetailView() {
               {ex.drawNotice}
             </p>
           )}
+          {expiredRegistration && (
+            <p className="next-note" role="status">
+              <strong>La inscripción venció el {formatEventDate(ex.registrationDeadline)}.</strong>{" "}
+              El enlace ya no admite personas nuevas.{" "}
+              {owner
+                ? "Todavía podés revisar las solicitudes que ya llegaron y preparar el sorteo."
+                : "Falta que quien organiza haga el sorteo."}
+            </p>
+          )}
+          {canDecide && (
+            <JoinRequests
+              requests={pending}
+              busy={!!busy}
+              serverError={real?.errorMessage}
+              headingRef={requestsHeading}
+              decide={decideRequest}
+            />
+          )}
           {drawn && ex.assignment && (
             <section className="secret-strip">
               <div>
@@ -352,6 +431,7 @@ export function ExchangeDetailView() {
             <section className="workshop-sheet invite-sheet">
               <p className="workshop-step">El siguiente paso</p>
               <h2>Pasá la invitación.</h2>
+              {note("invite")}
               {!shareUnavailable && <InvitationQR url={real ? `/unirse/${ex.inviteCode}` : '/?mode=demo'} name={ex.name} />}
               {!real && <p className="field-help">El QR de ejemplo abre la demo; las invitaciones reales se crean con tu cuenta.</p>}
               <p>
@@ -447,6 +527,7 @@ export function ExchangeDetailView() {
                               return true;
                             },
                             "Enlace renovado. Copiá o compartí la nueva invitación.",
+                            "invite",
                           )
                         }
                       >
@@ -484,10 +565,9 @@ export function ExchangeDetailView() {
                         ? "persona aprobada"
                         : "personas aprobadas"}
                     </span>
-                    {owner && (
+                    {canDecide && (
                       <span>
-                        <strong>{pending.length}</strong>{" "}
-                        {pending.length === 1 ? "por aprobar" : "por aprobar"}
+                        <strong>{pending.length}</strong> por aprobar
                       </span>
                     )}
                     <span>
@@ -498,10 +578,13 @@ export function ExchangeDetailView() {
                     Las pistas son opcionales. Para sortear hacen falta al menos{" "}
                     {ex.minParticipants} personas aprobadas.
                   </p>
-                  <p className="field-help">
-                    Inscripción hasta el{" "}
-                    {formatEventDate(ex.registrationDeadline)}.
-                  </p>
+                  {!expiredRegistration && (
+                    <p className="field-help">
+                      Inscripción hasta el{" "}
+                      {formatEventDate(ex.registrationDeadline)}.
+                    </p>
+                  )}
+                  {note("draw")}
                   {owner && !drawn && (
                     <button
                       className="paper-button"
@@ -633,7 +716,7 @@ export function ExchangeDetailView() {
                           className="paper-text-button participant-action"
                           disabled={!!busy}
                           aria-label={`Quitar a ${p.alias} del intercambio`}
-                          onClick={() => setMemberConfirm({ id: p.id, action: "remove" })}
+                          onClick={() => setMemberConfirm({ id: p.id })}
                         >
                           Quitar
                         </button>
@@ -650,14 +733,10 @@ export function ExchangeDetailView() {
                 {confirmingMember && memberConfirm && (
                   <div className="confirmation-note" role="group" aria-labelledby="member-confirm-title">
                     <h3 id="member-confirm-title" tabIndex={-1} ref={memberConfirmTitle}>
-                      {memberConfirm.action === "reject"
-                        ? `¿Rechazar a ${confirmingMember.alias}?`
-                        : `¿Quitar a ${confirmingMember.alias} del intercambio?`}
+                      ¿Quitar a {confirmingMember.alias} del intercambio?
                     </h3>
                     <p>
-                      {memberConfirm.action === "reject"
-                        ? "No va a poder entrar con este enlace."
-                        : "Deja de participar en el sorteo y se borran las restricciones donde aparece. Sus deseos personales se conservan."}{" "}
+                      Deja de participar en el sorteo y se borran las restricciones donde aparece. Sus deseos personales se conservan.{" "}
                       Si tiene personas a cargo en este intercambio, también salen. Podés volver a aprobar a {confirmingMember.alias} desde «Solicitudes rechazadas» antes del sorteo.
                     </p>
                     <div className="workshop-actions">
@@ -666,18 +745,17 @@ export function ExchangeDetailView() {
                         disabled={!!busy}
                         aria-busy={busy === confirmingMember.id}
                         onClick={async () => {
-                          if (!real) { setMemberConfirm(null); setError(""); setMessage(DEMO_ONLY_MESSAGE); return; }
+                          if (!real) return;
                           const done = await run(
                             confirmingMember.id,
                             () => real.manageMember(confirmingMember.id, "rejected"),
-                            memberConfirm.action === "reject"
-                              ? `Rechazaste la solicitud de ${confirmingMember.alias}.`
-                              : `${confirmingMember.alias} ya no participa.`,
+                            `${confirmingMember.alias} ya no participa.`,
+                            "people",
                           );
                           if (done) setMemberConfirm(null);
                         }}
                       >
-                        {memberConfirm.action === "reject" ? "Sí, rechazar" : "Sí, quitar"}
+                        Sí, quitar
                       </button>
                       <button
                         className="paper-text-button"
@@ -689,37 +767,13 @@ export function ExchangeDetailView() {
                     </div>
                   </div>
                 )}
-                {owner && pending.length > 0 && (
-                  <div className="pending-members">
-                    <h3>Están tocando la puerta</h3>
-                    {pending.map((p) => (
-                      <div key={p.id} className="pending-row">
-                        <strong>{p.alias}</strong>
-                        <div className="workshop-actions">
-                          <button
-                            className="paper-button"
-                            disabled={!!busy}
-                            onClick={() =>
-                              !real ? (setError(""), setMessage(DEMO_ONLY_MESSAGE)) : void run(
-                                p.id,
-                                () => real.manageMember(p.id, "approved"),
-                                `${p.alias} ya está en el intercambio.`,
-                              )
-                            }
-                          >
-                            Aprobar a {p.alias}
-                          </button>
-                          <button
-                            className="paper-text-button"
-                            disabled={!!busy}
-                            onClick={() => setMemberConfirm({ id: p.id, action: "reject" })}
-                          >
-                            Rechazar a {p.alias}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                {note("people")}
+                {owner && drawn && pending.length > 0 && (
+                  <p className="field-help">
+                    {pending.length === 1
+                      ? "1 solicitud quedó fuera de este sorteo y ya no se puede aprobar ni rechazar."
+                      : `${pending.length} solicitudes quedaron fuera de este sorteo y ya no se pueden aprobar ni rechazar.`}
+                  </p>
                 )}
                 {canManageMembers && rejected.length > 0 && (
                   <details className="workshop-options">
@@ -736,6 +790,7 @@ export function ExchangeDetailView() {
                               p.id,
                               () => real!.manageMember(p.id, "approved"),
                               `${p.alias} volvió al intercambio.`,
+                              "people",
                             )
                           }
                         >
@@ -771,6 +826,7 @@ export function ExchangeDetailView() {
                                   return true;
                                 },
                                 "Tema actualizado.",
+                                "theme",
                               )
                             }
                           >
@@ -781,6 +837,8 @@ export function ExchangeDetailView() {
                       </div>
                     </fieldset>
                   </details>
+                  {note("theme")}
+                  {note("rules")}
                   {!drawn && (
                     <details className="workshop-options">
                       <summary>Quiénes no se pueden tocar</summary>

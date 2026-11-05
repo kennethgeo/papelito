@@ -16,6 +16,8 @@ export function useViewFocus(view: string, title: string) {
       return;
     }
     const frame = requestAnimationFrame(() => {
+      // A view that already led the person to a specific section keeps that focus.
+      if (document.activeElement?.closest("[data-view-focus]")) return;
       const heading = document.querySelector<HTMLElement>("#app-content h1");
       if (!heading) return;
       if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");

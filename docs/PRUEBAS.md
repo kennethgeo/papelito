@@ -10,7 +10,7 @@ Todas las suites de esta tabla corren en `verify` (`.github/workflows/verify.yml
 | `npm run test:ux` | Mensajes de lectura y escritura; incluye `test:db:workers` (conexiones por petición, rollback y cierre con fallas) | Driver simulado |
 | `npm run test:pwa` | Service Worker: nada privado en caché, recuperación sin caché | — |
 | `npm run test:journey` | Recorrido de cuatro participantes con repositorios reales | PGlite |
-| `npm run test:dashboard` | Datos del tablero: autoridad del organizador actual sobre las solicitudes, estado propio del papelito (membresía pendiente, rechazada y aprobada, sorteo repetido, grupo cerrado), nada de destinatarios, misma cantidad de consultas con 6 y 20 grupos; regla de siguiente acción con fechas de Costa Rica | PGlite |
+| `npm run test:dashboard` | Datos del tablero: autoridad del organizador actual sobre las solicitudes, estado propio del papelito (membresía pendiente, rechazada y aprobada, sorteo repetido, grupo cerrado), nada de destinatarios, misma cantidad de consultas con 6 y 20 grupos; regla de siguiente acción con fechas de Costa Rica; un mismo grupo antes y después del sorteo; quién puede gestionar solicitudes, igual que el servidor en cada estado; último día de inscripción y el siguiente | PGlite |
 | `npm run test:social` | Mensajes anónimos, gustos, ediciones, Web Push con transporte simulado, recordatorios por horario de Costa Rica, tope por ejecución, continuidad, orden ante fallas, consentimiento y firma VAPID reutilizada | PGlite |
 | `npm run test:selected` | Encuestas, representación de menores, fotos privadas y su cuota, soporte, passkeys y revocación de accesos, copia cifrada sin conexión, calendario y filtro SSRF | PGlite |
 | `npm run test:lifecycle` | Cierre, transferencia, eliminación, baja y retención | PGlite |
@@ -19,7 +19,7 @@ Todas las suites de esta tabla corren en `verify` (`.github/workflows/verify.yml
 | `npm run build`, `npm run build:vinext` | Compilación de Next y bundle de Workers | — |
 | `npm run deploy:vinext -- --dry-run`, `check:cloudflare:jobs` | Configuración de los Workers web y de cron (pausado y activo) | — |
 | `npm run test:workerd` | El bundle real en workerd: smoke check sin servicios; base y Neon Auth caídos (sesión desconocida explícita, sin bienvenida ni consentimiento falsos, `/unirse` con aviso de falla, proxy de Auth cerrado con 503, cierre de sesión que limpia cookies); transporte push del código real en workerd contra un destino de loopback inalcanzable | Direcciones inalcanzables |
-| `npm run test:e2e`, `npm run test:e2e:workerd` | 17 recorridos de navegador en 1280, 390 y 320 px (51 casos) sobre `next start` y sobre workerd. Cada caso falla si el navegador informa una violación de la CSP en modo reporte | Modo demo |
+| `npm run test:e2e`, `npm run test:e2e:workerd` | 21 recorridos de navegador en 1280, 390 y 320 px (63 casos) sobre `next start` y sobre workerd. Cada caso falla si el navegador informa una violación de la CSP en modo reporte | Modo demo |
 
 Fuera de CI, con credenciales del titular: `npm run test:neon` (SQL real en Neon con `ROLLBACK`) y `npm run test:neon:e2e -- --sanitized-clone` (rama temporal saneada con cuentas ficticias).
 

@@ -5,6 +5,7 @@ import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { buildDashboard, type DashboardItem } from '@/lib/dashboard/next-action';
 import { getCostaRicaTodayDate } from '@/lib/date/costa-rica';
+import { markOpenSection } from '@/lib/view-history';
 import { PaperIllustration } from '@/components/PaperIllustration';
 import { InstallGuide } from '@/components/InstallGuide';
 
@@ -76,10 +77,15 @@ export function PaperDashboard() {
   const greeting = alias?.split(' ')[0];
   const pendingWords = pendingCount === 0 ? 'Todo al día.' : pendingCount === 1 ? '1 pendiente.' : `${pendingCount} pendientes.`;
 
+  function openDetail(item: DashboardItem) {
+    navigate?.('intercambio_detalle', item.exchange.id);
+    if (item.action.kind === 'review_requests') markOpenSection('solicitudes');
+  }
+
   function openTask(item: DashboardItem) {
     if (item.action.kind === 'open_paper') navigate?.('asignacion_revelar', item.exchange.id);
     else if (item.action.kind === 'add_wishes') navigate?.('deseos_lista');
-    else navigate?.('intercambio_detalle', item.exchange.id);
+    else openDetail(item);
   }
 
   return (
@@ -158,7 +164,7 @@ export function PaperDashboard() {
               )}
             </div>
             <div className="paper-invitation-list">
-              {listed.map((item) => <ExchangeCard key={item.exchange.id} item={item} onOpen={() => navigate?.('intercambio_detalle', item.exchange.id)} />)}
+              {listed.map((item) => <ExchangeCard key={item.exchange.id} item={item} onOpen={() => openDetail(item)} />)}
               {active.length === 0 && <p className="paper-empty-note">No tenés grupos en marcha. Podés crear uno cuando quieras.</p>}
             </div>
             {archive.length > 0 && (
