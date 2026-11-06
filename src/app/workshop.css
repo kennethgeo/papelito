@@ -1092,3 +1092,6 @@ html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[d
 .install-welcome-later { display:block; margin:12px auto;min-height:44px; }
 .install-welcome > .field-help { margin-bottom:0; }
 html:has(.install-welcome[open]) { overflow:hidden; }
+.name-editor { max-width:480px; margin:8px 0; }
+.name-editor form { margin:12px 0; padding:16px; background:var(--paper-white); border-left:3px solid var(--paper-yellow); }
+.name-editor .workshop-field { margin-bottom:8px; }

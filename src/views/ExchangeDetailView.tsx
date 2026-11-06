@@ -16,6 +16,9 @@ import { RepeatExchange } from '@/components/RepeatExchange';
 import { ExchangeCalendar } from '@/components/ExchangeCalendar';
 import { BudgetPoll, RepresentedParticipants } from '@/components/SelectedExchangeTools';
 import { OrganizationTools } from '@/components/OrganizationTools';
+import { NameEditor } from '@/components/NameEditor';
+import { renameExchangeAction } from '@/lib/data/name-actions';
+import { callServerAction } from '@/lib/client-actions';
 
 export function ExchangeDetailView() {
   const real = useOptionalRealData();
@@ -265,6 +268,13 @@ export function ExchangeDetailView() {
                 : "Reuní a tu gente"}
           </p>
           <h1>{ex.name}</h1>
+          {owner && canEnter && !closed && <NameEditor name={ex.name} label="Nuevo nombre del intercambio" buttonLabel="Cambiar nombre del intercambio" maxLength={100} onSave={async(value, previous) => {
+            if (real) {
+              const result=await callServerAction(() => renameExchangeAction(ex.id,value,previous));
+              if (!result.success) throw new Error(result.error || 'No pudimos cambiar el nombre.');
+              if (!await real.refreshNow()) throw new Error('El nombre se guardó. Actualizá la página para verlo al día.');
+            } else demo?.renameExchange(ex.id,value);
+          }} />}
           <p className="occasion-label">
             {THEME_CONFIG[ex.selectedTheme].label}
           </p>
@@ -621,7 +631,7 @@ export function ExchangeDetailView() {
                         <strong>
                           {p.alias}
                           {p.isOrganizer && <small> · Organiza</small>}
-                          {p.represented && <small> · A cargo de otra persona</small>}
+                          {p.represented && <small> · A cargo de un adulto</small>}
                         </strong>
                         <span>
                           {p.wishCount

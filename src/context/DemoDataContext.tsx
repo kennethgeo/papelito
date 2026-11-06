@@ -53,6 +53,7 @@ interface DemoDataContextType {
     manualThemeOverride?: ThemeKey;
   }) => string;
   updateExchangeTheme: (id: string, theme: ThemeKey) => void;
+  renameExchange: (id: string, name: string) => void;
   revealAssignment: (exchangeId: string) => void;
   toggleWishPurchased: (exchangeId: string, wishId: string) => void;
   addUserWish: (wish: Omit<Wish, "id" | "createdAt">) => void;
@@ -410,6 +411,7 @@ export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({
         setCurrentExchangeId,
         createExchange,
         updateExchangeTheme,
+        renameExchange: (id, name) => setExchanges(previous => previous.map(exchange => exchange.id === id ? { ...exchange, name } : exchange)),
         revealAssignment,
         toggleWishPurchased,
         addUserWish,

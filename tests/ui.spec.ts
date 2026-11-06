@@ -45,6 +45,12 @@ test('calendario privado y presupuesto acordado con confirmación',async({page})
   await expect(page.locator('.group-rules-paper')).toContainText('Regalo envuelto sin nombre');
   await page.getByText('¿Nos vemos en la entrega?',{exact:true}).click();
   await expect(page.getByRole('button',{name:'No voy',exact:true})).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('button',{name:'Cambiar nombre del intercambio',exact:true}).click();
+  await page.getByLabel('Nuevo nombre del intercambio',{exact:true}).fill('Fiesta con mi gente');
+  await page.getByRole('button',{name:'Guardar nombre',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Fiesta con mi gente',exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'Fiesta con mi gente',exact:true})).toBeVisible();
   await noOverflow(page);
 });
 
