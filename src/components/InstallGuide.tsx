@@ -5,6 +5,7 @@ import {
   noInstallPrompt,
   setInstallPrompt,
   subscribeInstallPrompt,
+  isRunningInstalled,
 } from "@/lib/pwa-install";
 
 export function InstallGuide({ compact = false }: { compact?: boolean }) {
@@ -21,8 +22,7 @@ export function InstallGuide({ compact = false }: { compact?: boolean }) {
     const media = window.matchMedia("(display-mode: standalone)");
     const update = () =>
       setInstalled(
-        media.matches ||
-          !!(navigator as Navigator & { standalone?: boolean }).standalone,
+        isRunningInstalled(),
       );
     queueMicrotask(update);
     media.addEventListener("change", update);

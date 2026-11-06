@@ -6,7 +6,7 @@ Actualizado: 6 de noviembre de 2026. Este archivo conserva las 60 ideas propuest
 
 - Mensajes anónimos bidireccionales, dentro del sorteo vigente, sin mostrar quién regala.
 - Notificaciones Web Push optativas: cierre de inscripción, entrega y mensajes. Permiso solo después de pulsar el botón; desactivación por dispositivo.
-- Botón de instalación visible y guía para navegadores sin ofrecimiento nativo.
+- Botón de instalación visible y guía para navegadores sin ofrecimiento nativo. Aviso al primer ingreso por navegador, después de cargar la cuenta y confirmar el consentimiento; se puede omitir y no se repite al recargar. También se puede revisar en el primer ingreso a la demo.
 - Nueva edición vinculada con invitación nueva y exclusión de destinatarios anteriores disponibles. No copia inscripciones, restricciones manuales ni deseos. El historial está sujeto a la retención existente.
 - Perfil de gustos opcional, visible para quien regala.
 - QR de invitación creado localmente y descargable.

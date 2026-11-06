@@ -1081,3 +1081,14 @@ html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[d
 .join-footer { text-align: center; margin: 18px 0 0; font-size: 15px; }
 .event-countdown { display: block; font-size: 14px; font-weight: 600; color: var(--occasion, #7043a2); margin-top: 2px; }
 .invite-sheet { margin-bottom: 22px; }
+.install-welcome { width:min(440px,calc(100% - 32px)); max-height:calc(100dvh - 32px); margin:auto; padding:26px; overflow:auto; color:var(--paper-ink); background:var(--paper-white); border:1.5px solid #7043a2; border-top:7px solid var(--paper-yellow); border-radius:4px 20px 4px 4px; box-shadow:7px 8px 0 #46245d40; }
+.install-welcome::backdrop { background:#24112e99; }
+.install-welcome h2 { font:800 clamp(28px,7vw,36px)/1.08 var(--font-heading); letter-spacing:-.8px; margin:12px 0; }
+.install-welcome p { line-height:1.5; }
+.install-welcome-icon { display:grid;place-items:center;width:86px;height:98px;margin:22px auto 18px;background:#fef3d6;transform:rotate(-5deg);border:1px solid #d5c8df; }
+.install-welcome .install-shortcut > .paper-button { width:100%; }
+.install-welcome .install-shortcut details { margin:16px 0;text-align:left; }
+.install-welcome .install-shortcut li { margin:8px 0; }
+.install-welcome-later { display:block; margin:12px auto;min-height:44px; }
+.install-welcome > .field-help { margin-bottom:0; }
+html:has(.install-welcome[open]) { overflow:hidden; }

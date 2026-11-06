@@ -94,7 +94,7 @@ test('preferencias, guía, ayuda y copia cifrada de lectura sin conexión', asyn
 // Every test also checks the report-only CSP: nothing the app does may be
 // reported, so the policy can later be enforced without breaking a flow.
 const policyViolations = new WeakMap<import("@playwright/test").Page, string[]>();
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, info) => {
   const violations: string[] = [];
   policyViolations.set(page, violations);
   await page.exposeBinding("__papelitoPolicyViolation", (_source, text: string) => { violations.push(text); });
@@ -103,7 +103,13 @@ test.beforeEach(async ({ page }) => {
       (window as unknown as { __papelitoPolicyViolation: (text: string) => void }).__papelitoPolicyViolation(`${event.effectiveDirective} ${event.blockedURI} (${event.disposition}) ${event.sourceFile}:${event.lineNumber}:${event.columnNumber}`);
     });
   });
+  const checkingInstall = info.title.startsWith('instalación inicial:');
+  if (!checkingInstall) await page.addInitScript(() => localStorage.setItem('papelito-demo-install-welcome-v1','yes'));
   await page.goto("/?mode=demo");
+  if (checkingInstall) {
+    await expect(page.getByRole('dialog',{name:'Tu papelito, a un toque.'})).toBeVisible();
+    return;
+  }
   await expect(
     page.getByRole("button", { name: "Crear intercambio", exact: true }),
   ).toBeVisible();
@@ -120,6 +126,56 @@ async function noOverflow(page: import("@playwright/test").Page) {
     ),
   ).toBe(true);
 }
+
+test('instalación inicial: guía, teclado, cierre y recuerdo sin pedir notificaciones',async({page})=>{
+  const popup=page.getByRole('dialog',{name:'Tu papelito, a un toque.'});
+  await expect(popup).toContainText('sin buscar el enlace');
+  expect(await page.evaluate(()=>!!document.activeElement?.closest('dialog'))).toBe(true);
+  await popup.getByRole('button',{name:'Instalar Papelito',exact:true}).click();
+  await expect(popup.getByRole('heading',{name:'iPhone o iPad'})).toBeVisible();
+  await expect(popup.getByRole('heading',{name:'Android',exact:true})).toBeVisible();
+  for(let i=0;i<7;i++)await page.keyboard.press('Tab');
+  expect(await page.evaluate(()=>!!document.activeElement?.closest('dialog'))).toBe(true);
+  await noOverflow(page);
+  expect(await page.evaluate(()=>Notification.permission)).not.toBe('granted');
+  await page.keyboard.press('Escape');
+  await expect(popup).not.toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button',{name:'Crear intercambio',exact:true})).toBeVisible();
+  await expect(popup).not.toBeVisible();
+  await page.getByRole('button',{name:'Mi cuenta',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Instalar Papelito',exact:true})).toBeVisible();
+});
+
+test('instalación inicial: instalación nativa solo al pulsar y cierre al instalar',async({page})=>{
+  await page.evaluate(()=>{
+    const event=new Event('beforeinstallprompt',{cancelable:true});
+    Object.assign(window,{__installCalls:0});
+    Object.assign(event,{prompt:async()=>{(window as unknown as {__installCalls:number}).__installCalls++;},userChoice:Promise.resolve({outcome:'accepted'})});
+    window.dispatchEvent(event);
+  });
+  expect(await page.evaluate(()=>(window as unknown as {__installCalls:number}).__installCalls)).toBe(0);
+  const popup=page.getByRole('dialog',{name:'Tu papelito, a un toque.'});
+  await popup.getByRole('button',{name:'Instalar Papelito',exact:true}).click();
+  await expect(popup.getByRole('status')).toContainText('Solicitud aceptada');
+  expect(await page.evaluate(()=>(window as unknown as {__installCalls:number}).__installCalls)).toBe(1);
+  await page.evaluate(()=>window.dispatchEvent(new Event('appinstalled')));
+  await expect(popup).not.toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button',{name:'Crear intercambio',exact:true})).toBeVisible();
+  await expect(popup).not.toBeVisible();
+});
+
+test('instalación inicial: no aparece dentro de la app instalada',async({page})=>{
+  await page.addInitScript(()=>{
+    localStorage.removeItem('papelito-demo-install-welcome-v1');
+    Object.defineProperty(navigator,'standalone',{value:true,configurable:true});
+  });
+  await page.reload();
+  await expect(page.getByRole('button',{name:'Crear intercambio',exact:true})).toBeVisible();
+  await expect(page.getByRole('dialog',{name:'Tu papelito, a un toque.'})).not.toBeVisible();
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('papelito-demo-install-welcome-v1'))).toBe('yes');
+});
 
 test("crear en dos pasos, corregir errores y conservar tema manual", async ({
   page,
