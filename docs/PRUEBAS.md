@@ -21,7 +21,7 @@ Todas las suites de esta tabla corren en `verify` (`.github/workflows/verify.yml
 | `npm run build`, `npm run build:vinext` | Compilación de Next y bundle de Workers | — |
 | `npm run deploy:vinext -- --dry-run`, `check:cloudflare:jobs` | Configuración de los Workers web y de cron (pausado y activo) | — |
 | `npm run test:workerd` | El bundle real en workerd: smoke check sin servicios; base y Neon Auth caídos (sesión desconocida explícita, sin bienvenida ni consentimiento falsos, `/unirse` con aviso de falla, proxy de Auth cerrado con 503, cierre de sesión que limpia cookies); transporte push del código real en workerd contra un destino de loopback inalcanzable | Direcciones inalcanzables |
-| `npm run test:e2e`, `npm run test:e2e:workerd` | 17 recorridos de navegador en 1280, 390 y 320 px (51 casos) sobre `next start` y sobre workerd. Cada caso falla si el navegador informa una violación de la CSP en modo reporte | Modo demo |
+| `npm run test:e2e`, `npm run test:e2e:workerd` | 20 recorridos de navegador en 1280, 390 y 320 px (60 casos) sobre `next start` y sobre workerd. Incluye aviso inicial de instalación, omisión recordada, instrucciones, teclado y app instalada; el ofrecimiento nativo se simula sin instalar nada. Cada caso falla si el navegador informa una violación de la CSP en modo reporte | Modo demo |
 
 Fuera de CI, con credenciales del titular: `npm run test:neon` (SQL real en Neon con `ROLLBACK`) y `npm run test:neon:e2e -- --sanitized-clone` (rama temporal saneada con cuentas ficticias).
 

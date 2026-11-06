@@ -47,6 +47,11 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
     );
     const owner = pages[0];
     await owner.goto("/");
+    await expect(owner.getByRole('dialog',{name:'Tu papelito, a un toque.'})).toBeVisible();
+    await owner.getByRole('button',{name:'Ahora no',exact:true}).click();
+    await owner.reload();
+    await expect(owner.getByRole('button',{name:'Crear intercambio',exact:true})).toBeVisible();
+    await expect(owner.getByRole('dialog',{name:'Tu papelito, a un toque.'})).not.toBeVisible();
     // A synthetic authenticator proves the real browser -> actions -> Neon flow.
     const cdp=await contexts[0].newCDPSession(owner);
     await cdp.send('WebAuthn.enable');
@@ -77,6 +82,7 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
     const secondSession=await (await second.request.get('/api/auth/get-session')).json();
     expect(secondSession.session.id).toMatch(/^[0-9a-f-]{36}$/i);
     const secondPage=await second.newPage();await secondPage.goto('/');
+    await secondPage.getByRole('button',{name:'Ahora no',exact:true}).click();
     await expect(secondPage.getByRole('button',{name:'Crear intercambio',exact:true})).toBeVisible();
     await owner.getByRole('button',{name:'Actualizar mis accesos',exact:true}).click();
     const otherAccess=owner.locator(`[data-session-id="${secondSession.session.id}"]`);
@@ -139,6 +145,7 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       await page
         .getByRole("button", { name: "Pedir mi lugar", exact: true })
         .click();
+      await page.getByRole('button',{name:'Ahora no',exact:true}).click();
       await expect(
         page.getByRole("heading", { name: "Tu lugar está en espera." }),
       ).toBeVisible();

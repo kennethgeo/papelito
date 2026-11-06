@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { setInstallPrompt, type InstallPrompt } from "@/lib/pwa-install";
+import { rememberInstallWelcome, setInstallPrompt, type InstallPrompt } from "@/lib/pwa-install";
 import { NEW_VERSION_EVENT } from "@/lib/version";
 
 /**
@@ -19,7 +19,7 @@ export function ServiceWorkerRegister() {
       e.preventDefault();
       setInstallPrompt(e as InstallPrompt);
     };
-    const installed = () => setInstallPrompt(null);
+    const installed = () => { setInstallPrompt(null); rememberInstallWelcome(); };
     window.addEventListener("beforeinstallprompt", readyToInstall);
     window.addEventListener("appinstalled", installed);
     const register = async () => {

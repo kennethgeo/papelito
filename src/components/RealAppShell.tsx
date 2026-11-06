@@ -15,6 +15,7 @@ import { ContextualGuide } from './ContextualGuide';
 import { useViewFocus } from "@/lib/use-view-focus";
 import { useKeyboardInset } from "@/lib/use-keyboard-inset";
 import { VIEW_TITLES } from "@/lib/view-history";
+import { InstallWelcome } from './InstallWelcome';
 
 export function RealAppShell() {
   const data = useRealData();
@@ -138,6 +139,7 @@ export function RealAppShell() {
           </>
         )}
       </main>
+      <InstallWelcome eligible={data.hasConsented && !data.isLoading && !!data.lastSyncedAt} />
       <NavigationBottom activeTab={data.activeTab} onTabChange={switchTab} />
     </div>
   );

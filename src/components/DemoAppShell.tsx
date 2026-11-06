@@ -16,6 +16,7 @@ import { ContextualGuide } from './ContextualGuide';
 import { useViewFocus } from "@/lib/use-view-focus";
 import { useKeyboardInset } from "@/lib/use-keyboard-inset";
 import { VIEW_TITLES } from "@/lib/view-history";
+import { InstallWelcome } from './InstallWelcome';
 
 export function DemoAppShell() {
   const {
@@ -101,6 +102,7 @@ export function DemoAppShell() {
         {activeView === "cuenta_perfil" && <AccountView />}
       </main>
 
+      <InstallWelcome eligible={isHydrated} demo />
       <NavigationBottom activeTab={activeTab} onTabChange={switchTab} />
     </div>
   );
