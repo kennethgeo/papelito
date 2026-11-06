@@ -326,6 +326,7 @@ test('una cuenta con dos niños: regalos separados y nombres editables sin cambi
     await page.getByRole('button',{name:'Revisar mi intercambio',exact:true}).click();
     await page.getByRole('button',{name:'Crear intercambio',exact:true}).click();
     await expect(page.getByRole('heading',{name:'Familia de prueba',exact:true})).toBeVisible();
+    await expect(page).toHaveURL(/[?&]vista=intercambio(?:&|$)/);
     await page.getByRole('button',{name:'Cambiar nombre del intercambio',exact:true}).click();
     await page.getByLabel('Nuevo nombre del intercambio',{exact:true}).fill('Navidad familiar');
     await page.getByRole('button',{name:'Guardar nombre',exact:true}).click();

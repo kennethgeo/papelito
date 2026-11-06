@@ -461,7 +461,8 @@ export function RealDataProvider({
         setSelectedExchangeId(res.data.exchangeId);
         selectedRef.current = res.data.exchangeId;
         await refreshApp(true);
-        setActiveView("intercambio_detalle");
+        showView("intercambio_detalle", res.data.exchangeId, false);
+        replaceView("intercambio_detalle", res.data.exchangeId);
         return { success: true, exchangeId: res.data.exchangeId };
       }
       return {
