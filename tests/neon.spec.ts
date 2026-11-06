@@ -311,3 +311,61 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
     for (const context of contexts) await context.close();
   }
 });
+
+test('una cuenta con dos niños: regalos separados y nombres editables sin cambiar el sorteo',async({browser})=>{
+  test.skip(process.env.PAPELITO_E2E_REMOTE!=='1','Requiere la rama ficticia aislada.');
+  const config=JSON.parse(fs.readFileSync('.env.e2e-pilot.json','utf8')) as {origin:string;fixtures:Array<{email:string;password:string}>};
+  const context=await browser.newContext({baseURL:config.origin,viewport:{width:390,height:844},isMobile:true,hasTouch:true,locale:'es-CR'});
+  try{
+    expect((await context.request.post('/api/auth/sign-in/email',{headers:{origin:config.origin},data:{email:config.fixtures[0].email,password:config.fixtures[0].password}})).status()).toBe(200);
+    const page=await context.newPage();await page.goto('/');
+    await page.getByRole('button',{name:'Ahora no',exact:true}).click();
+    await page.getByRole('button',{name:'Crear intercambio',exact:true}).click();
+    await page.getByLabel('¿Cómo se llama el intercambio?').fill('Familia de prueba');
+    await page.getByLabel('¿Cuándo se entregan los regalos?').fill('2099-12-24');
+    await page.getByRole('button',{name:'Revisar mi intercambio',exact:true}).click();
+    await page.getByRole('button',{name:'Crear intercambio',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Familia de prueba',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'Cambiar nombre del intercambio',exact:true}).click();
+    await page.getByLabel('Nuevo nombre del intercambio',{exact:true}).fill('Navidad familiar');
+    await page.getByRole('button',{name:'Guardar nombre',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Navidad familiar',exact:true})).toBeVisible();
+    await page.getByText('Personas a mi cargo',{exact:true}).click();
+    const family=page.locator('.represented-tools');
+    for(const alias of ['Sofía','Mateo']){
+      await family.getByLabel('Alias de la persona',{exact:true}).fill(alias);
+      await family.getByRole('checkbox',{name:/Soy adulto y tengo autorización/}).check();
+      await family.getByRole('button',{name:'Agregar persona',exact:true}).click();
+      await expect(family.getByRole('heading',{name:alias,exact:true})).toBeVisible();
+      await family.getByLabel(`Idea de regalo para ${alias}`,{exact:true}).fill(`Libro para ${alias}`);
+      await family.getByRole('button',{name:`Guardar idea para ${alias}`,exact:true}).click();
+      await expect(family.getByRole('listitem').filter({hasText:`Libro para ${alias}`})).toBeVisible();
+    }
+    await family.getByRole('button',{name:'Cambiar alias de Sofía',exact:true}).click();
+    await family.getByLabel('Nuevo alias de Sofía',{exact:true}).fill('Sofía C.');
+    await family.getByRole('button',{name:'Guardar nombre',exact:true}).click();
+    await expect(family.getByRole('heading',{name:'Sofía C.',exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'Preparar sorteo',exact:true}).click();
+    await page.getByRole('button',{name:'Confirmar sorteo',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Tu papelito sigue aquí.',exact:true})).toBeVisible();
+    for(const alias of ['Sofía C.','Mateo']){
+      await family.getByRole('button',{name:`Ver asignación de ${alias}`,exact:true}).click();
+      await expect(family.locator('.represented-person').filter({has:page.getByRole('heading',{name:alias,exact:true})})).toContainText(`${alias} le regala a`);
+    }
+    await family.getByRole('button',{name:'Cambiar alias de Mateo',exact:true}).click();
+    await family.getByLabel('Nuevo alias de Mateo',{exact:true}).fill('Mateo C.');
+    await family.getByRole('button',{name:'Guardar nombre',exact:true}).click();
+    await expect(family.getByRole('heading',{name:'Mateo C.',exact:true})).toBeVisible();
+    await expect(family.locator('.represented-person').filter({has:page.getByRole('heading',{name:'Mateo C.',exact:true})}).getByRole('listitem').filter({hasText:'Libro para Mateo'})).toBeVisible();
+    await page.getByRole('button',{name:'Cambiar nombre del intercambio',exact:true}).click();
+    await page.getByLabel('Nuevo nombre del intercambio',{exact:true}).fill('Navidad con los peques');
+    await page.getByRole('button',{name:'Guardar nombre',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Navidad con los peques',exact:true})).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('heading',{name:'Navidad con los peques',exact:true})).toBeVisible();
+    await page.getByText('Personas a mi cargo',{exact:true}).click();
+    await expect(family.getByRole('heading',{name:'Sofía C.',exact:true})).toBeVisible();
+    await expect(family.getByRole('heading',{name:'Mateo C.',exact:true})).toBeVisible();
+    console.log('PASS familia + Neon: un adulto y dos niños sin cuentas propias, deseos y asignaciones individuales; nombres editados antes y después del sorteo y persistidos al recargar.');
+  }finally{await context.close();}
+});

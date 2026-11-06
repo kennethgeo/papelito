@@ -323,6 +323,7 @@ try {
         "node_modules/@playwright/test/cli.js",
         "test",
         "--project=neon-aislado",
+        ...(process.env.PAPELITO_E2E_GREP ? ['--grep',process.env.PAPELITO_E2E_GREP] : []),
       ],
       {
         windowsHide: true,

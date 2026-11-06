@@ -26,7 +26,7 @@ Cada una cambia lo que ven o reciben las personas, así que necesita definición
 
 1. **Aviso de sorteo realizado y de aprobación.** Push cuando el sorteo está listo o cuando el organizador aprueba una inscripción. Decidir texto, si incluye el nombre del grupo (hoy los avisos no incluyen nombres) y cómo afecta el tope por ejecución.
 2. **Recordatorio al organizador.** Por ejemplo: «hay inscripciones pendientes» o «falta sortear y la entrega es en tres días». Decidir el umbral y la frecuencia.
-3. **Editar un intercambio después de crearlo.** Nombre, fechas o presupuesto. Hay que definir qué se permite después del sorteo y si se avisa a los participantes.
+3. **Editar fechas, descripción o presupuesto después de crear el grupo.** El nombre ya se puede corregir mientras el intercambio siga activo, incluso tras sortear, sin cambiar asignaciones ni enviar avisos. Para fechas y otros cambios sigue pendiente definir qué se permite tras el sorteo y cuándo se avisa a los participantes.
 4. **Que un participante salga por su cuenta.** Hoy solo el organizador quita o rechaza. Definir qué pasa con un sorteo vigente: invalidarlo y avisar, o bloquear la salida.
 5. **Cierre automático.** Cerrar el grupo cierto tiempo después de la fecha de entrega para que empiece la retención de 12 meses. Es una decisión de retención.
 6. **Moderación de mensajes anónimos.** Reportar o bloquear una conversación. Implica revisar contenido y definir quién lo hace.

@@ -99,3 +99,5 @@ Antes de crecer: decidir silenciamiento/bloqueo de conversaciones, categoría de
 ## Organización del piloto — 6 de noviembre de 2026
 
 El titular seleccionó asistencia, lista de espera y reglas. Se incorporaron como funciones 17, 18 y 20, con [alcance y verificación](ORGANIZACION_VERIFICACION.md). Las demás recomendaciones siguen pendientes; este bloque no incluye coorganizadores ni grupos permanentes.
+
+También se permite corregir el nombre del intercambio (solo quien organiza) y el alias de una persona representada (solo su adulto responsable). Se puede hacer mientras el grupo siga activo, incluso después del sorteo; se conservan identidades, deseos, cupos y asignaciones. Los nombres de grupos finalizados o cancelados quedan cerrados. La edición rechaza sobrescribir un nombre que cambió desde otra pantalla.

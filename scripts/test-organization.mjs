@@ -78,4 +78,36 @@ try {
   await query('DELETE FROM exchanges WHERE id=$1',[family.exchangeId]);
   for(const t of ['exchange_attendance','exchange_waitlist','exchange_organization'])assert.equal((await query(`SELECT count(*)::int AS n FROM ${t} WHERE exchange_id=$1`,[family.exchangeId])).rows[0].n,0);
   console.log('PASS familiares, cola tras aprobación, retiro propio y borrado en cascada; no se consultaron servicios externos.');
+  const {renameExchange,renameRepresented}=await import('../src/lib/repositories/names.ts');
+  const {getRepresented,representedWish}=await import('../src/lib/repositories/selected-features.ts');
+  const renamed=await createExchangeWithInvitation('owner',{...input,name:'Nombre anterior'}), rid=renamed.exchangeId;
+  for(const u of ['b','c'])await acceptInvitationAtomic(renamed.inviteToken,u);
+  const kid=await addRepresented(rid,'b','Sofía',true), kid2=await addRepresented(rid,'b','Mateo',true);
+  await representedWish(rid,'b',kid,'Libro de animales');
+  await assert.rejects(()=>renameExchange(rid,'b','Intrusión','Nombre anterior'),/organiza/);
+  await assert.rejects(()=>renameExchange(rid,'outside','Intrusión','Nombre anterior'),/disponible/);
+  for(const invalid of ['', ' ', 'x'.repeat(101), 'Nombre\nsalto'])await assert.rejects(()=>renameExchange(rid,'owner',invalid,'Nombre anterior'),/caracteres/);
+  await renameExchange(rid,'owner','Nombre nuevo','Nombre anterior');
+  await assert.rejects(()=>renameExchange(rid,'owner','Sobrescribir','Nombre anterior'),/cambió/);
+  await assert.rejects(()=>renameRepresented(rid,'owner',kid,'Intrusión','Sofía'),/a tu cargo/);
+  await assert.rejects(()=>renameRepresented(rid,'b','c','Intrusión','Alias c'),/a tu cargo/);
+  await assert.rejects(()=>renameRepresented(rid,'b',kid,'x'.repeat(41),'Sofía'),/caracteres/);
+  await renameRepresented(rid,'b',kid,'Sofía C.','Sofía');
+  await assert.rejects(()=>renameRepresented(rid,'b',kid,'Otro alias','Sofía'),/cambió/);
+  assert.equal((await getRepresented(rid,'b')).find(p=>p.user_id===kid).wishes[0].title,'Libro de animales');
+  await executeAndCommitDraw(rid,'owner',0);
+  const pairs=await query('SELECT id,giver_id,receiver_id,draw_version_id FROM assignments WHERE exchange_id=$1 ORDER BY id',[rid]);
+  assert.equal(pairs.rows.length,5,'El padre y ambos niños participan individualmente junto con los otros adultos.');
+  assert.equal(new Set(pairs.rows.map(p=>p.receiver_id)).size,5);
+  assert(!pairs.rows.some(p=>p.giver_id===p.receiver_id));
+  await renameExchange(rid,'owner','Nombre tras sortear','Nombre nuevo');
+  await renameRepresented(rid,'b',kid2,'Mateo C.','Mateo');
+  assert.deepEqual((await query('SELECT id,giver_id,receiver_id,draw_version_id FROM assignments WHERE exchange_id=$1 ORDER BY id',[rid])).rows,pairs.rows);
+  assert.equal((await getRepresented(rid,'b')).filter(p=>p.assignment).length,2);
+  for(const status of ['finalizado','cancelado']){
+    await query('UPDATE exchanges SET status=$2 WHERE id=$1',[rid,status]);
+    await assert.rejects(()=>renameExchange(rid,'owner','Otro','Nombre tras sortear'),/cerró/);
+    await assert.rejects(()=>renameRepresented(rid,'b',kid2,'Otro','Mateo C.'),/cerró/);
+  }
+  console.log('PASS nombres: organizador y adulto autorizados, validación, conflicto, historial cerrado y asignaciones/regalos intactos; dos niños y su padre conservan participaciones separadas.');
 } finally {setTestDbAdapter(null);await pg.close();}
