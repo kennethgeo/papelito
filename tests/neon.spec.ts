@@ -137,7 +137,7 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
     for (const page of pages.slice(1)) {
       await page.goto(invite);
       await page
-        .getByRole("button", { name: "Unirme al intercambio", exact: true })
+        .getByRole("button", { name: "Pedir mi lugar", exact: true })
         .click();
       await expect(
         page.getByRole("heading", { name: "Tu lugar está en espera." }),
@@ -228,7 +228,7 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       const assignmentResponse = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
-          response.url() === `${config.origin}/`,
+          new URL(response.url()).origin === config.origin && new URL(response.url()).pathname === '/',
       );
       await page
         .getByRole("button", { name: "Abrir mi papelito", exact: true })

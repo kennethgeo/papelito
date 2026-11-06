@@ -21,7 +21,7 @@ const branchName = `codex-e2e-${randomUUID()}`;
 const sanitizedClone = process.argv.includes("--sanitized-clone");
 if (!sanitizedClone) {
   console.error(
-    "Usá --sanitized-clone para autorizar una nueva rama descartable codex-e2e-* de Papelito: vacía sus 12 tablas y cuentas copiadas antes de probar y se elimina al terminar. No se creó ningún recurso.",
+    "Usá --sanitized-clone para autorizar una nueva rama descartable codex-e2e-* de Papelito: vacía las tablas de aplicación y cuentas copiadas antes de probar y se elimina al terminar. No se creó ningún recurso.",
   );
   process.exit(1);
 }

@@ -14,6 +14,6 @@ if (config.status !== 0) {
 const child = spawn(process.execPath, [
   path.join(root, "node_modules/wrangler/bin/wrangler.js"), "dev", "--config", config.stdout.trim().split("\n").at(-1),
   "--ip", "127.0.0.1", "--port", "3043", "--log-level", "error", "--show-interactive-dev-session=false",
-], { cwd: root, stdio: "inherit", env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "true" } });
+], { cwd: root, stdio: "inherit", env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false", CLOUDFLARE_INCLUDE_PROCESS_ENV: "false", WRANGLER_SEND_METRICS: "false", CI: "true" } });
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => child.kill(signal));
 child.on("exit", (code) => process.exit(code ?? 1));

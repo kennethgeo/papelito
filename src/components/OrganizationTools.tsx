@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect,useRef,useState,useTransition } from 'react';
+import { useEffect,useId,useRef,useState,useTransition } from 'react';
 import { useOptionalRealData } from '@/context/RealDataContext';
 import { useOptionalDemoData } from '@/context/DemoDataContext';
 import { callServerAction,callServerRead } from '@/lib/client-actions';
@@ -11,6 +11,7 @@ import type { Exchange } from '@/types';
 type Organization = Awaited<ReturnType<typeof getOrganization>>;
 const ANSWERS = [['yes','Voy'],['maybe','Tal vez'],['no','No voy']] as const;
 export function OrganizationTools({exchange}:{exchange:Exchange}) {
+  const rulesId=useId();
   const real=useOptionalRealData(), demo=useOptionalDemoData(), isReal=!!real;
   const [data,setData]=useState<Organization>(),[capacity,setCapacity]=useState('100'),[rules,setRules]=useState('');
   const [error,setError]=useState(''),[message,setMessage]=useState(''),[confirm,setConfirm]=useState('');
@@ -60,7 +61,7 @@ export function OrganizationTools({exchange}:{exchange:Exchange}) {
       {data.approved&&data.rules&&<p className="field-help">{data.readCount} de {data.approvedCount} personas marcaron esta versión como leída. Es una referencia para organizarse; no bloquea el sorteo ni reemplaza los términos de la app.</p>}
       {data.owner&&editable&&<details className="organization-editor"><summary>Editar reglas y capacidad</summary><form onSubmit={e=>{e.preventDefault();run(async()=>{if(real)await mutate(()=>saveOrganizationAction(exchange.id,{capacity:Number(capacity),rules,revision:editRevision.current}),true);else{if(Number(capacity)<data.approvedCount)throw new Error('No podés dejar menos cupos que personas aprobadas.');dirty.current=false;setHasDraft(false);editRevision.current=data.revision+1;demoSave({...data,capacity:Number(capacity),rules:rules.trim(),rules_version:data.rules_version+(rules.trim()!==data.rules?1:0),revision:data.revision+1});}},'Reglas y capacidad guardadas.');}}>
         <label className="workshop-field">Cantidad máxima de participantes<input type="number" min={Math.max(3,data.approvedCount)} max={100} step={1} required value={capacity} onChange={e=>{dirty.current=true;setHasDraft(true);setCapacity(e.target.value);}} disabled={pending}/></label>
-        <label className="workshop-field">Reglas para este grupo<textarea rows={5} maxLength={1500} value={rules} onChange={e=>{dirty.current=true;setHasDraft(true);setRules(e.target.value);}} disabled={pending} placeholder="Por ejemplo: regalo envuelto, sin nombre visible y dentro del presupuesto."/></label>
+        <div className="workshop-field"><label htmlFor={rulesId}>Reglas para este grupo</label><textarea id={rulesId} rows={5} maxLength={1500} value={rules} onChange={e=>{dirty.current=true;setHasDraft(true);setRules(e.target.value);}} disabled={pending} placeholder="Por ejemplo: regalo envuelto, sin nombre visible y dentro del presupuesto."/></div>
         <p className="field-help">Evitá datos sensibles y direcciones particulares. Las reglas las ve quien ya solicitó ingresar. Después del sorteo, reglas y cupos quedan cerrados.</p>
         <button className="paper-button" disabled={pending}>Guardar reglas y cupos</button>
       </form></details>}

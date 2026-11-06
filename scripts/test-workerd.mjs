@@ -32,7 +32,7 @@ async function startWorker(vars = {}) {
   const child = spawn(process.execPath, [
     path.join(root, "node_modules/wrangler/bin/wrangler.js"), "dev", "--config", configPath,
     "--ip", "127.0.0.1", "--port", String(port), "--log-level", "error", "--show-interactive-dev-session=false", ...varArgs,
-  ], { cwd: root, env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "true" }, stdio: ["ignore", "pipe", "pipe"] });
+  ], { cwd: root, env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false", CLOUDFLARE_INCLUDE_PROCESS_ENV: "false", WRANGLER_SEND_METRICS: "false", CI: "true" }, stdio: ["ignore", "pipe", "pipe"] });
   let output = "";
   child.stdout.on("data", (chunk) => { output += chunk; });
   child.stderr.on("data", (chunk) => { output += chunk; });

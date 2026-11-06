@@ -70,7 +70,7 @@ test('migraciones versionadas: se registran con SHA-256, no se repiten y no acep
   const fresh = new PGlite();
   const migrationSql = fs.readFileSync('neon/migrations/20261016_init_papelito_neon.sql', 'utf8');
   await inspectAndMigratePublicSchema(fresh, migrationSql);
-  assert.deepEqual(await applyVersionedMigrations(fresh), ['20261102_idempotency_and_limits.sql']);
+  assert.deepEqual(await applyVersionedMigrations(fresh), ['20261102_idempotency_and_limits.sql','20261106_organization.sql']);
   assert.deepEqual(await applyVersionedMigrations(fresh), [], 'second run is a no-op');
   const noop = await inspectAndMigratePublicSchema(fresh, migrationSql);
   assert.equal(noop.status, 'noop', 'the ledger table is not treated as a foreign table');

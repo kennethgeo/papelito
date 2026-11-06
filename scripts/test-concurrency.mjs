@@ -106,6 +106,17 @@ try {
 
   await assert.rejects(pool.query("INSERT INTO exchanges (organizer_id, name, event_date, registration_deadline, budget_amount, currency, suggested_theme, selected_theme, client_request_id) VALUES ('org','x','2099-01-01','2099-01-01',1,'CRC','general','general',$1)", [requestId]), /uq_exchanges_client_request/);
   console.log('PASS base de datos: el índice único impide duplicar un intento aunque se salte el repositorio.');
+  const organization=await import('../src/lib/repositories/organization.ts');
+  for(const u of ['slot-one','slot-two','slot-three'])await getOrCreateProfile(u,`${u}@example.com`,u);
+  const limited=await ex.createExchangeWithInvitation('org',{...input,name:'Tres cupos',requiresApproval:false});
+  await organization.saveOrganization(limited.exchangeId,'org',{capacity:3,rules:'',revision:0});
+  await ex.acceptInvitationAtomic(limited.inviteToken,'slot-one');
+  const joined=await Promise.all(['slot-two','slot-three'].map(u=>ex.acceptInvitationAtomic(limited.inviteToken,u)));
+  assert.equal(joined.filter(r=>r.status==='approved').length,1);
+  assert.equal(joined.filter(r=>r.status==='pending').length,1);
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM memberships WHERE exchange_id=$1 AND status='approved'",[limited.exchangeId])).rows[0].n,3);
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM exchange_waitlist WHERE exchange_id=$1',[limited.exchangeId])).rows[0].n,1);
+  console.log('PASS concurrencia: dos ingresos compiten por el último cupo; solo uno entra y el otro queda en espera.');
   if (idleErrors.length) throw idleErrors[0];
 } finally {
   stopping = true;

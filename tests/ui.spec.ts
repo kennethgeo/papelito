@@ -39,6 +39,7 @@ test('calendario privado y presupuesto acordado con confirmación',async({page})
   await expect(page.getByRole('button',{name:'No voy',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(page.getByRole('status').filter({hasText:'Tu participación en el sorteo se conserva.'})).toBeVisible();
   await page.reload();
+  await page.getByRole('button',{name:'Intercambios',exact:true}).click();
   await page.getByRole('button',{name:/Fiesta de presupuesto/}).click();
   await page.getByText('Reglas y cupos del intercambio',{exact:true}).click();
   await expect(page.locator('.group-rules-paper')).toContainText('Regalo envuelto sin nombre');

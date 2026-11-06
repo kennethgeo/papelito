@@ -49,3 +49,10 @@ La migración es compatible con el código anterior (lo ignora), así que entre 
 - **Daño inesperado de datos:** restaurar desde el punto de recuperación del paso 1. No borrar ni rotar secretos durante la recuperación.
 
 No hay migraciones nuevas para el resto de las correcciones de esta entrega (sesiones, errores, recordatorios, CSP): no cambian el esquema.
+
+
+## `20261106_organization.sql`
+
+Añade las tablas `exchange_organization`, `exchange_attendance` y `exchange_waitlist`, y las columnas `memberships.rules_read_version` y `memberships.rules_read_at`. Sus registros se eliminan en cascada con la membresía o el intercambio. La migración es aditiva, idempotente y compatible con la versión anterior de la app; no cambia aprobaciones ni asignaciones existentes. Se aplica y registra antes de publicar el código que la utiliza. Los índices y columnas no contienen datos de terceros ni recursos de otras aplicaciones.
+
+El esquema histórico de 24 tablas se verifica antes de las migraciones versionadas; el esquema completo pasa a 27 tablas de aplicación, además del registro administrativo. Tras aplicar la migración se verifica también el esquema completo. Revertir el código no requiere borrar estas tablas ni sus datos.
