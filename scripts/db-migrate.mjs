@@ -92,6 +92,7 @@ export const SELECTED_SCHEMA = {
 export const MIGRATION_LEDGER_TABLE = 'papelito_schema_migrations';
 export const VERSIONED_MIGRATIONS = [
   { name: '20261102_idempotency_and_limits.sql', columns: { exchanges: ['client_request_id'], wishes: ['client_request_id'] } },
+  { name: '20261106_organization.sql', columns: { exchange_organization: ['exchange_id','capacity','rules','rules_version','revision','updated_at'],exchange_attendance:['exchange_id','user_id','response','updated_at'],exchange_waitlist:['exchange_id','user_id','queued_at'],memberships:['rules_read_version','rules_read_at'] } },
 ];
 
 export async function applyVersionedMigrations(client, migrations = VERSIONED_MIGRATIONS) {
@@ -128,13 +129,20 @@ export async function applyVersionedMigrations(client, migrations = VERSIONED_MI
   return applied;
 }
 
-export const ALL_PAPELITO_SCHEMA = {
+export const HISTORICAL_PAPELITO_SCHEMA = {
   ...EXPECTED_PAPELITO_SCHEMA,
   profiles: [...EXPECTED_PAPELITO_SCHEMA.profiles, 'gift_preferences', 'guardian_user_id', 'represented_exchange_id', 'preview_checked_at', 'representation_authorized_at'],
   exchanges: [...EXPECTED_PAPELITO_SCHEMA.exchanges, 'previous_exchange_id'],
   ...SOCIAL_SCHEMA,
   ...SELECTED_SCHEMA,
 };
+
+export const ORGANIZATION_SCHEMA = {
+  exchange_organization: ['exchange_id','capacity','rules','rules_version','revision','updated_at'],
+  exchange_attendance: ['exchange_id','user_id','response','updated_at'],
+  exchange_waitlist: ['exchange_id','user_id','queued_at'],
+};
+export const ALL_PAPELITO_SCHEMA = { ...HISTORICAL_PAPELITO_SCHEMA,...ORGANIZATION_SCHEMA, memberships:[...HISTORICAL_PAPELITO_SCHEMA.memberships,'rules_read_version','rules_read_at'] };
 
 /**
  * Loads .env.local and .env into process.env without overwriting existing variables
@@ -319,7 +327,7 @@ async function inspectCoreSchema(client, migrationSql, incrementalSqlOverride) {
 
   const allTables = tablesRes.rows.map((r) => r.table_name);
   const existingTables = allTables.filter(t => expectedTableSet.has(t));
-  const foreignTables = allTables.filter((t) => !expectedTableSet.has(t) && !(t in SOCIAL_SCHEMA) && !(t in SELECTED_SCHEMA) && t !== MIGRATION_LEDGER_TABLE);
+  const foreignTables = allTables.filter((t) => !expectedTableSet.has(t) && !(t in SOCIAL_SCHEMA) && !(t in SELECTED_SCHEMA) && !(t in ORGANIZATION_SCHEMA) && t !== MIGRATION_LEDGER_TABLE);
 
   if (foreignTables.length > 0) {
     throw new Error(
@@ -405,7 +413,7 @@ async function inspectCoreSchema(client, migrationSql, incrementalSqlOverride) {
 export async function inspectAndMigratePublicSchema(client, migrationSql, incrementalSqlOverride) {
   const result = await inspectCoreSchema(client, migrationSql, incrementalSqlOverride);
   const columns = await fetchColumnsByTable(client);
-  const complete = Object.entries(ALL_PAPELITO_SCHEMA).every(([name, cols]) => cols.every(c => columns.get(name)?.has(c)));
+  const complete = Object.entries(HISTORICAL_PAPELITO_SCHEMA).every(([name, cols]) => cols.every(c => columns.get(name)?.has(c)));
   if (!complete) {
     await client.query('BEGIN');
     try {
@@ -413,7 +421,7 @@ export async function inspectAndMigratePublicSchema(client, migrationSql, increm
       if (typeof client.exec === 'function') await client.exec(sql); else await client.query(sql);
       const selectedSQL = fs.readFileSync(path.join(rootDir, 'neon/migrations/20261018_z_selected_features.sql'), 'utf8');
       if (typeof client.exec === 'function') await client.exec(selectedSQL); else await client.query(selectedSQL);
-      await verifyExpectedColumns(client, ALL_PAPELITO_SCHEMA);
+      await verifyExpectedColumns(client, HISTORICAL_PAPELITO_SCHEMA);
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; }
     return { ...result, status: 'migrated', coreStatus: result.status, socialUpgrade: true };
@@ -447,6 +455,7 @@ async function runCliMigration() {
     client = await pool.connect();
     const result = await inspectAndMigratePublicSchema(client, migrationSql);
     const versioned = await applyVersionedMigrations(client);
+    await verifyExpectedColumns(client, ALL_PAPELITO_SCHEMA);
     console.log(versioned.length
       ? `✓ Migraciones versionadas aplicadas: ${versioned.join(', ')}.`
       : `✓ Migraciones versionadas al día (${VERSIONED_MIGRATIONS.length}).`);

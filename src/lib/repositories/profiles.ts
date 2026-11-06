@@ -153,6 +153,10 @@ export async function submitPrivacyRequest(
 }
 
 export async function exportUserData(userId: string) {
+  const organizationResponses = await dbQuery(`SELECT m.exchange_id,m.user_id,m.rules_read_version,m.rules_read_at::text,a.response AS attendance,a.updated_at::text AS attendance_updated_at,q.queued_at::text
+    FROM memberships m JOIN profiles p ON p.user_id=m.user_id LEFT JOIN exchange_attendance a ON a.exchange_id=m.exchange_id AND a.user_id=m.user_id LEFT JOIN exchange_waitlist q ON q.exchange_id=m.exchange_id AND q.user_id=m.user_id
+    WHERE m.user_id=$1 OR p.guardian_user_id=$1`,[userId]);
+  const organizationSettings = await dbQuery('SELECT o.* FROM exchange_organization o JOIN exchanges e ON e.id=o.exchange_id WHERE e.organizer_id=$1',[userId]);
   const [reports, votes, passkeys, sessions, represented, photos] = await Promise.all([
     dbQuery('SELECT id, description, area, created_at::text FROM support_reports WHERE user_id = $1 ORDER BY created_at', [userId]),
     dbQuery('SELECT exchange_id, amount::text FROM budget_votes WHERE user_id = $1', [userId]),
@@ -237,6 +241,8 @@ export async function exportUserData(userId: string) {
 
   return {
     exportedAt: new Date().toISOString(),
+    myOrganizationResponses: organizationResponses.rows,
+    myOrganizationSettings: organizationSettings.rows,
     supportReports: reports.rows,
     myBudgetVotes: votes.rows,
     passkeys: passkeys.rows,

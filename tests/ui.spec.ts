@@ -25,6 +25,25 @@ test('calendario privado y presupuesto acordado con confirmación',async({page})
   await expect(poll.getByRole('status')).toHaveCount(0);
   await poll.getByRole('button',{name:'Confirmar presupuesto',exact:true}).click();
   await expect(poll.getByRole('status')).toContainText('Presupuesto acordado:');
+  await page.getByText('Reglas y cupos del intercambio',{exact:true}).click();
+  await page.getByText('Editar reglas y capacidad',{exact:true}).click();
+  await page.getByLabel('Cantidad máxima de participantes',{exact:true}).fill('3');
+  await page.getByLabel('Reglas para este grupo',{exact:true}).fill('Regalo envuelto sin nombre, listo para sorprender.');
+  await page.getByRole('button',{name:'Guardar reglas y cupos',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'Reglas y capacidad guardadas.'})).toBeVisible();
+  await expect(page.locator('.group-rules-paper')).toContainText('Regalo envuelto sin nombre');
+  await page.getByRole('button',{name:/Marcar reglas leídas para/}).click();
+  await expect(page.getByText(/1 de 1 personas marcaron esta versión/)).toBeVisible();
+  await page.getByText('¿Nos vemos en la entrega?',{exact:true}).click();
+  await page.getByRole('button',{name:'No voy',exact:true}).click();
+  await expect(page.getByRole('button',{name:'No voy',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('status').filter({hasText:'Tu participación en el sorteo se conserva.'})).toBeVisible();
+  await page.reload();
+  await page.getByRole('button',{name:/Fiesta de presupuesto/}).click();
+  await page.getByText('Reglas y cupos del intercambio',{exact:true}).click();
+  await expect(page.locator('.group-rules-paper')).toContainText('Regalo envuelto sin nombre');
+  await page.getByText('¿Nos vemos en la entrega?',{exact:true}).click();
+  await expect(page.getByRole('button',{name:'No voy',exact:true})).toHaveAttribute('aria-pressed','true');
   await noOverflow(page);
 });
 

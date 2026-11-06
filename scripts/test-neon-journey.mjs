@@ -169,7 +169,7 @@ try {
     assert(actualTables.every(t => tables.includes(t)), 'La copia debe contener solo tablas de Papelito');
     assert(Object.keys(EXPECTED_PAPELITO_SCHEMA).every(t => actualTables.includes(t)), 'Debe existir el esquema base completo');
     await pool.query(
-      `TRUNCATE TABLE ${actualTables.map((table) => `public."${table}"`).join(", ")} CASCADE`,
+      `TRUNCATE TABLE ${actualTables.filter(table=>table!==MIGRATION_LEDGER_TABLE).map((table) => `public."${table}"`).join(", ")} CASCADE`,
     );
     // Additive migration only after all copied application rows are removed.
     await pool.query(fs.readFileSync(path.resolve('neon/migrations/20261018_social_and_reminders.sql'), 'utf8'));

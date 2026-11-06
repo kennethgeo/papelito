@@ -1,4 +1,5 @@
 import 'server-only';
+import { needsWaitingSlot, queueMember, syncFullWaitlist } from './organization';
 import crypto from 'node:crypto';
 import { dbQuery, dbTransaction, type DbClient } from '@/lib/db/client';
 import { PublicError } from '@/lib/data/errors';
@@ -64,9 +65,12 @@ export async function addRepresented(exchangeId: string, userId: string, alias: 
     const count = await client.query<{ n: string }>('SELECT count(*)::text AS n FROM profiles WHERE guardian_user_id = $1 AND represented_exchange_id = $2', [userId, exchangeId]);
     if (Number(count.rows[0].n) >= 5) throw new PublicError('Podés representar hasta cinco personas por intercambio.');
     const id = `represented:${crypto.randomUUID()}`;
-    const status = ex.organizer_id === userId || !ex.requires_approval ? 'approved' : 'pending';
+    const waiting = await needsWaitingSlot(client,exchangeId);
+    const status = !waiting && (ex.organizer_id === userId || !ex.requires_approval) ? 'approved' : 'pending';
     await client.query('INSERT INTO profiles (user_id, alias, full_name, guardian_user_id, represented_exchange_id, representation_authorized_at) VALUES ($1, $2, $2, $3, $4, now())', [id, alias.trim(), userId, exchangeId]);
     await client.query('INSERT INTO memberships (exchange_id, user_id, status) VALUES ($1, $2, $3)', [exchangeId, id, status]);
+    if (waiting) await queueMember(client,exchangeId,id);
+    else if(status==='approved') await syncFullWaitlist(client,exchangeId);
     return id;
   });
 }

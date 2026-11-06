@@ -63,6 +63,9 @@ jobs:
       - name: Selected features, permissions, photos and offline encryption
         run: npm run test:selected
 
+      - name: Attendance, waitlist and group rules privacy
+        run: npm run test:organization
+
       - name: Lifecycle, deletion and retention integration tests
         run: npm run test:lifecycle
 
