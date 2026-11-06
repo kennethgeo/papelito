@@ -153,7 +153,7 @@ export const INITIAL_EXCHANGES: Exchange[] = [
   {
     id: 'exc-cumple-2027',
     name: 'Cumpleaños de Sofi (Intercambio temático)',
-    description: 'Celebración entre personas cercanas. Cada quien lleva un detalle sorpresa con pista.',
+    description: 'Celebración entre personas cercanas. Cada quien lleva un detalle sorpresa sin revelar quién lo eligió.',
     eventDate: '2027-07-18',
     registrationDeadline: '2027-07-10',
     timezone: 'America/Costa_Rica',

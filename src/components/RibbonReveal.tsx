@@ -146,10 +146,10 @@ export function RibbonReveal({
           </section>
           <div className="paper-wish-heading">
             {assignment.receiverPreferences && GIFT_FIELDS.some(([key]) => assignment.receiverPreferences?.[key]) && <section className="receiver-tastes">
-              <h2>Pistas sobre sus gustos.</h2>
+              <h2>Sus gustos y preferencias.</h2>
               <dl>{GIFT_FIELDS.map(([key, label]) => assignment.receiverPreferences?.[key] ? <div key={key}><dt>{label}</dt><dd>{assignment.receiverPreferences[key]}</dd></div> : null)}</dl>
             </section>}
-            <h2>Unas pistas para acertar.</h2>
+            <h2>Ideas para su regalo.</h2>
             <p>
               Las ideas que{" "}
               {assignment.receiverAlias || assignment.receiverName} compartió
@@ -167,7 +167,7 @@ export function RibbonReveal({
                     ? "Le hace mucha ilusión"
                     : wish.priority === "media"
                       ? "Una buena idea"
-                      : "Otra pista"}
+                      : "Otra idea"}
                 </span>
                 <h3>{wish.title}</h3>
                 <WishPhoto wishId={wish.id} hasPhoto={wish.hasPhoto} />
@@ -202,7 +202,7 @@ export function RibbonReveal({
             ))}
             {assignment.wishes.length === 0 && (
               <p className="paper-empty">
-                Todavía no hay pistas. Podés volver a revisar más adelante.
+                Todavía no hay ideas de regalo. Podés volver a revisar más adelante.
               </p>
             )}
           </div>

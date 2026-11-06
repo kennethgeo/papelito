@@ -5,6 +5,7 @@ import { anonymousThreadsAction, sendAnonymousMessageAction } from '@/lib/data/s
 import { callServerAction, callServerRead } from '@/lib/client-actions';
 import { formatTimestamp } from '@/lib/date/timestamps';
 import type { AnonymousThread } from '@/lib/repositories/social';
+import { NotificationSettings } from './NotificationSettings';
 
 export function AnonymousMessages({ exchangeId, version }: { exchangeId: string; version: number }) {
   const fieldId = useId();
@@ -16,6 +17,7 @@ export function AnonymousMessages({ exchangeId, version }: { exchangeId: string;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
   const generation = useRef(0);
   const load = useCallback(async () => {
     const request = ++generation.current;
@@ -50,7 +52,11 @@ export function AnonymousMessages({ exchangeId, version }: { exchangeId: string;
   }
   return <section className="workshop-sheet anonymous-sheet">
     <h2>Mensajitos entre papelitos.</h2>
-    <p>Preguntá por una talla o una pista. Tu identidad permanece oculta cuando sos quien regala.</p>
+    <p>Preguntá por una talla, un color o un regalo. No mostramos la identidad de quien regala.</p>
+    <details onToggle={event => setNotificationSettingsOpen(event.currentTarget.open)}>
+      <summary>Avisarme cuando llegue un mensaje</summary>
+      {notificationSettingsOpen && <NotificationSettings embedded />}
+    </details>
     {!isReal && <p className="field-help">Demostración local: estos mensajes no llegan a otras personas.</p>}
     <div className="message-tabs" role="group" aria-label="Conversaciones privadas">
       <button className="paper-outline-button" aria-pressed={direction === 'giving'} onClick={() => setDirection('giving')}>A quien le regalo</button>
@@ -63,7 +69,7 @@ export function AnonymousMessages({ exchangeId, version }: { exchangeId: string;
         <strong>{m.mine ? 'Vos' : direction === 'receiving' ? 'Tu amigo secreto' : 'La persona a quien regalás'}</strong>
         <p>{m.body}</p><time dateTime={m.createdAt}>{formatTimestamp(m.createdAt, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }, 'hace un momento')}</time>
       </article>)}
-      {thread?.messages.length === 0 && <p className="message-empty">Un pequeño mensaje puede dar una gran pista.</p>}
+      {thread?.messages.length === 0 && <p className="message-empty">Una pregunta puede ayudarte a elegir el regalo.</p>}
     </div>
     {thread && <form onSubmit={send}>
       <div className="workshop-field"><label htmlFor={fieldId}>Tu mensaje</label>

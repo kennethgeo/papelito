@@ -492,11 +492,11 @@ export function ExchangeDetailView() {
                       </span>
                     )}
                     <span>
-                      <strong>{missing.length}</strong> sin pistas de regalo
+                      <strong>{missing.length}</strong> sin ideas de regalo
                     </span>
                   </div>
                   <p className="field-help">
-                    Las pistas son opcionales. Para sortear hacen falta al menos{" "}
+                    Las ideas de regalo son opcionales. Para sortear hacen falta al menos{" "}
                     {ex.minParticipants} personas aprobadas.
                   </p>
                   <p className="field-help">
@@ -625,8 +625,8 @@ export function ExchangeDetailView() {
                         </strong>
                         <span>
                           {p.wishCount
-                            ? `${p.wishCount} ${p.wishCount === 1 ? "pista compartida" : "pistas compartidas"}`
-                            : "Todavía sin pistas"}
+                            ? `${p.wishCount} ${p.wishCount === 1 ? "idea compartida" : "ideas compartidas"}`
+                            : "Todavía sin ideas de regalo"}
                         </span>
                       </div>
                       {canManageMembers && !p.isOrganizer && (

@@ -38,12 +38,12 @@ export function GiftPreferencesForm() {
         const result = await callServerAction(() => giftPreferencesAction(value));
         if (!result.success) throw new Error(result.error);
       } else localStorage.setItem('papelito-demo-gustos', JSON.stringify(value));
-      setStatus('Tus pistas quedaron guardadas.');
+      setStatus('Tus gustos quedaron guardados.');
     } catch (error) { setFailed(true); setStatus(error instanceof Error ? error.message : 'No pudimos guardar. Conservamos lo que escribiste.'); }
     finally { setBusy(false); }
   }
   return <section className="workshop-sheet tastes-sheet">
-    <h2>Unas pistas sobre vos.</h2>
+    <h2>Tus gustos, para elegir mejor.</h2>
     <p>Completá solo lo que querás compartir. Tus gustos los ve quien te regala en cada sorteo vigente.</p>
     <form onSubmit={save}>
       {GIFT_FIELDS.map(([key, label]) => <div className="workshop-field" key={key}><label htmlFor={`${fieldId}-${key}`}>{label}</label>

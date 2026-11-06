@@ -92,6 +92,15 @@ assert.equal(context.notification.data.url, '/');
 handlers.get('notificationclick')({ notification: { close() {}, data: { url: '//evil.example/' } }, waitUntil: promise => { waiting = promise; } });
 await waiting;
 assert.equal(context.opened, 'https://paper.example/');
+// No page is running: a push wakes the worker and opens only its own exchange.
+const exchangePath = '/?intercambio=00000000-0000-4000-8000-000000000001';
+handlers.get('push')({ data: { json: () => ({ body: 'Tenés un mensaje nuevo en tu intercambio. Abrí Papelito para leerlo.', url: exchangePath, tag: 'message:ficticio' }) }, waitUntil: promise => { waiting = promise; } });
+await waiting;
+assert.equal(context.notification.data.url, exchangePath);
+assert.equal(context.notification.body, 'Tenés un mensaje nuevo en tu intercambio. Abrí Papelito para leerlo.');
+handlers.get('notificationclick')({ notification: { close() {}, data: context.notification.data }, waitUntil: promise => { waiting = promise; } });
+await waiting;
+assert.equal(context.opened, `https://paper.example${exchangePath}`);
 for (const [url, method] of [
   ["/api/exchanges/private/my-assignment", "GET"],
   ["/api/auth/get-session", "GET"],

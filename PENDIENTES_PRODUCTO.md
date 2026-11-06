@@ -11,6 +11,8 @@ Actualizado: 6 de noviembre de 2026. Este archivo conserva las 60 ideas propuest
 - Perfil de gustos opcional, visible para quien regala.
 - QR de invitación creado localmente y descargable.
 
+Confirmación del 6 de noviembre: no se incluyen pistas sobre la identidad de quien regala. Los textos de gustos y deseos se refieren a ideas de regalo. Los avisos de mensajes se activan también desde la conversación, con permiso voluntario por dispositivo; instalar la app no concede ese permiso automáticamente. La notificación no contiene nombres ni el texto privado del mensaje.
+
 ## Registro de las 60 recomendaciones
 
 ### Siguiente selección confirmada por el titular

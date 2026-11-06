@@ -60,6 +60,9 @@ jobs:
       - name: Private messages, tastes, history and push delivery
         run: npm run test:social
 
+      - name: Anonymous message action and private notification recipient
+        run: npm run test:message-notifications
+
       - name: Selected features, permissions, photos and offline encryption
         run: npm run test:selected
 

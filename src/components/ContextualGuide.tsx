@@ -5,13 +5,13 @@ const ORGANIZER_STEPS = [
   ['Reuní a tu gente.', 'Creá un intercambio con fecha y presupuesto. Después compartí el enlace o QR para que cada persona se inscriba.'],
   ['Dejá unas ideas para regalar.', 'En Mis deseos guardás tus ideas y elegís en cuáles grupos compartirlas. Tus gustos y tallas son opcionales.'],
   ['Un nombre para cada persona.', 'Aprobás a quienes se inscriben y hacés el sorteo. Cada persona abre su propio papelito; nadie ve los demás, ni vos.'],
-  ['Volvé cuando lo necesités.', 'Tu asignación queda guardada. En Mi cuenta podés instalar la app, activar recordatorios y consultar ayuda.'],
+  ['Volvé cuando lo necesités.', 'Tu asignación queda guardada. En Mi cuenta podés instalar la app, activar notificaciones y consultar ayuda.'],
 ] as const;
 const PARTICIPANT_STEPS = [
   ['Ya estás en el intercambio.', 'Si el grupo pide aprobación, quien organiza confirma tu lugar. Lo vas a ver en Mis intercambios.'],
   ['Dejá unas ideas para regalar.', 'En Mis deseos guardás tus ideas y elegís en cuáles grupos compartirlas. Solo las ve quien te regala.'],
   ['Abrí tu papelito.', 'Después del sorteo, entrá al grupo y tocá «Abrir mi papelito». Solo vos ves a quién le regalás.'],
-  ['Volvé cuando lo necesités.', 'En Mi cuenta podés instalar la app, activar recordatorios y consultar ayuda.'],
+  ['Volvé cuando lo necesités.', 'En Mi cuenta podés instalar la app, activar notificaciones y consultar ayuda.'],
 ] as const;
 
 /**

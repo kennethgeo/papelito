@@ -291,7 +291,7 @@ test('gustos, instalación visible, mensajes de demo, QR y nueva edición', asyn
   await page.getByLabel('Mis gustos y pasatiempos', { exact: true }).fill('Libros, plantas y rompecabezas');
   await page.getByLabel('Prefiero no recibir', { exact: true }).fill('Perfumes');
   await page.getByRole('button', { name: 'Guardar mis gustos' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Tus pistas quedaron guardadas' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Tus gustos quedaron guardados' })).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: 'Mi cuenta', exact: true }).click();
   await expect(page.getByLabel('Mis gustos y pasatiempos', { exact: true })).toHaveValue('Libros, plantas y rompecabezas');
@@ -299,6 +299,11 @@ test('gustos, instalación visible, mensajes de demo, QR y nueva edición', asyn
   await page.getByRole('button', { name: 'Intercambios', exact: true }).click();
   await page.getByRole('button', { name: 'Ver intercambio', exact: true }).click();
   const chat = page.locator('.anonymous-sheet');
+  await chat.getByText('Avisarme cuando llegue un mensaje',{exact:true}).click();
+  await expect(chat.getByText('Los avisos no muestran nombres ni mensajes privados.',{exact:false})).toBeVisible();
+  await chat.getByRole('button',{name:'Activar notificaciones',exact:true}).click();
+  await expect(chat.getByRole('status')).toContainText('En la demo no se solicitan permisos ni se envían avisos.');
+  expect(await page.evaluate(() => Notification.permission)).not.toBe('granted');
   await chat.getByLabel('Tu mensaje', { exact: true }).fill('¿Preferís azul o verde?');
   await chat.getByRole('button', { name: 'Enviar mensaje', exact: true }).click();
   await expect(chat.getByText('¿Preferís azul o verde?', { exact: true })).toBeVisible();

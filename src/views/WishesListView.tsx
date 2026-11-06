@@ -207,7 +207,7 @@ export function WishesListView() {
       <div className="workshop-heading">
         <div>
           <p className="workshop-step">Una ayudita para quien te regala</p>
-          <h1>Se vale dar pistas.</h1>
+          <h1>Regalos que te harían ilusión.</h1>
           <p>
             Guardá tus ideas y elegí en qué intercambios compartir cada una.
           </p>
@@ -223,7 +223,7 @@ export function WishesListView() {
         >
           <span className="paper-tape" aria-hidden="true" />
           <h2 id="wish-form-title">
-            {editing ? "Afinemos esta pista." : "¿Qué te haría ilusión?"}
+            {editing ? "Afinemos esta idea." : "¿Qué te haría ilusión?"}
           </h2>
           <form onSubmit={save} noValidate aria-busy={busy}>
             <label className="workshop-field" htmlFor="wish-title">
@@ -373,7 +373,7 @@ export function WishesListView() {
               <h3>Algo pequeño también cuenta.</h3>
               <p>
                 Tu café favorito, un color que te encanta o una experiencia
-                juntos. Dale una pista a quien te regala.
+                juntos. Contale qué te gusta a quien te regala.
               </p>
               <button
                 className="paper-text-button"
