@@ -1,5 +1,6 @@
 import 'server-only';
 import { PublicError } from '@/lib/data/errors';
+import { needsWaitingSlot, assertApprovalSlot, queueMember, syncFullWaitlist } from './organization';
 import crypto from 'node:crypto';
 import { dbQuery, dbTransaction } from '@/lib/db/client';
 import { getCostaRicaTodayDate } from '@/lib/date/costa-rica';
@@ -547,13 +548,14 @@ export async function manageMemberStatus(
     }
 
     // 3. Verify target membership exists
-    const memRes = await client.query<{ id: string }>(
-      `SELECT id FROM memberships WHERE exchange_id = $1 AND user_id = $2 FOR UPDATE`,
+    const memRes = await client.query<{ id: string; status: string }>(
+      `SELECT id, status FROM memberships WHERE exchange_id = $1 AND user_id = $2 FOR UPDATE`,
       [exchangeId, targetUserId]
     );
     if (memRes.rowCount === 0) {
       throw new PublicError('El participante especificado no pertenece a este intercambio.');
     }
+    if (newStatus === 'approved' && memRes.rows[0].status !== 'approved') await assertApprovalSlot(client, exchangeId, targetUserId);
 
     const res = await client.query(
       `UPDATE memberships
@@ -568,6 +570,12 @@ export async function manageMemberStatus(
       await client.query(`DELETE FROM exclusions WHERE exchange_id = $1 AND (giver_user_id IN (SELECT $2::text UNION SELECT user_id FROM profiles WHERE guardian_user_id = $2 AND represented_exchange_id = $1)
         OR receiver_user_id IN (SELECT $2::text UNION SELECT user_id FROM profiles WHERE guardian_user_id = $2 AND represented_exchange_id = $1))`, [exchangeId, targetUserId]);
     }
+    await client.query(`DELETE FROM exchange_waitlist WHERE exchange_id=$1 AND (user_id=$2 OR user_id IN (SELECT user_id FROM memberships WHERE exchange_id=$1 AND status='rejected'))`,[exchangeId,targetUserId]);
+    if (newStatus === 'rejected') {
+      await client.query(`DELETE FROM exchange_attendance WHERE exchange_id=$1 AND user_id IN (SELECT user_id FROM memberships WHERE exchange_id=$1 AND status='rejected')`,[exchangeId]);
+      await client.query(`UPDATE memberships SET rules_read_version=0,rules_read_at=NULL WHERE exchange_id=$1 AND status='rejected'`,[exchangeId]);
+    }
+    if (newStatus === 'approved') await syncFullWaitlist(client,exchangeId);
     return res.rowCount > 0;
   });
 }
@@ -792,7 +800,8 @@ export async function acceptInvitationAtomic(
     );
 
     // 7. Insert new membership
-    const memberStatus = ex.requires_approval ? 'pending' : 'approved';
+    const waiting = await needsWaitingSlot(client, exchangeId);
+    const memberStatus = ex.requires_approval || waiting ? 'pending' : 'approved';
     await client.query(
       `INSERT INTO memberships (exchange_id, user_id, is_organizer, status, approved_at)
        VALUES ($1, $2, false, $3, $4)`,
@@ -804,6 +813,8 @@ export async function acceptInvitationAtomic(
       ]
     );
 
+    if (waiting) await queueMember(client,exchangeId,userId);
+    else if(memberStatus==='approved') await syncFullWaitlist(client,exchangeId);
     return { exchangeId, status: memberStatus, alreadyMember: false };
   });
 }

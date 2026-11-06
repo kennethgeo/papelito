@@ -15,6 +15,7 @@ import { InvitationQR } from '@/components/InvitationQR';
 import { RepeatExchange } from '@/components/RepeatExchange';
 import { ExchangeCalendar } from '@/components/ExchangeCalendar';
 import { BudgetPoll, RepresentedParticipants } from '@/components/SelectedExchangeTools';
+import { OrganizationTools } from '@/components/OrganizationTools';
 
 export function ExchangeDetailView() {
   const real = useOptionalRealData();
@@ -866,6 +867,7 @@ export function ExchangeDetailView() {
       )}
       {ex.status === 'sorteado' && <AnonymousMessages key={`${ex.id}:${ex.currentDrawVersion}`} exchangeId={ex.id} version={ex.currentDrawVersion || 1} />}
       {canEnter && <><ExchangeCalendar exchange={ex} /><BudgetPoll key={`poll:${ex.id}`} exchange={ex} /><RepresentedParticipants key={`represented:${ex.id}`} exchange={ex} /></>}
+      {(canEnter||ex.currentUserMemberStatus==='pending')&&<OrganizationTools key={`organization:${ex.id}`} exchange={ex}/>}
     </div>
   );
 }

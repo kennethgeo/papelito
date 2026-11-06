@@ -113,6 +113,18 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
     ).toBeVisible();
     await owner.getByRole('button', { name: 'Mostrar QR de invitación' }).click();
     await expect(owner.getByRole('img', { name: `Código QR para unirse a ${group}` })).toHaveAttribute('src', /^data:image\/png;base64,/);
+    await owner.getByText('Reglas y cupos del intercambio',{exact:true}).click();
+    await owner.getByText('Editar reglas y capacidad',{exact:true}).click();
+    await owner.getByLabel('Cantidad máxima de participantes',{exact:true}).fill('3');
+    await owner.getByLabel('Reglas para este grupo',{exact:true}).fill('Regalo envuelto y sin nombre visible.');
+    await owner.getByRole('button',{name:'Guardar reglas y cupos',exact:true}).click();
+    await expect(owner.getByRole('status').filter({hasText:'Reglas y capacidad guardadas.'})).toBeVisible();
+    await owner.getByLabel('Reglas para este grupo',{exact:true}).fill('Borrador local que todavía no guardé.');
+    await owner.getByRole('button',{name:'Marcar reglas leídas para Prueba 1',exact:true}).click();
+    await expect(owner.getByRole('status').filter({hasText:'Lectura de reglas registrada.'})).toBeVisible();
+    await expect(owner.getByLabel('Reglas para este grupo',{exact:true})).toHaveValue('Borrador local que todavía no guardé.');
+    await owner.getByRole('button',{name:'Descartar edición y actualizar organización',exact:true}).click();
+    await expect(owner.getByLabel('Reglas para este grupo',{exact:true})).toHaveValue('Regalo envuelto y sin nombre visible.');
     await owner.getByRole("button", { name: "Preparar para WhatsApp" }).click();
     const href = await owner
       .getByRole("link", { name: "Abrir WhatsApp" })
@@ -125,7 +137,7 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
     for (const page of pages.slice(1)) {
       await page.goto(invite);
       await page
-        .getByRole("button", { name: "Unirme al intercambio", exact: true })
+        .getByRole("button", { name: "Pedir mi lugar", exact: true })
         .click();
       await expect(
         page.getByRole("heading", { name: "Tu lugar está en espera." }),
@@ -135,16 +147,32 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       ).toHaveCount(0);
     }
     await owner.getByRole("button", { name: "Actualizar grupo" }).click();
-    for (const person of config.fixtures.slice(1))
+    for (const person of config.fixtures.slice(1,3))
       await owner
         .getByRole("button", { name: `Aprobar a ${person.name}`, exact: true })
         .click();
     await expect(
       owner.getByRole("heading", { name: "Ya pueden sortear." }),
     ).toBeVisible();
+    await pages[3].getByRole('button',{name:'Revisar mi ingreso',exact:true}).click();
+    await expect(pages[3].getByRole('heading',{name:'Tu lugar en la fila: 1.',exact:true})).toBeVisible();
+    await expect(pages[3].getByRole('heading',{name:'La gente del intercambio',exact:true})).toHaveCount(0);
+    await expect(pages[3].locator('.group-rules-paper')).toContainText('Regalo envuelto y sin nombre visible.');
+    await owner.getByLabel('Cantidad máxima de participantes',{exact:true}).fill('4');
+    await owner.getByRole('button',{name:'Guardar reglas y cupos',exact:true}).click();
+    await expect(owner.getByRole('status').filter({hasText:'Reglas y capacidad guardadas.'})).toBeVisible();
+    await owner.locator('.waitlist-sheet summary').click();
+    await owner.getByRole('button',{name:'Aprobar siguiente: Prueba 4',exact:true}).click();
+    await owner.getByRole('button',{name:'Confirmar aprobación de Prueba 4',exact:true}).click();
+    await expect(owner.getByRole('status').filter({hasText:'Participación aprobada desde la lista de espera.'})).toBeVisible();
     for (const [i, page] of pages.entries()) {
       if (i)
         await page.getByRole("button", { name: "Revisar mi ingreso" }).click();
+      if(i===1){
+        await page.getByText('¿Nos vemos en la entrega?',{exact:true}).click();
+        await page.getByRole('button',{name:'No voy',exact:true}).click();
+        await expect(page.getByRole('status').filter({hasText:'Tu participación en el sorteo se conserva.'})).toBeVisible();
+      }
       await page.getByRole('button', { name: 'Mi cuenta', exact: true }).click();
       await page.getByLabel('Mis gustos y pasatiempos', { exact: true }).fill(`Gustos de Prueba ${i + 1}`);
       await page.getByRole('button', { name: 'Guardar mis gustos' }).click();
@@ -200,7 +228,7 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       const assignmentResponse = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
-          response.url() === `${config.origin}/`,
+          new URL(response.url()).origin === config.origin && new URL(response.url()).pathname === '/',
       );
       await page
         .getByRole("button", { name: "Abrir mi papelito", exact: true })

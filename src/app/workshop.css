@@ -1001,6 +1001,21 @@
 .receiver-tastes dt { font-weight: 700; margin-top: .75rem; }
 .receiver-tastes dd { margin: .25rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .calendar-note { margin-top: 1.25rem; border-left: 5px solid #F7D85B; }
+.organization-tools { margin-top:1.5rem; }
+.organization-rules { border-left:5px solid #F7D85B; }
+.group-rules-paper { background:#FEF3D6;padding:1rem 1.25rem;margin:1rem 0;overflow-wrap:anywhere; }
+.group-rules-paper p { margin-top:0; }
+.organization-editor { margin-top:1rem;padding-top:.5rem;border-top:1px dashed #CEBED9; }
+.rules-reading { display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin:.75rem 0; }
+.attendance-totals { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;margin:1.25rem 0; }
+.attendance-totals div { border-bottom:2px solid #CEBED9;padding:.5rem 0; }
+.attendance-totals dt { font-size:.9rem; }
+.attendance-totals dd { margin:.35rem 0;font:700 1.5rem var(--font-heading); }
+.attendance-person { padding:1rem 0;border-top:1px solid #EDE5F5; }
+.attendance-answers { display:flex;gap:.5rem;flex-wrap:wrap; }
+.attendance-answers button[aria-pressed=true] { background:#46245D;color:#fff; }
+.waitlist-sheet li { margin:1rem 0;overflow-wrap:anywhere; }
+@media(max-width:400px) { .attendance-totals { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .calendar-note summary,.budget-sheet summary,.workshop-sheet > details > summary { min-height:44px; padding:.6rem 0; cursor:pointer; font-weight:700; }
 .budget-sheet { margin-top:1rem; }
 .poll-options { display:grid;gap:.6rem;margin:1rem 0; }

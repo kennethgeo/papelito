@@ -106,6 +106,11 @@ export default function PrivacidadPage() {
             y quien le regala mediante una asignación vigente. Las encuestas guardan un voto por persona;
             la aplicación muestra únicamente los totales y tu propio voto. La representación conserva un alias,
             su vínculo con la cuenta adulta y la fecha de autorización, sin solicitar correo ni fecha de nacimiento.
+            Si respondés sobre asistencia, guardamos tu opción y fecha; quien organiza ve las respuestas
+            individuales y los demás participantes solo los totales. Los cupos conservan una lista de espera
+            con el orden de las solicitudes. Si marcás las reglas del grupo como leídas, guardamos la versión
+            y la fecha de esa lectura. Las reglas son visibles para quienes ya solicitaron ingresar.
+            Estos registros se incluyen en tu exportación personal y se eliminan con la cuenta o el intercambio.
           </p>
           <p>
             Al registrar una passkey guardamos su clave pública, contador, dominio y nombre elegido;

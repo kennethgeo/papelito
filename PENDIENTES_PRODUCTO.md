@@ -1,6 +1,6 @@
 # Papelito — funciones y pendientes
 
-Actualizado: 18 de octubre de 2026. Este archivo conserva las 60 ideas propuestas. Una idea pendiente no implica que esté implementada ni autoriza contratar servicios. El titular organiza el piloto; dominio, remitente propio y revisión jurídica siguen pospuestos.
+Actualizado: 6 de noviembre de 2026. Este archivo conserva las 60 ideas propuestas. Una idea pendiente no implica que esté implementada ni autoriza contratar servicios. El titular organiza el piloto; dominio, remitente propio y revisión jurídica siguen pospuestos.
 
 ## Entrega solicitada
 
@@ -39,10 +39,10 @@ La tanda seleccionada está implementada; los detalles de verificación y límit
 | 14 | Historial visible entre años | Implementada: historial personal y resultados previamente abiertos |
 | 15 | Evitar destinatarios de ediciones anteriores | En esta entrega; historial vinculado disponible |
 | 16 | Preferencia anticipada de participación | Pendiente |
-| 17 | Confirmación de asistencia a la reunión | Pendiente |
-| 18 | Lista de espera | Pendiente |
+| 17 | Confirmación de asistencia a la reunión | Implementada: Voy / Tal vez / No voy; no modifica el sorteo |
+| 18 | Lista de espera | Implementada: 3–100 cupos, orden de llegada y aprobación manual |
 | 19 | Encuesta de presupuesto | Implementada: votos privados, totales y cierre antes del sorteo |
-| 20 | Reglas personalizadas del intercambio | Pendiente; actualmente pueden escribirse en la descripción |
+| 20 | Reglas personalizadas del intercambio | Implementada: texto versionado, lectura opcional y edición antes del sorteo |
 | 21 | Perfil de gustos | En esta entrega |
 | 22 | Tallas opcionales | En esta entrega |
 | 23 | Preferencias de regalos que no se desean recibir | En esta entrega |
@@ -93,3 +93,7 @@ Recordatorios: día anterior al cierre de inscripción para miembros aprobados; 
 El QR usa el enlace vigente; al renovarlo, el QR anterior también queda revocado. No utiliza servicios de QR externos. El botón de instalación abre el ofrecimiento nativo cuando existe y muestra instrucciones cuando el navegador lo exige. En iPhone/iPad los avisos requieren una versión compatible y abrir la PWA instalada.
 
 Antes de crecer: decidir silenciamiento/bloqueo de conversaciones, categoría de avisos, preferencias por categoría y seguimiento de reportes. Conservar las pruebas de aislamiento y confidencialidad al incorporar cada función.
+
+## Organización del piloto — 6 de noviembre de 2026
+
+El titular seleccionó asistencia, lista de espera y reglas. Se incorporaron como funciones 17, 18 y 20, con [alcance y verificación](ORGANIZACION_VERIFICACION.md). Las demás recomendaciones siguen pendientes; este bloque no incluye coorganizadores ni grupos permanentes.

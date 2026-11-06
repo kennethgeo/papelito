@@ -8,6 +8,7 @@ import {
   verifyNeonLinkFile,
   validateMigrationUrls,
   verifyExpectedColumns,
+  MIGRATION_LEDGER_TABLE,
 } from './db-migrate.mjs';
 
 register('./ts-loader.mjs', import.meta.url);
@@ -67,17 +68,17 @@ export async function runNeonSmokeTest() {
     const expectedTables = Object.keys(EXPECTED_PAPELITO_SCHEMA);
     const expectedSet = new Set(expectedTables);
     const actualTables = tablesRes.rows.map((r) => r.table_name);
-    const foreignTables = actualTables.filter((t) => !expectedSet.has(t));
+    const foreignTables = actualTables.filter((t) => !expectedSet.has(t) && t !== MIGRATION_LEDGER_TABLE);
 
     assert(
       foreignTables.length === 0,
       `El esquema public contiene tablas no pertenecientes a Papelito: ${foreignTables.join(', ')}`
     );
     assert(
-      actualTables.length === expectedTables.length,
+      actualTables.filter(t=>t!==MIGRATION_LEDGER_TABLE).length === expectedTables.length,
       `Se esperaban las 12 tablas de Papelito en public (encontradas: ${actualTables.length}). Ejecuta primero npm run db:migrate.`
     );
-    await verifyExpectedColumns({ query: dbQuery });
+    await verifyExpectedColumns({ query: dbQuery }, EXPECTED_PAPELITO_SCHEMA);
     console.log(`✓ 3. Esquema public verificado (${expectedTables.length}/${expectedTables.length} tablas y todas las columnas esperadas presentes)`);
 
     // 3. Ejecutar CRUD de perfil y deseo dentro de dbTransaction y forzar ROLLBACK con error marcador
