@@ -12,6 +12,7 @@ Todas las suites de esta tabla corren en `verify` (`.github/workflows/verify.yml
 | `npm run test:journey` | Recorrido de cuatro participantes con repositorios reales | PGlite |
 | `npm run test:dashboard` | Datos del tablero: autoridad del organizador actual sobre las solicitudes, estado propio del papelito (membresía pendiente, rechazada y aprobada, sorteo repetido, grupo cerrado), nada de destinatarios, misma cantidad de consultas con 6 y 20 grupos; regla de siguiente acción con fechas de Costa Rica | PGlite |
 | `npm run test:social` | Mensajes anónimos, gustos, ediciones, Web Push con transporte simulado, recordatorios por horario de Costa Rica, tope por ejecución, continuidad, orden ante fallas, consentimiento y firma VAPID reutilizada | PGlite |
+| `npm run test:message-notifications` | Acción de mensaje → repositorio real → aviso al destinatario correcto de pregunta y respuesta, sin nombres ni contenido privado; terceros bloqueados y mensaje guardado ante falla de envío. Proveedor push simulado, sin envíos reales | PGlite |
 | `npm run test:selected` | Encuestas, representación de menores, fotos privadas y su cuota, soporte, passkeys y revocación de accesos, copia cifrada sin conexión, calendario y filtro SSRF | PGlite |
 | `npm run test:organization` | Asistencia independiente del sorteo, cupos y espera por orden de llegada, reglas versionadas, permisos, representación, exportación y cascadas | PGlite |
 | `npm run test:lifecycle` | Cierre, transferencia, eliminación, baja y retención | PGlite |

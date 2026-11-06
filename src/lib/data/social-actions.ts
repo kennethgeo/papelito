@@ -27,7 +27,7 @@ export async function anonymousThreadsAction(exchangeId: string) { return safe(a
 export async function sendAnonymousMessageAction(exchangeId: string, threadId: string, body: string) {
   return safe(async () => {
     const result = await sendAnonymousMessage(exchangeId, threadId, await user(), body);
-    await notifyUser(result.recipientId, `message:${result.messageId}`, { body: 'Tenés un nuevo mensaje en tu intercambio. Abrí Papelito para leerlo.', exchangeId }).catch(() => undefined);
+    await notifyUser(result.recipientId, `message:${result.messageId}`, { body: 'Tenés un mensaje nuevo en tu intercambio. Abrí Papelito para leerlo.', exchangeId }).catch(() => undefined);
     return true;
   });
 }
@@ -40,6 +40,6 @@ export async function testPushAction(endpoint: string) {
   return safe(async () => {
     const id = await user();
     if (!(await ownsPushSubscription(id, endpoint))) throw new PublicError('Suscripción inválida.');
-    return notifyUser(id, `test:${Math.floor(Date.now() / 60_000)}`, { body: '¡Listo! Los recordatorios de Papelito llegan a este dispositivo.' }, undefined, endpoint);
+    return notifyUser(id, `test:${Math.floor(Date.now() / 60_000)}`, { body: '¡Listo! Las notificaciones de Papelito llegan a este dispositivo.' }, undefined, endpoint);
   });
 }

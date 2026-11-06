@@ -4,7 +4,7 @@ import { useOptionalRealData } from '@/context/RealDataContext';
 import { pushSettingsAction, subscribePushAction, unsubscribePushAction, testPushAction } from '@/lib/data/social-actions';
 import { callServerAction, callServerRead } from '@/lib/client-actions';
 
-export function NotificationSettings() {
+export function NotificationSettings({ embedded = false }: { embedded?: boolean }) {
   const real = useOptionalRealData();
   const userId = real?.user?.id;
   const isReal = !!real;
@@ -29,7 +29,7 @@ export function NotificationSettings() {
         const result = await callServerRead(() => pushSettingsAction(sub?.endpoint));
         if (!active) return;
         if (result.success && result.data) { setConfigured(result.data.configured); setEnabled(!!sub && result.data.subscribed && Notification.permission === 'granted'); }
-        else setError(result.error || 'No pudimos consultar tus recordatorios.');
+        else setError(result.error || 'No pudimos consultar tus avisos.');
       } catch { if (active) setError('No pudimos consultar este dispositivo.'); }
     }
     queueMicrotask(() => { if (active) void load(); }); return () => { active = false; };
@@ -44,16 +44,16 @@ export function NotificationSettings() {
       const result = await permissionRequest; setPermission(result);
       if (result !== 'granted') { setStatus('No activamos avisos. Podés cambiar el permiso en los ajustes del navegador.'); return; }
       const settings = await callServerRead(() => pushSettingsAction());
-      if (!settings.success || !settings.data?.publicKey) throw new Error('No pudimos preparar los recordatorios.');
+      if (!settings.success || !settings.data?.publicKey) throw new Error('No pudimos preparar los avisos.');
       const registration = await navigator.serviceWorker.getRegistration();
       if (!registration?.active) throw new Error('La app todavía se está preparando. Recargá e intentá de nuevo.');
-      if (registration.waiting) throw new Error('Hay una nueva versión pendiente. Pulsá «Actualizar ahora» antes de activar los recordatorios.');
+      if (registration.waiting) throw new Error('Hay una nueva versión pendiente. Pulsá «Actualizar ahora» antes de activar los avisos.');
       const key = settings.data.publicKey.replace(/-/g, '+').replace(/_/g, '/');
       const bytes = Uint8Array.from(atob(key), c => c.charCodeAt(0));
       const sub = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
       const saved = await callServerAction(() => subscribePushAction(sub.toJSON()));
       if (!saved.success) throw new Error(saved.error);
-      setEnabled(true); setStatus('Recordatorios activados en este dispositivo.');
+      setEnabled(true); setStatus('Notificaciones activadas en este dispositivo.');
     } catch (e) { setError(e instanceof Error ? e.message : 'No pudimos activar las notificaciones.'); }
     finally { setBusy(false); }
   }
@@ -63,7 +63,7 @@ export function NotificationSettings() {
       const registration = await navigator.serviceWorker.getRegistration();
       const sub = await registration?.pushManager.getSubscription();
       if (sub) { const result = await callServerAction(() => unsubscribePushAction(sub.endpoint)); if (!result.success) throw new Error(result.error); await sub.unsubscribe(); }
-      setEnabled(false); setStatus('Recordatorios desactivados en este dispositivo.');
+      setEnabled(false); setStatus('Notificaciones desactivadas en este dispositivo.');
     } catch { setError('No pudimos confirmar la desactivación. Intentá de nuevo.'); }
     finally { setBusy(false); }
   }
@@ -75,19 +75,20 @@ export function NotificationSettings() {
       const result = await callServerAction(() => testPushAction(sub.endpoint));
       if (result.success && result.data?.delivered) setStatus('Enviamos un aviso de prueba. Revisá tus notificaciones.');
       else setError('No se confirmó un envío. Si acabás de probar, esperá un minuto; también podés desactivar y volver a activar.');
-    } catch { setError('No pudimos enviar la prueba. Revisá que los recordatorios estén activos.'); }
+    } catch { setError('No pudimos enviar la prueba. Revisá que los avisos estén activos.'); }
     finally { setBusy(false); }
   }
-  return <section className="workshop-sheet notification-sheet">
-    <h2>Que no se te pase el detalle.</h2>
-    <p>Te avisamos antes del cierre de inscripción, tres días y un día antes de la entrega, y cuando llega un mensaje.</p>
+  return <section className={embedded ? 'notification-settings' : 'workshop-sheet notification-sheet'}>
+    <h2>Que no se pierda un mensajito.</h2>
+    <p>Recibí notificaciones cuando llegue una pregunta o una respuesta, incluso con la app cerrada. También te avisamos antes del cierre de inscripción y de la entrega.</p>
     <p className="field-help">Los avisos no muestran nombres ni mensajes privados. Se activan por dispositivo y podés apagarlos cuando querás.</p>
+    <p className="field-help">Instalar Papelito no activa las notificaciones por sí solo. En iPhone o iPad, abrí la app desde su ícono para activarlas. La entrega depende de la conexión y los ajustes de tu teléfono.</p>
     <p className="field-help">Al activarlos, guardamos la suscripción de este navegador y usamos su proveedor de notificaciones para entregarlos.</p>
     {!supported ? <p>Este navegador todavía no permite estos avisos. En iPhone o iPad, instalá Papelito en la pantalla de inicio y abrilo desde su ícono.</p> : <>
       <p>{enabled ? 'Activados en este dispositivo.' : permission === 'denied' ? 'El navegador bloqueó las notificaciones. Permitilas desde los ajustes del sitio.' : 'Solo pedimos permiso cuando decidís activarlos.'}</p>
-      {real && !configured && <p className="field-help">Los recordatorios aún no están disponibles en este entorno.</p>}
+      {real && !configured && <p className="field-help">Los avisos aún no están disponibles en este entorno.</p>}
       <div className="workshop-actions">
-        <button className="paper-button" disabled={busy || (!!real && (!configured || (!enabled && permission === 'denied')))} onClick={() => void (enabled ? disable() : enable())}>{busy ? 'Un momento…' : enabled ? 'Desactivar recordatorios' : 'Activar recordatorios'}</button>
+        <button className="paper-button" disabled={busy || (!!real && (!configured || (!enabled && permission === 'denied')))} onClick={() => void (enabled ? disable() : enable())}>{busy ? 'Un momento…' : enabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}</button>
         {enabled && <button className="paper-outline-button" disabled={busy} onClick={() => void test()}>Enviar aviso de prueba</button>}
       </div>
     </>}

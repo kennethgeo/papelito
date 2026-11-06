@@ -34,6 +34,7 @@
     "test:organization": "node --conditions=react-server --experimental-strip-types scripts/test-organization.mjs",
     "support:list": "node scripts/support-list.mjs",
     "test:social": "node --conditions=react-server --experimental-strip-types scripts/test-social.mjs",
+    "test:message-notifications": "node --experimental-test-module-mocks --conditions=react-server --experimental-strip-types scripts/test-message-notifications.mjs",
     "dev:vinext": "vite dev --port 3001",
     "build:vinext": "vite build",
     "start:vinext": "vite preview",

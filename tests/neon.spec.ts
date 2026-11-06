@@ -176,11 +176,11 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       await page.getByRole('button', { name: 'Mi cuenta', exact: true }).click();
       await page.getByLabel('Mis gustos y pasatiempos', { exact: true }).fill(`Gustos de Prueba ${i + 1}`);
       await page.getByRole('button', { name: 'Guardar mis gustos' }).click();
-      await expect(page.getByRole('status').filter({ hasText: 'Tus pistas quedaron guardadas' })).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: 'Tus gustos quedaron guardados' })).toBeVisible();
       await page
         .getByRole("button", { name: "Mis deseos", exact: true })
         .click();
-      const idea = `Pista de Prueba ${i + 1}`;
+      const idea = `Idea de Prueba ${i + 1}`;
       await page.getByLabel("Idea de regalo", { exact: true }).fill(idea);
       await page
         .getByRole("button", { name: "Guardar idea", exact: true })
@@ -242,10 +242,10 @@ test("cuatro cuentas: crear, invitar, aprobar, deseos, sorteo, secreto y reconex
       const name = (await recipient.textContent())!.trim();
       expect(name).not.toBe(config.fixtures[i].name);
       receivers.push(name);
-      await expect(page.getByRole('heading', { name: 'Pistas sobre sus gustos.' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Sus gustos y preferencias.' })).toBeVisible();
       await expect(page.getByText(`Gustos de ${name}`, { exact: true })).toBeVisible();
       await expect(
-        page.getByRole("heading", { name: `Pista de ${name}`, exact: true }),
+        page.getByRole("heading", { name: `Idea de ${name}`, exact: true }),
       ).toBeVisible();
       await page.getByLabel("Marcar como elegido", { exact: true }).check();
       await expect(
