@@ -6,10 +6,10 @@ Este documento separa lo que **no** se implementó en las correcciones de la aud
 
 | Tema | Situación | Opciones |
 | --- | --- | --- |
-| Versión legal tras corregir el proveedor de alojamiento | `/privacidad` y `/consentimiento` ya nombran a Cloudflare en lugar de Netlify; `LEGAL_CONSTANTS.VERSION` sigue en `2026-10-31.1`, igual que la fecha de actualización | (a) Tratarlo como corrección editorial y dejar la versión. (b) Publicar una versión nueva: todas las cuentas vuelven a aceptar y los recordatorios se pausan hasta entonces |
+| Versión legal tras corregir el proveedor de alojamiento y agregar el enlace personal | `/privacidad` y `/consentimiento` ya nombran a Cloudflare en lugar de Netlify. `/privacidad` también explica que una persona adulta mayor representada ve su asignación solo con su enlace personal y qué se guarda del enlace; `LEGAL_CONSTANTS.VERSION` sigue en `2026-10-31.1`, igual que la fecha de actualización | (a) Tratarlo como corrección editorial y dejar la versión. (b) Publicar una versión nueva: todas las cuentas vuelven a aceptar y los recordatorios se pausan hasta entonces |
 | Identidad jurídica y domicilio del responsable | Pendientes, como indican los textos | Completar antes de abrir el servicio al público |
 | Plazos de retención | Sin cambios: 12 meses tras el cierre y 30 días para registros de entrega | Cualquier cambio requiere actualizar los textos y, probablemente, la versión |
-| Registros técnicos de Cloudflare | Los registros de invocación de Workers guardan la ruta visitada (con la consulta redactada). En `/unirse/<token>` la ruta incluye el token de invitación. Solo accede la cuenta del titular | Aceptarlo, reducir el muestreo de registros o desactivar los registros de invocación y conservar solo los registros propios saneados |
+| Registros técnicos de Cloudflare | Los registros de invocación de Workers guardan la ruta visitada (con la consulta redactada). En `/unirse/<token>` y `/papelito/<enlace>` la ruta incluye el token de invitación o el enlace personal. Solo accede la cuenta del titular | Aceptarlo, reducir el muestreo de registros o desactivar los registros de invocación y conservar solo los registros propios saneados |
 
 ## Decisiones operativas
 

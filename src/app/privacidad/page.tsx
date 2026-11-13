@@ -90,7 +90,7 @@ export default function PrivacidadPage() {
           <ul>
             <li>Tu cuenta conserva el registro de aceptación de los documentos legales con su versión y fecha.</li>
             <li>Los demás miembros solo ven tu alias y avatar en la lista del evento.</li>
-            <li>Tu asignación secreta solo la ves vos; si participás mediante una persona adulta que te representa, esa persona también puede consultarla.</li>
+            <li>Tu asignación secreta solo la ves vos. Si participás mediante una persona adulta que te representa, esa persona también puede consultarla, salvo que te haya inscrito como persona adulta mayor: en ese caso la ves solo vos, con tu enlace personal.</li>
             <li>
               Tus deseos seleccionados solo son accesibles para la persona a quien le tocó regalarte.
             </li>
@@ -105,7 +105,11 @@ export default function PrivacidadPage() {
             en la base privada de Papelito en Neon. Solo acceden su propietario, su representante autorizado
             y quien le regala mediante una asignación vigente. Las encuestas guardan un voto por persona;
             la aplicación muestra únicamente los totales y tu propio voto. La representación conserva un alias,
-            su vínculo con la cuenta adulta y la fecha de autorización, sin solicitar correo ni fecha de nacimiento.
+            su vínculo con la cuenta adulta, la fecha de autorización y si es una niña o un niño o una persona
+            adulta mayor, sin solicitar correo ni fecha de nacimiento. El enlace personal de una persona adulta
+            mayor se guarda solo como una huella criptográfica que no permite reconstruirlo, junto con su fecha de creación y
+            las fechas en que se abrió el papelito; esas fechas se le muestran a esa persona y quien la representa
+            solo ve si ya lo abrió.
             Si respondés sobre asistencia, guardamos tu opción y fecha; quien organiza ve las respuestas
             individuales y los demás participantes solo los totales. Los cupos conservan una lista de espera
             con el orden de las solicitudes. Si marcás las reglas del grupo como leídas, guardamos la versión

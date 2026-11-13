@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useOptionalRealData } from '@/context/RealDataContext';
-import { budgetPollAction, changeBudgetPollAction, representedAction, addRepresentedAction, representedWishAction, removeRepresentedAction, deleteRepresentedWishAction, revealRepresentedAction } from '@/lib/data/selected-actions';
+import { budgetPollAction, changeBudgetPollAction, representedAction, addRepresentedAction, representedWishAction, removeRepresentedAction, deleteRepresentedWishAction, revealRepresentedAction, setRepresentedKindAction, createPersonalLinkAction } from '@/lib/data/selected-actions';
+import { formatTimestamp } from '@/lib/date/timestamps';
 import { callServerAction, callServerRead } from '@/lib/client-actions';
 import { formatMoney } from '@/lib/event-dates';
 import type { Exchange } from '@/types';
@@ -60,6 +61,8 @@ export function RepresentedParticipants({ exchange }: { exchange: Exchange }) {
   const peopleRevision=JSON.stringify(exchange.participants.map(p=>[p.id,p.alias,p.status||'approved']));
   const [people, setPeople] = useState<Awaited<ReturnType<typeof getRepresented>>>([]);
   const [alias, setAlias] = useState(''), [authorized, setAuthorized] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [kind, setKind] = useState<'' | 'child' | 'senior'>(''), [changingKind, setChangingKind] = useState(''), [newLinks, setNewLinks] = useState<Record<string, string>>({}), [renewing, setRenewing] = useState('');
+  const [linkNotice, setLinkNotice] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({}), [opened, setOpened] = useState<string[]>([]), [removing, setRemoving] = useState('');
   const [deletingWish, setDeletingWish] = useState('');
   const isReal = !!real;
@@ -70,14 +73,19 @@ export function RepresentedParticipants({ exchange }: { exchange: Exchange }) {
     finally { setBusy(false); }
   }
   return <section className="workshop-sheet represented-tools"><details><summary>Personas a mi cargo</summary><h2>Una cuenta, un poquito de ayuda.</h2>
-    <p>Podés representar hasta cinco familiares en este intercambio. Cada uno participa con su alias y sus propios deseos; vos podrás consultar sus asignaciones. Tu cuenta también participa.</p>
+    <p>Podés representar hasta cinco familiares en este intercambio. Cada uno participa con su alias y sus propios deseos. Tu cuenta también participa.</p>
+    <ul className="field-help"><li><strong>Niña o niño:</strong> vos ves su asignación y le ayudás con el regalo.</li><li><strong>Persona adulta mayor:</strong> le enviás un enlace personal, sin cuenta; solo ella ve a quién le regala y vos no.</li></ul>
     {!real ? <p className="field-help">Esta función requiere una cuenta real para vincular la autorización del adulto y la aprobación del grupo.</p> : <>
-      {exchange.status === 'inscripcion_abierta' && <form onSubmit={e => { e.preventDefault(); void run(async () => { const r = await callServerAction(() => addRepresentedAction(exchange.id, alias, authorized)); if (r.success) { setAlias(''); setAuthorized(false); } return r; }); }}>
+      {exchange.status === 'inscripcion_abierta' && <form onSubmit={e => { e.preventDefault(); void run(async () => { const r = await callServerAction(() => addRepresentedAction(exchange.id, alias, authorized, kind)); if (r.success) { setAlias(''); setAuthorized(false); setKind(''); } return r; }); }}>
         <label className="workshop-field">Alias de la persona<input minLength={2} maxLength={40} required value={alias} onChange={e => setAlias(e.target.value)} /></label>
+        <fieldset className="represented-kind"><legend>¿A quién vas a inscribir?</legend>
+          <label className="paper-wish-check"><input type="radio" name="represented-kind" value="child" checked={kind === 'child'} onChange={() => setKind('child')} required /><span>Una niña o un niño. Vos vas a ver su asignación.</span></label>
+          <label className="paper-wish-check"><input type="radio" name="represented-kind" value="senior" checked={kind === 'senior'} onChange={() => setKind('senior')} required /><span>Una persona adulta mayor. Recibe un enlace personal y solo ella ve a quién le regala.</span></label>
+        </fieldset>
         <label className="paper-wish-check"><input type="checkbox" checked={authorized} onChange={e => setAuthorized(e.target.checked)} required /><span>Soy adulto y tengo autorización para representar a esta persona y gestionar su participación.</span></label>
-        <button className="paper-button" disabled={busy || !authorized}>Agregar persona</button>
+        <button className="paper-button" disabled={busy || !authorized || !kind}>Agregar persona</button>
       </form>}
-      {people.map(p => <article className="represented-person" key={p.user_id}><h3>{p.alias}</h3><p>{p.status === 'approved' ? 'Participación aprobada' : p.status === 'pending' ? 'Pendiente de aprobación del organizador' : 'Participación rechazada'}</p>
+      {people.map(p => <article className="represented-person" key={p.user_id}><h3>{p.alias}</h3><p>{p.kind === 'senior' ? 'Persona adulta mayor' : 'Niña o niño'} · {p.status === 'approved' ? 'Participación aprobada' : p.status === 'pending' ? 'Pendiente de aprobación del organizador' : 'Participación rechazada'}</p>
         {!['finalizado','cancelado'].includes(exchange.status) && p.status !== 'rejected' && <NameEditor name={p.alias} label={`Nuevo alias de ${p.alias}`} buttonLabel={`Cambiar alias de ${p.alias}`} maxLength={40} onSave={async(value,previous) => {
           const result=await callServerAction(() => renameRepresentedAction(exchange.id,p.user_id,value,previous));
           if (!result.success) throw new Error(result.error || 'No pudimos cambiar el alias.');
@@ -88,6 +96,22 @@ export function RepresentedParticipants({ exchange }: { exchange: Exchange }) {
         <ul>{p.wishes.map(w => <li key={w.id}>{w.title} {deletingWish===w.id?<><button className="paper-text-button" disabled={busy} onClick={()=>void run(()=>callServerAction(()=>deleteRepresentedWishAction(exchange.id,p.user_id,w.id)))}>Confirmar quitar idea</button><button className="paper-text-button" onClick={()=>setDeletingWish('')}>Conservar idea</button></>:<button className="paper-text-button" onClick={()=>setDeletingWish(w.id)}>Quitar idea de {p.alias}</button>}</li>)}</ul>
         {p.status === 'approved' && !['finalizado', 'cancelado'].includes(exchange.status) && <form onSubmit={e => { e.preventDefault(); void run(async () => { const r = await callServerAction(() => representedWishAction(exchange.id, p.user_id, drafts[p.user_id] || '')); if (r.success) setDrafts({ ...drafts, [p.user_id]: '' }); return r; }); }}><label className="workshop-field">Idea de regalo para {p.alias}<input maxLength={150} required value={drafts[p.user_id] || ''} onChange={e => setDrafts({ ...drafts, [p.user_id]: e.target.value })} /></label><button className="paper-outline-button" disabled={busy}>Guardar idea para {p.alias}</button></form>}
         {p.assignment && (!opened.includes(p.user_id) ? <button className="paper-button" disabled={busy} onClick={()=>void run(async()=>{const r=await callServerAction(()=>revealRepresentedAction(exchange.id,p.user_id));if(r.success)setOpened([...opened,p.user_id]);return r;})}>Ver asignación de {p.alias}</button> : <div className="confirmation-note"><p>{p.alias} le regala a <strong>{p.assignment.receiverAlias}</strong>.</p><ul>{p.assignment.wishes.map(w => <li key={w.id}>{w.title}{w.description ? ` — ${w.description}` : ''}</li>)}</ul><button className="paper-text-button" onClick={() => setOpened(opened.filter(id => id !== p.user_id))}>Ocultar asignación</button></div>)}
+        {p.kind === 'senior' && p.status !== 'rejected' && !['finalizado', 'cancelado'].includes(exchange.status) && <div className="personal-link-box">
+          <p>Su asignación solo la ve {p.alias} con su enlace personal. {p.link ? `Enlace creado el ${formatTimestamp(p.link.createdAt, { dateStyle: 'medium' })}.` : 'Todavía no creaste su enlace.'} {exchange.status === 'sorteado' ? (p.opened ? 'Ya abrió su papelito.' : 'Todavía no abrió su papelito.') : 'Podrá ver su papelito después del sorteo.'}</p>
+          {newLinks[p.user_id] ? <>
+            <label className="workshop-field">Enlace personal de {p.alias}<input readOnly value={newLinks[p.user_id]} onFocus={e => e.currentTarget.select()} /></label>
+            <p className="field-help">Enviáselo solo a {p.alias} y no lo abras vos: su papelito muestra cuándo se abrió por primera vez. Por seguridad solo lo mostramos ahora; si se pierde, creá uno nuevo.</p>
+            <div className="workshop-actions">
+              <button type="button" className="paper-button" onClick={() => void navigator.clipboard?.writeText(newLinks[p.user_id]).then(() => setLinkNotice(`Copiamos el enlace de ${p.alias}.`), () => setLinkNotice('No pudimos copiarlo: seleccioná el enlace y copialo a mano.'))}>Copiar enlace</button>
+              {typeof navigator !== 'undefined' && 'share' in navigator && <button type="button" className="paper-outline-button" onClick={() => void navigator.share({ title: 'Tu papelito', text: `Hola, ${p.alias}. Este es tu enlace personal de Papelito para «${exchange.name}». Abrilo cuando nadie más esté mirando.`, url: newLinks[p.user_id] }).catch(() => undefined)}>Compartir</button>}
+            </div>
+            {linkNotice && <p role="status" className="field-help">{linkNotice}</p>}
+          </> : renewing === p.user_id ? <div className="confirmation-note"><p>Se crea un enlace nuevo y el anterior deja de funcionar.</p><button type="button" className="paper-button" disabled={busy} onClick={() => void run(async () => { const r = await callServerAction(() => createPersonalLinkAction(exchange.id, p.user_id)); if (r.success && r.data) { setNewLinks({ ...newLinks, [p.user_id]: new URL(r.data.path, window.location.origin).href }); setRenewing(''); setLinkNotice(''); } return r; })}>Crear enlace nuevo</button><button type="button" className="paper-text-button" onClick={() => setRenewing('')}>Conservar el actual</button></div>
+          : <button type="button" className={p.link ? 'paper-text-button' : 'paper-button'} disabled={busy} onClick={() => p.link ? setRenewing(p.user_id) : void run(async () => { const r = await callServerAction(() => createPersonalLinkAction(exchange.id, p.user_id)); if (r.success && r.data) { setNewLinks({ ...newLinks, [p.user_id]: new URL(r.data.path, window.location.origin).href }); setLinkNotice(''); } return r; })}>{p.link ? `Crear un enlace nuevo para ${p.alias}` : `Crear enlace personal de ${p.alias}`}</button>}
+        </div>}
+        {p.status !== 'rejected' && !['finalizado', 'cancelado'].includes(exchange.status) && (p.kind === 'child' || exchange.status === 'inscripcion_abierta') && (changingKind === p.user_id
+          ? <div className="confirmation-note"><p>{p.kind === 'child' ? `${p.alias} va a recibir un enlace personal y vos ya no vas a ver su asignación. Después del sorteo no se puede volver atrás.` : `Vas a ver la asignación de ${p.alias} y su enlace personal deja de funcionar.`}</p><button type="button" className="paper-button" disabled={busy} onClick={() => void run(async () => { const r = await callServerAction(() => setRepresentedKindAction(exchange.id, p.user_id, p.kind === 'child' ? 'senior' : 'child')); if (r.success) { setChangingKind(''); setOpened(opened.filter(id => id !== p.user_id)); const rest = { ...newLinks }; delete rest[p.user_id]; setNewLinks(rest); } return r; })}>{p.kind === 'child' ? 'Confirmar: es una persona adulta mayor' : 'Confirmar: es una niña o un niño'}</button><button type="button" className="paper-text-button" onClick={() => setChangingKind('')}>Dejar como está</button></div>
+          : <button type="button" className="paper-text-button" onClick={() => setChangingKind(p.user_id)}>{p.kind === 'child' ? `${p.alias} es una persona adulta mayor` : `${p.alias} es una niña o un niño`}</button>)}
         {exchange.status === 'inscripcion_abierta' && (removing === p.user_id ? <div className="confirmation-note"><p>Se quitarán del intercambio esta participación y sus deseos.</p><button className="paper-outline-button danger-button" disabled={busy} onClick={() => void run(() => callServerAction(() => removeRepresentedAction(exchange.id, p.user_id)))}>Confirmar quitar a {p.alias}</button><button className="paper-text-button" onClick={() => setRemoving('')}>Conservar</button></div> : <button className="paper-text-button" onClick={() => setRemoving(p.user_id)}>Quitar a {p.alias}</button>)}
       </article>)}
     </>}{error && <p role="alert" className="workshop-error">{error}</p>}
