@@ -13,6 +13,8 @@ Este documento separa lo que **no** se implementó en las correcciones de la aud
 
 ## Decisión de producto: aislamiento frente a quien representa (enlace personal)
 
+**Decidido para el piloto (13 de noviembre de 2026): opción A.** El titular acepta que quien conserve el enlace puede abrirlo, incluida la persona que lo crea. Se mantienen la elección por permisos («Yo gestiono su papelito» / «Lo abre personalmente») y los textos que explican esa limitación. Las opciones B y C quedan registradas por si el piloto muestra que hace falta más aislamiento.
+
 Quien representa crea el enlace personal y lo entrega, así que podría abrirlo. Lo que hoy garantiza Papelito: la asignación no aparece en la cuenta de quien representa, y el papelito muestra cuándo se abrió por primera vez (también si se crea otro enlace), de modo que una apertura ajena queda a la vista. No lo impide. Los textos de la app ya lo dicen así.
 
 | Opción | Qué agrega | Costo y límites |
