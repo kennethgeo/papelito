@@ -117,6 +117,74 @@ try {
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM memberships WHERE exchange_id=$1 AND status='approved'",[limited.exchangeId])).rows[0].n,3);
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM exchange_waitlist WHERE exchange_id=$1',[limited.exchangeId])).rows[0].n,1);
   console.log('PASS concurrencia: dos ingresos compiten por el último cupo; solo uno entra y el otro queda en espera.');
+
+  // Personal links: an opening runs in one transaction that shares a lock on the
+  // exchange with replacing the link and drawing again, so it sees each of them
+  // entirely before or entirely after.
+  const { executeAndCommitDraw } = await import('../src/lib/repositories/draw.ts');
+  const selected = await import('../src/lib/repositories/selected-features.ts');
+  const links = await import('../src/lib/repositories/personal-links.ts');
+  const family = ['pl-org', 'pl-guardian', 'pl-ana', 'pl-beto'];
+  for (const id of family) await getOrCreateProfile(id, `${id}@example.com`, id);
+  const linked = await ex.createExchangeWithInvitation('pl-org', { ...input, name: 'Enlaces personales', requiresApproval: false });
+  for (const id of family.slice(1)) await ex.acceptInvitationAtomic(linked.inviteToken, id);
+  const elder = await selected.addRepresented(linked.exchangeId, 'pl-guardian', 'pl-abuela', true, 'personal');
+  // Each wish names its owner, to detect a papelito that mixes two people.
+  for (const id of family) { const w = await wishes.saveWish(id, { title: `Idea de ${id}` }); await wishes.toggleWishInExchange(id, linked.exchangeId, w.wishId, true); }
+  await selected.representedWish(linked.exchangeId, 'pl-guardian', elder, 'Idea de pl-abuela');
+  const tokenOf = (created) => created.path.split('#')[1];
+  let token = tokenOf(await links.createPersonalLink(linked.exchangeId, 'pl-guardian', elder));
+  await executeAndCommitDraw(linked.exchangeId, 'pl-org', 0);
+  const receiverNow = async () => (await pool.query(`SELECT p.alias FROM assignments a JOIN profiles p ON p.user_id = a.receiver_id
+    JOIN exchanges e ON e.id = a.exchange_id JOIN draw_versions dv ON dv.id = a.draw_version_id AND dv.version_number = e.current_draw_version
+    WHERE a.exchange_id = $1 AND a.giver_id = $2`, [linked.exchangeId, elder])).rows[0].alias;
+  const coherent = (papelito) => papelito.wishes.length === 1 && papelito.wishes[0].title === `Idea de ${papelito.receiverAlias}`;
+
+  const together = await Promise.all(Array.from({ length: 8 }, () => links.openPersonalLink(token)));
+  assert(together.every((r) => r.papelito && coherent(r.papelito)), 'every simultaneous opening gets the papelito');
+  assert.equal(together.filter((r) => r.papelito.firstTimeNow).length, 1, 'exactly one opening is the first');
+  assert.equal(new Set(together.map((r) => r.papelito.firstOpenedAt)).size, 1, 'all of them show the same first opening');
+  assert.equal((await pool.query('SELECT open_count FROM represented_access_links WHERE revoked_at IS NULL AND represented_user_id = $1', [elder])).rows[0].open_count, 8);
+  console.log('PASS concurrencia: ocho aperturas simultáneas del mismo enlace; una sola es la primera y todas quedan registradas.');
+
+  for (let round = 0; round < 12; round++) {
+    const previous = token;
+    const [renewed, ...openings] = await Promise.all([
+      links.createPersonalLink(linked.exchangeId, 'pl-guardian', elder),
+      ...Array.from({ length: 4 }, () => links.openPersonalLink(previous)),
+    ]);
+    token = tokenOf(renewed);
+    for (const opening of openings) {
+      assert(opening.papelito ? coherent(opening.papelito) : opening.preview.state === 'invalid', 'an opening is complete or refused, never partial');
+    }
+    const row = (await pool.query(`SELECT open_count, revoked_at FROM represented_access_links WHERE token_hash = encode(sha256($1::bytea), 'hex')`, [Buffer.from(previous)])).rows[0];
+    assert(row.revoked_at, 'the previous link was replaced');
+    const before = round === 0 ? 8 : 0;
+    assert.equal(row.open_count - before, openings.filter((o) => o.papelito).length, 'every served opening was recorded on the link that served it');
+    assert.equal((await links.openPersonalLink(previous)).preview.state, 'invalid', 'the replaced link never works again');
+  }
+  assert((await links.openPersonalLink(token)).papelito, 'the newest link works');
+  console.log('PASS concurrencia: abrir mientras se reemplaza el enlace; cada apertura se sirve completa y registrada, o se rechaza.');
+
+  let version = 1;
+  for (let round = 0; round < 10; round++) {
+    const before = await receiverNow();
+    const [, ...openings] = await Promise.all([
+      executeAndCommitDraw(linked.exchangeId, 'pl-org', version, 'Sorteo nuevo de prueba'),
+      ...Array.from({ length: 4 }, () => links.openPersonalLink(token)),
+    ]);
+    version++;
+    const after = await receiverNow();
+    for (const opening of openings) {
+      assert(opening.papelito, 'the link keeps working across a new draw');
+      assert(coherent(opening.papelito), 'receiver and wishes come from the same draw');
+      assert([before, after].includes(opening.papelito.receiverAlias), 'the papelito is the previous or the new one, nothing else');
+    }
+    const settled = await links.openPersonalLink(token);
+    assert.equal(settled.papelito.receiverAlias, after, 'after the new draw, the papelito is the new one');
+    assert(coherent(settled.papelito));
+  }
+  console.log('PASS concurrencia: abrir mientras se repite el sorteo; nunca se mezclan dos sorteos y al terminar se ve el nuevo.');
   if (idleErrors.length) throw idleErrors[0];
 } finally {
   stopping = true;

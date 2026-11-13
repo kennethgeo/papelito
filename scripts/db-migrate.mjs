@@ -93,6 +93,7 @@ export const MIGRATION_LEDGER_TABLE = 'papelito_schema_migrations';
 export const VERSIONED_MIGRATIONS = [
   { name: '20261102_idempotency_and_limits.sql', columns: { exchanges: ['client_request_id'], wishes: ['client_request_id'] } },
   { name: '20261106_organization.sql', columns: { exchange_organization: ['exchange_id','capacity','rules','rules_version','revision','updated_at'],exchange_attendance:['exchange_id','user_id','response','updated_at'],exchange_waitlist:['exchange_id','user_id','queued_at'],memberships:['rules_read_version','rules_read_at'] } },
+  { name: '20261113_represented_personal_links.sql', columns: { profiles: ['represented_access'], represented_access_links: ['id', 'represented_user_id', 'token_hash', 'created_at', 'revoked_at', 'first_opened_at', 'last_opened_at', 'open_count'] } },
 ];
 
 export async function applyVersionedMigrations(client, migrations = VERSIONED_MIGRATIONS) {
@@ -142,7 +143,10 @@ export const ORGANIZATION_SCHEMA = {
   exchange_attendance: ['exchange_id','user_id','response','updated_at'],
   exchange_waitlist: ['exchange_id','user_id','queued_at'],
 };
-export const ALL_PAPELITO_SCHEMA = { ...HISTORICAL_PAPELITO_SCHEMA,...ORGANIZATION_SCHEMA, memberships:[...HISTORICAL_PAPELITO_SCHEMA.memberships,'rules_read_version','rules_read_at'] };
+export const PERSONAL_LINKS_SCHEMA = {
+  represented_access_links: ['id', 'represented_user_id', 'token_hash', 'created_at', 'revoked_at', 'first_opened_at', 'last_opened_at', 'open_count'],
+};
+export const ALL_PAPELITO_SCHEMA = { ...HISTORICAL_PAPELITO_SCHEMA,...ORGANIZATION_SCHEMA,...PERSONAL_LINKS_SCHEMA, memberships:[...HISTORICAL_PAPELITO_SCHEMA.memberships,'rules_read_version','rules_read_at'], profiles:[...HISTORICAL_PAPELITO_SCHEMA.profiles,'represented_access'] };
 
 /**
  * Loads .env.local and .env into process.env without overwriting existing variables
@@ -327,7 +331,7 @@ async function inspectCoreSchema(client, migrationSql, incrementalSqlOverride) {
 
   const allTables = tablesRes.rows.map((r) => r.table_name);
   const existingTables = allTables.filter(t => expectedTableSet.has(t));
-  const foreignTables = allTables.filter((t) => !expectedTableSet.has(t) && !(t in SOCIAL_SCHEMA) && !(t in SELECTED_SCHEMA) && !(t in ORGANIZATION_SCHEMA) && t !== MIGRATION_LEDGER_TABLE);
+  const foreignTables = allTables.filter((t) => !expectedTableSet.has(t) && !(t in SOCIAL_SCHEMA) && !(t in SELECTED_SCHEMA) && !(t in ORGANIZATION_SCHEMA) && !(t in PERSONAL_LINKS_SCHEMA) && t !== MIGRATION_LEDGER_TABLE);
 
   if (foreignTables.length > 0) {
     throw new Error(
