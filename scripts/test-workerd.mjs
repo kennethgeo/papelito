@@ -113,6 +113,10 @@ const scenarios = [
       check(/No pudimos revisar esta invitación/.test(join.body), "/unirse must report the outage, not an invalid invitation");
       assertNoMaskedFailure(join.body, "/unirse");
       check(!/Invitación no disponible/.test(join.body), "/unirse outage must not claim the invitation is invalid");
+      const personal = await page(base, `/papelito/${"a".repeat(43)}`);
+      check(personal.response.status === 200 && /No pudimos revisar este enlace/.test(personal.body), "/papelito must report the outage, not an invalid link");
+      check(!/Enlace no disponible/.test(personal.body), "/papelito outage must not claim the link is invalid");
+      assertNoMaskedFailure(personal.body, "/papelito");
       const guarded = await fetch(`${base}/api/auth/update-user`, { method: "POST", headers: { cookie: NEON_COOKIE, "content-type": "application/json", origin: base }, body: "{}" });
       check(guarded.status === 503 && (await guarded.json()).code === "SESSION_CHECK_UNAVAILABLE", `/api/auth/update-user must fail closed (status ${guarded.status})`);
       const logout = await fetch(`${base}/auth/logout`, { method: "POST", headers: { cookie: `${NEON_COOKIE}; ${PASSKEY_COOKIE}`, origin: base }, redirect: "manual" });

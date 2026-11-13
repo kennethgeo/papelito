@@ -585,3 +585,15 @@ test("demo: aprobar una solicitud ficticia no simula una falla de conexión", as
   await expect(page.locator(".workshop-error")).toHaveCount(0);
   await expect(page.locator(".workshop-success").filter({ hasText: "de ejemplo" })).toBeVisible();
 });
+
+test('enlace personal: un enlace inválido no muestra datos y la página no se indexa ni filtra el enlace', async ({ page }) => {
+  const response = await page.goto(`/papelito/${'b'.repeat(43)}`);
+  expect(response!.status()).toBe(200);
+  expect(response!.headers()['cache-control']).toContain('no-store');
+  expect(response!.headers()['x-robots-tag']).toContain('noindex');
+  await expect(page.getByRole('heading', { name: 'Enlace no disponible' })).toBeVisible();
+  await expect(page).toHaveTitle(/Tu papelito/);
+  await expect(page.locator('meta[name="referrer"]')).toHaveAttribute('content', 'no-referrer');
+  await expect(page.getByRole('button', { name: 'Abrir mi papelito' })).toHaveCount(0);
+  await noOverflow(page);
+});

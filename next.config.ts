@@ -60,7 +60,9 @@ const nextConfig: NextConfig = {
     ];
     return [
       { source: '/:path*', headers: security },
-      ...['/api/:path*', '/auth/:path*', '/unirse/:path*'].map(source => ({ source, headers: noStore })),
+      ...['/api/:path*', '/auth/:path*', '/unirse/:path*', '/papelito/:path*'].map(source => ({ source, headers: noStore })),
+      // Personal links: never indexed, and the link never leaves in a Referer header.
+      { source: '/papelito/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }, { key: 'Referrer-Policy', value: 'no-referrer' }] },
     ];
   },
 };

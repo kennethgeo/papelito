@@ -77,11 +77,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. EXCLUDE all API routes, auth routes, and invitation URLs from caching
+  // 2. EXCLUDE all API routes, auth routes, invitation and personal-link URLs from caching
   if (
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/auth/') ||
-    url.pathname.startsWith('/unirse/')
+    url.pathname.startsWith('/unirse/') ||
+    url.pathname.startsWith('/papelito/')
   ) {
     return;
   }

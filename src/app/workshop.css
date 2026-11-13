@@ -1095,3 +1095,28 @@ html:has(.install-welcome[open]) { overflow:hidden; }
 .name-editor { max-width:480px; margin:8px 0; }
 .name-editor form { margin:12px 0; padding:16px; background:var(--paper-white); border-left:3px solid var(--paper-yellow); }
 .name-editor .workshop-field { margin-bottom:8px; }
+
+/* Personal link for older adults: larger text and targets, same paper style. */
+.personal-papelito { font-size: 1.15rem; line-height: 1.55; }
+.personal-papelito h1 { font-size: clamp(1.9rem, 7vw, 2.4rem); }
+.personal-papelito .paper-button, .personal-papelito .paper-outline-button { min-height: 56px; font-size: 1.15rem; padding-inline: 24px; }
+.personal-papelito .field-help { font-size: 1rem; }
+.personal-open { display: grid; gap: 10px; margin-top: 18px; }
+.personal-result { margin-top: 20px; border-top: 2px dashed #cebed9; padding-top: 16px; }
+.personal-label { margin: 0; font-weight: 700; color: var(--color-tinta, #46245d); }
+.personal-receiver { font-size: clamp(2.2rem, 10vw, 3rem); margin: 4px 0; overflow-wrap: anywhere; }
+.personal-receiver-name { margin-top: 0; }
+.personal-section { margin-top: 18px; }
+.personal-section dl div { margin-bottom: 8px; }
+.personal-section dt { font-weight: 700; }
+.personal-section dd { margin: 0; }
+.personal-wishes { list-style: none; padding: 0; display: grid; gap: 14px; }
+.personal-wishes li { border: 1.5px solid #8a74a0; padding: 12px 14px; background: var(--paper-white, #fffefc); }
+.personal-wishes p { margin: 6px 0 0; }
+.personal-wishes img { display: block; max-width: 100%; height: auto; margin-top: 10px; }
+.personal-wishes a { display: inline-block; margin-top: 8px; min-height: 44px; line-height: 44px; }
+.personal-trace { margin-top: 20px; padding: 12px 14px; background: #f3edf8; border-left: 4px solid #7043a2; }
+.represented-kind { border: 0; padding: 0; margin: 10px 0; display: grid; gap: 8px; }
+.represented-kind legend { font-weight: 700; margin-bottom: 4px; }
+.personal-link-box { display: grid; gap: 8px; margin: 10px 0; }
+.personal-link-box input { width: 100%; font-size: 0.95rem; }
