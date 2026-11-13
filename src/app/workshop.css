@@ -1116,7 +1116,7 @@ html:has(.install-welcome[open]) { overflow:hidden; }
 .personal-wishes img { display: block; max-width: 100%; height: auto; margin-top: 10px; }
 .personal-wishes a { display: inline-block; margin-top: 8px; min-height: 44px; line-height: 44px; }
 .personal-trace { margin-top: 20px; padding: 12px 14px; background: #f3edf8; border-left: 4px solid #7043a2; }
-.represented-kind { border: 0; padding: 0; margin: 10px 0; display: grid; gap: 8px; }
-.represented-kind legend { font-weight: 700; margin-bottom: 4px; }
+.represented-access { border: 0; padding: 0; margin: 10px 0; display: grid; gap: 8px; }
+.represented-access legend { font-weight: 700; margin-bottom: 4px; }
 .personal-link-box { display: grid; gap: 8px; margin: 10px 0; }
 .personal-link-box input { width: 100%; font-size: 0.95rem; }

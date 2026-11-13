@@ -106,7 +106,7 @@ for (const [url, method] of [
   ["/api/auth/get-session", "GET"],
   ["/auth/callback", "GET"],
   ["/unirse/secret-token", "GET"],
-  ["/papelito/secret-personal-link", "GET"],
+  ["/papelito", "GET"],
   ["/", "POST"],
 ]) {
   let handled = false;

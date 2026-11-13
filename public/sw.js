@@ -82,7 +82,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/auth/') ||
     url.pathname.startsWith('/unirse/') ||
-    url.pathname.startsWith('/papelito/')
+    url.pathname === '/papelito'
   ) {
     return;
   }

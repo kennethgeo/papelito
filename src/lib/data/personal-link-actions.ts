@@ -1,12 +1,20 @@
 'use server';
-import { openPersonalLink } from '@/lib/repositories/personal-links';
+import { isDatabaseConfigured } from '@/lib/db/client';
+import { openPersonalLink, previewPersonalLink, type PersonalLinkPreview } from '@/lib/repositories/personal-links';
 import { safeAction } from './access';
 
 /**
- * Public action behind «Abrir mi papelito» on /papelito/<link>. No account:
- * the link itself is the credential, checked by its hash. Opening is a POST,
- * so link previews in messaging apps never count as an opening.
+ * Public actions behind /papelito. No account: the link's secret is the
+ * credential, checked by its hash. The page reads it from the URL fragment and
+ * sends it here in the POST body, so it never appears in a URL the server (or
+ * its request logs) sees. A failure is reported as a failure, never as an
+ * invalid link.
  */
+export async function previewPersonalPapelitoAction(token: string) {
+  return safeAction(async (): Promise<PersonalLinkPreview> => (isDatabaseConfigured() ? previewPersonalLink(token) : { state: 'invalid' }));
+}
+
+/** «Abrir mi papelito»: an explicit action that records the opening. */
 export async function openPersonalPapelitoAction(token: string) {
-  return safeAction(async () => openPersonalLink(token));
+  return safeAction(async () => (isDatabaseConfigured() ? openPersonalLink(token) : { preview: { state: 'invalid' } as PersonalLinkPreview, papelito: null }));
 }

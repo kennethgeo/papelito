@@ -27,14 +27,13 @@ const TRANSIENT_STATUS = new Set([408, 429, 502, 504, 520, 521, 522, 523, 524, 5
 const ENGLISH_DEFAULT_ERROR = /This page couldn.t load|Application error: a client-side exception/i;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const randomToken = randomBytes(24).toString("base64url");
-const randomLinkToken = randomBytes(32).toString("base64url");
 
 const html = (extra = {}) => ({ type: /text\/html/, mustNot: [ENGLISH_DEFAULT_ERROR], ...extra });
 const routes = [
   { path: "/", status: 200, ...html({ must: [/<html[^>]+lang="es/, /papelito/i] }), headers: { "x-frame-options": /DENY/i, "x-content-type-options": /nosniff/i, "referrer-policy": /strict-origin-when-cross-origin/i, "permissions-policy": /camera=\(\)/, "content-security-policy-report-only": /default-src 'self'.*report-uri \/api\/csp-report/ } },
   { path: "/?mode=demo", status: 200, ...html({ must: [/<html[^>]+lang="es/] }) },
   { path: `/unirse/${randomToken}`, status: 200, ...html({ must: [/Invitación no disponible/] }), headers: { "cache-control": /no-store/ }, transientMarker: /No pudimos revisar esta invitación/ },
-  { path: `/papelito/${randomLinkToken}`, status: 200, ...html({ must: [/Enlace no disponible/] }), headers: { "cache-control": /no-store/, "x-robots-tag": /noindex/, "referrer-policy": /^no-referrer$/ }, transientMarker: /No pudimos revisar este enlace/ },
+  { path: "/papelito", status: 200, ...html({ must: [/Tu papelito/] }), headers: { "cache-control": /no-store/, "x-robots-tag": /noindex/, "referrer-policy": /^no-referrer$/ } },
   { path: "/ayuda", status: 200, ...html({ must: [/papelito/i] }) },
   { path: "/privacidad", status: 200, ...html() },
   { path: "/terminos", status: 200, ...html() },
@@ -129,9 +128,9 @@ if (expectVersion) {
 if (verdict === "ok") {
   for (const route of routes) {
     const result = await checkRoute(route);
-    console.log(`${result.kind === "ok" ? "PASS" : "FAIL"} ${route.path.replace(randomToken, "<token>").replace(randomLinkToken, "<enlace>")} ${result.detail || ""}`.trim());
+    console.log(`${result.kind === "ok" ? "PASS" : "FAIL"} ${route.path.replace(randomToken, "<token>")} ${result.detail || ""}`.trim());
     if (result.kind !== "ok") {
-      failures.push(`${route.path.replace(randomToken, "<token>").replace(randomLinkToken, "<enlace>")}: ${result.detail}`);
+      failures.push(`${route.path.replace(randomToken, "<token>")}: ${result.detail}`);
       // A deterministic defect outranks transient noise on other routes.
       if (result.kind === "defective" || verdict === "ok") verdict = result.kind;
     }
