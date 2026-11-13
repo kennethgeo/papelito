@@ -61,20 +61,21 @@ El esquema histórico de 24 tablas se verifica antes de las migraciones versiona
 
 | | |
 | --- | --- |
-| Cambios | Columna `profiles.represented_kind` (`child` o `senior`, nula en las filas existentes) y tabla `represented_access_links` (hash SHA-256 del enlace, fechas de creación, revocación y apertura, y número de aperturas). Índice único parcial: un solo enlace activo por persona |
-| Datos existentes | No se modifican. Las personas representadas que ya existen quedan con `represented_kind` nulo, que la app trata como niña o niño: quien las representa sigue viendo su asignación, igual que antes |
-| Para qué | Una persona adulta mayor inscrita por otra abre su propio papelito con un enlace personal, sin cuenta, y quien la representa no ve su asignación |
+| Cambios | Columna `profiles.represented_access` (`managed` o `personal`, nula en las filas existentes) y tabla `represented_access_links` (hash SHA-256 del secreto del enlace, fechas de creación, revocación y apertura, y número de aperturas). Índice único parcial: un solo enlace activo por persona |
+| Datos existentes | No se modifican. Las personas representadas que ya existen quedan con `represented_access` nulo, que la app trata como `managed`: quien las representa sigue viendo su asignación, igual que antes |
+| Para qué | Una persona inscrita por otra (por ejemplo, una persona adulta mayor) abre su propio papelito con un enlace personal, sin cuenta, y su asignación no se envía a la cuenta de quien la representa |
 | Esquema | 28 tablas de aplicación, además del registro administrativo. `db:migrate` reconoce la tabla nueva como propia |
 
-**Orden:** como en las anteriores, aplicar y registrar la migración **antes** de fusionar. El código nuevo lee `represented_kind` y la tabla de enlaces; si se publica sin migrar, fallan «Personas a mi cargo» y los enlaces personales. La migración es compatible con el código anterior, que la ignora.
+**El archivo cambió antes de aplicarse.** La primera versión de esta rama usaba `represented_kind` (`child`/`senior`). Se renombró antes de abrir el PR, cuando todavía no debía estar aplicada en ninguna base. Si alguien la aplicó en una rama de prueba de Neon, `db:migrate` se detiene ahí con «cambió después de aplicarse»: hay que descartar esa rama de prueba. En producción no debe estar aplicada.
 
-**Recuperación:** revertir el código no requiere tocar la base. Reversión de emergencia del esquema, solo después de revertir el código (se pierden los enlaces y el tipo elegido; nadie pierde su asignación):
+**Orden:** como en las anteriores, aplicar y registrar la migración **antes** de fusionar. El código nuevo lee `represented_access` y la tabla de enlaces; si se publica sin migrar, fallan «Personas a mi cargo» y los enlaces personales. La migración es compatible con el código anterior, que la ignora.
+
+**Recuperación:** revertir el código no requiere tocar la base. Reversión de emergencia del esquema, solo después de revertir el código (se pierden los enlaces y la elección de quién abre cada papelito; nadie pierde su asignación):
 
 ```sql
 BEGIN;
 DROP TABLE IF EXISTS represented_access_links;
-ALTER TABLE profiles DROP COLUMN IF EXISTS represented_kind;
+ALTER TABLE profiles DROP COLUMN IF EXISTS represented_access;
 DELETE FROM papelito_schema_migrations WHERE name = '20261113_represented_personal_links.sql';
 COMMIT;
 ```
-

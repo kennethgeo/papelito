@@ -6,10 +6,20 @@ Este documento separa lo que **no** se implementó en las correcciones de la aud
 
 | Tema | Situación | Opciones |
 | --- | --- | --- |
-| Versión legal tras corregir el proveedor de alojamiento y agregar el enlace personal | `/privacidad` y `/consentimiento` ya nombran a Cloudflare en lugar de Netlify. `/privacidad` también explica que una persona adulta mayor representada ve su asignación solo con su enlace personal y qué se guarda del enlace; `LEGAL_CONSTANTS.VERSION` sigue en `2026-10-31.1`, igual que la fecha de actualización | (a) Tratarlo como corrección editorial y dejar la versión. (b) Publicar una versión nueva: todas las cuentas vuelven a aceptar y los recordatorios se pausan hasta entonces |
+| Versión legal tras corregir el proveedor de alojamiento y agregar el enlace personal | `/privacidad` y `/consentimiento` ya nombran a Cloudflare en lugar de Netlify. `/privacidad` también explica que quien abre su papelito personalmente lo hace con un enlace personal, que su asignación no aparece en la cuenta de quien la representa, que esa persona recibe el enlace para entregarlo y qué se guarda del enlace; `LEGAL_CONSTANTS.VERSION` sigue en `2026-10-31.1`, igual que la fecha de actualización | (a) Tratarlo como corrección editorial y dejar la versión. (b) Publicar una versión nueva: todas las cuentas vuelven a aceptar y los recordatorios se pausan hasta entonces |
 | Identidad jurídica y domicilio del responsable | Pendientes, como indican los textos | Completar antes de abrir el servicio al público |
 | Plazos de retención | Sin cambios: 12 meses tras el cierre y 30 días para registros de entrega | Cualquier cambio requiere actualizar los textos y, probablemente, la versión |
-| Registros técnicos de Cloudflare | Los registros de invocación de Workers guardan la ruta visitada (con la consulta redactada). En `/unirse/<token>` y `/papelito/<enlace>` la ruta incluye el token de invitación o el enlace personal. Solo accede la cuenta del titular | Aceptarlo, reducir el muestreo de registros o desactivar los registros de invocación y conservar solo los registros propios saneados |
+| Registros técnicos de Cloudflare | Los registros de invocación de Workers guardan la ruta visitada (con la consulta redactada). En `/unirse/<token>` la ruta incluye el token de invitación. El enlace personal no tiene este problema: su secreto va en el fragmento de la dirección y en el cuerpo de un POST, que no se registran. Solo accede la cuenta del titular | Aceptarlo, reducir el muestreo de registros o desactivar los registros de invocación y conservar solo los registros propios saneados |
+
+## Decisión de producto: aislamiento frente a quien representa (enlace personal)
+
+Quien representa crea el enlace personal y lo entrega, así que podría abrirlo. Lo que hoy garantiza Papelito: la asignación no aparece en la cuenta de quien representa, y el papelito muestra cuándo se abrió por primera vez (también si se crea otro enlace), de modo que una apertura ajena queda a la vista. No lo impide. Los textos de la app ya lo dicen así.
+
+| Opción | Qué agrega | Costo y límites |
+| --- | --- | --- |
+| A. Confianza y rastro (actual) | Nada más. Sirve para cualquier persona con un teléfono | Gratis. No impide que quien representa abra el enlace; lo deja visible |
+| B. Registrar el teléfono antes del sorteo | Antes del sorteo la persona abre el enlace en su teléfono y lo registra; después, el papelito solo se abre ahí. Si otra persona lo registró primero, se nota antes de que exista el secreto | Gratis. Hay que usar siempre el mismo teléfono y navegador; si se pierde o se borran sus datos, alguien tiene que autorizar un enlace nuevo (por ejemplo, quien organiza). No protege si quien representa también organiza |
+| C. Código enviado al correo o teléfono de la persona | Abrir o renovar el enlace exige un código que llega directamente a la persona | Correo: hace falta un remitente propio (dominio y proveedor, hoy pospuestos) y que la persona use correo. SMS: costo por mensaje. En ambos casos el contacto lo escribe quien representa, así que frena la curiosidad pero no a quien registre un contacto propio |
 
 ## Decisiones operativas
 
