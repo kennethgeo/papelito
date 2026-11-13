@@ -56,3 +56,25 @@ No hay migraciones nuevas para el resto de las correcciones de esta entrega (ses
 Añade las tablas `exchange_organization`, `exchange_attendance` y `exchange_waitlist`, y las columnas `memberships.rules_read_version` y `memberships.rules_read_at`. Sus registros se eliminan en cascada con la membresía o el intercambio. La migración es aditiva, idempotente y compatible con la versión anterior de la app; no cambia aprobaciones ni asignaciones existentes. Se aplica y registra antes de publicar el código que la utiliza. Los índices y columnas no contienen datos de terceros ni recursos de otras aplicaciones.
 
 El esquema histórico de 24 tablas se verifica antes de las migraciones versionadas; el esquema completo pasa a 27 tablas de aplicación, además del registro administrativo. Tras aplicar la migración se verifica también el esquema completo. Revertir el código no requiere borrar estas tablas ni sus datos.
+
+## `20261113_represented_personal_links.sql`
+
+| | |
+| --- | --- |
+| Cambios | Columna `profiles.represented_kind` (`child` o `senior`, nula en las filas existentes) y tabla `represented_access_links` (hash SHA-256 del enlace, fechas de creación, revocación y apertura, y número de aperturas). Índice único parcial: un solo enlace activo por persona |
+| Datos existentes | No se modifican. Las personas representadas que ya existen quedan con `represented_kind` nulo, que la app trata como niña o niño: quien las representa sigue viendo su asignación, igual que antes |
+| Para qué | Una persona adulta mayor inscrita por otra abre su propio papelito con un enlace personal, sin cuenta, y quien la representa no ve su asignación |
+| Esquema | 28 tablas de aplicación, además del registro administrativo. `db:migrate` reconoce la tabla nueva como propia |
+
+**Orden:** como en las anteriores, aplicar y registrar la migración **antes** de fusionar. El código nuevo lee `represented_kind` y la tabla de enlaces; si se publica sin migrar, fallan «Personas a mi cargo» y los enlaces personales. La migración es compatible con el código anterior, que la ignora.
+
+**Recuperación:** revertir el código no requiere tocar la base. Reversión de emergencia del esquema, solo después de revertir el código (se pierden los enlaces y el tipo elegido; nadie pierde su asignación):
+
+```sql
+BEGIN;
+DROP TABLE IF EXISTS represented_access_links;
+ALTER TABLE profiles DROP COLUMN IF EXISTS represented_kind;
+DELETE FROM papelito_schema_migrations WHERE name = '20261113_represented_personal_links.sql';
+COMMIT;
+```
+

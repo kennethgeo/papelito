@@ -162,8 +162,10 @@ export async function exportUserData(userId: string) {
     dbQuery('SELECT exchange_id, amount::text FROM budget_votes WHERE user_id = $1', [userId]),
     dbQuery('SELECT label, rp_id, created_at::text, last_used_at::text FROM app_passkeys WHERE user_id = $1', [userId]),
     dbQuery('SELECT browser, created_at::text, expires_at::text FROM app_passkey_sessions WHERE user_id = $1', [userId]),
-    dbQuery(`SELECT p.user_id, p.alias, p.represented_exchange_id, p.representation_authorized_at::text,
-      COALESCE((SELECT jsonb_agg(jsonb_build_object('title', w.title, 'description', w.description, 'url', w.url)) FROM wishes w WHERE w.user_id = p.user_id), '[]'::jsonb) AS wishes
+    dbQuery(`SELECT p.user_id, p.alias, p.represented_exchange_id, p.representation_authorized_at::text, COALESCE(p.represented_kind, 'child') AS represented_kind,
+      COALESCE((SELECT jsonb_agg(jsonb_build_object('title', w.title, 'description', w.description, 'url', w.url)) FROM wishes w WHERE w.user_id = p.user_id), '[]'::jsonb) AS wishes,
+      COALESCE((SELECT jsonb_agg(jsonb_build_object('created_at', l.created_at, 'revoked_at', l.revoked_at, 'first_opened_at', l.first_opened_at, 'last_opened_at', l.last_opened_at, 'open_count', l.open_count) ORDER BY l.created_at)
+        FROM represented_access_links l WHERE l.represented_user_id = p.user_id), '[]'::jsonb) AS personal_links
       FROM profiles p WHERE p.guardian_user_id = $1`, [userId]),
     dbQuery<{ wish_id: string; image: Uint8Array }>('SELECT f.wish_id, f.image FROM wish_photos f JOIN wishes w ON w.id = f.wish_id JOIN profiles p ON p.user_id = w.user_id WHERE w.user_id = $1 OR p.guardian_user_id = $1', [userId]),
   ]);

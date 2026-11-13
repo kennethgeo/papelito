@@ -5,6 +5,7 @@ import { dbQuery, dbTransaction, type DbClient } from '@/lib/db/client';
 import { PublicError } from '@/lib/data/errors';
 import { getMyAssignment, revealAssignment } from './assignments';
 import { saveWish, toggleWishInExchange, getMyWishes, deleteWish } from './wishes';
+import { assertRepresentativeMaySeeAssignment, hasOpenedCurrentPapelito, kindOf, parseRepresentedKind, personalLinkStatus } from './personal-links';
 export async function approvedMember(exchangeId: string, userId: string, client: DbClient = { query: dbQuery }) {
   const result = await client.query<{ organizer_id: string; status: string; requires_approval: boolean }>(`SELECT e.organizer_id, e.status, e.requires_approval FROM exchanges e JOIN memberships m ON m.exchange_id = e.id WHERE e.id = $1 AND m.user_id = $2 AND m.status = 'approved'`, [exchangeId, userId]);
   if (!result.rows[0]) throw new PublicError('Este intercambio no está disponible para tu cuenta.');
@@ -53,10 +54,17 @@ export async function getPersonalHistory(userId: string) {
 }
 export async function getRepresented(exchangeId: string, userId: string) {
   await approvedMember(exchangeId, userId);
-  const profiles = await dbQuery<{ user_id: string; alias: string; status: string }>(`SELECT p.user_id, p.alias, m.status FROM profiles p JOIN memberships m ON m.user_id = p.user_id AND m.exchange_id = $1 WHERE p.guardian_user_id = $2 AND p.represented_exchange_id = $1 ORDER BY p.created_at`, [exchangeId, userId]);
-  return Promise.all(profiles.rows.map(async p => ({ ...p, assignment: p.status === 'approved' ? await getMyAssignment(exchangeId, p.user_id) : null, wishes: await getMyWishes(p.user_id) })));
+  const profiles = await dbQuery<{ user_id: string; alias: string; status: string; kind: string | null }>(`SELECT p.user_id, p.alias, m.status, p.represented_kind AS kind FROM profiles p JOIN memberships m ON m.user_id = p.user_id AND m.exchange_id = $1 WHERE p.guardian_user_id = $2 AND p.represented_exchange_id = $1 ORDER BY p.created_at`, [exchangeId, userId]);
+  const links = await personalLinkStatus(profiles.rows.filter(p => kindOf(p.kind) === 'senior').map(p => p.user_id));
+  return Promise.all(profiles.rows.map(async ({ kind: rawKind, ...p }) => {
+    const kind = kindOf(rawKind);
+    // An older adult's assignment never reaches the representative: only whether it was opened.
+    if (kind === 'senior') return { ...p, kind, assignment: null, opened: p.status === 'approved' && await hasOpenedCurrentPapelito(exchangeId, p.user_id), link: links.get(p.user_id) ?? null, wishes: await getMyWishes(p.user_id) };
+    return { ...p, kind, assignment: p.status === 'approved' ? await getMyAssignment(exchangeId, p.user_id) : null, opened: false, link: null, wishes: await getMyWishes(p.user_id) };
+  }));
 }
-export async function addRepresented(exchangeId: string, userId: string, alias: string, authorized: boolean) {
+export async function addRepresented(exchangeId: string, userId: string, alias: string, authorized: boolean, kindInput: unknown = 'child') {
+  const kind = parseRepresentedKind(kindInput);
   if (!authorized || typeof alias !== 'string' || alias.trim().length < 2 || alias.trim().length > 40) throw new PublicError('Confirmá que tenés autorización y elegí un alias de 2 a 40 caracteres.');
   return dbTransaction(async client => {
     await client.query('SELECT id FROM exchanges WHERE id = $1 FOR UPDATE', [exchangeId]);
@@ -67,7 +75,7 @@ export async function addRepresented(exchangeId: string, userId: string, alias: 
     const id = `represented:${crypto.randomUUID()}`;
     const waiting = await needsWaitingSlot(client,exchangeId);
     const status = !waiting && (ex.organizer_id === userId || !ex.requires_approval) ? 'approved' : 'pending';
-    await client.query('INSERT INTO profiles (user_id, alias, full_name, guardian_user_id, represented_exchange_id, representation_authorized_at) VALUES ($1, $2, $2, $3, $4, now())', [id, alias.trim(), userId, exchangeId]);
+    await client.query('INSERT INTO profiles (user_id, alias, full_name, guardian_user_id, represented_exchange_id, representation_authorized_at, represented_kind) VALUES ($1, $2, $2, $3, $4, now(), $5)', [id, alias.trim(), userId, exchangeId, kind]);
     await client.query('INSERT INTO memberships (exchange_id, user_id, status) VALUES ($1, $2, $3)', [exchangeId, id, status]);
     if (waiting) await queueMember(client,exchangeId,id);
     else if(status==='approved') await syncFullWaitlist(client,exchangeId);
@@ -103,6 +111,7 @@ export async function revealRepresented(exchangeId: string, userId: string, repr
   await approvedMember(exchangeId, userId);
   const owned = await dbQuery('SELECT user_id FROM profiles WHERE user_id = $1 AND guardian_user_id = $2 AND represented_exchange_id = $3', [representedId, userId, exchangeId]);
   if (!owned.rowCount) throw new PublicError('Esta persona no está a tu cargo en el intercambio.');
+  await assertRepresentativeMaySeeAssignment(exchangeId, userId, representedId);
   return revealAssignment(exchangeId, representedId);
 }
 export async function submitSupportReport(userId: string, description: string, area: string) {
