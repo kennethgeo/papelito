@@ -44,6 +44,40 @@ async function shareWish(userId, exchangeId, title) {
 }
 const addPhoto = (wishId) => query('INSERT INTO wish_photos (wish_id, image) VALUES ($1, $2) ON CONFLICT (wish_id) DO NOTHING', [wishId, photo]);
 
+test('enlace personal: elegir regalos queda guardado, es privado y rechaza enlaces o sorteos anteriores', async () => {
+  const s=await setup('pl-choice');
+  const personal=await selected.addRepresented(s.exchangeId,s.guardian,'Abuela de prueba',true,'personal');
+  await ex.manageMemberStatus(s.exchangeId,personal,'approved',s.org);
+  const shared={};
+  for(const id of [s.org,s.guardian,s.ana,s.beto]) shared[id]=await shareWish(id,s.exchangeId,`Idea elegible de ${id}`);
+  const token=tokenOf((await links.createPersonalLink(s.exchangeId,s.guardian,personal)).path);
+  await assert.rejects(()=>links.choosePersonalLinkWish(token,shared[s.ana],true,'sin-sorteo'));
+  await executeAndCommitDraw(s.exchangeId,s.org,0);
+  await assert.rejects(()=>links.choosePersonalLinkWish(token,shared[s.ana],true,'sin-abrir'));
+  const opened=(await links.openPersonalLink(token)).papelito;
+  const wish=opened.wishes[0]; assert(wish); assert.equal(wish.chosen,false);
+  await links.choosePersonalLinkWish(token,wish.id,true,opened.assignmentId);
+  await links.choosePersonalLinkWish(token,wish.id,true,opened.assignmentId);
+  assert.equal((await links.openPersonalLink(token)).papelito.wishes.find(w=>w.id===wish.id).chosen,true);
+  assert.equal((await query('SELECT count(*)::int AS n FROM gift_purchases WHERE buyer_id=$1',[personal])).rows[0].n,1);
+  assert.equal((await selected.getRepresented(s.exchangeId,s.guardian)).find(p=>p.user_id===personal).assignment,null);
+  assert.equal((await exportUserData(s.guardian)).myGiftPurchases.length,0);
+  const foreign=Object.values(shared).find(id=>id!==wish.id);
+  await assert.rejects(()=>links.choosePersonalLinkWish(token,foreign,true,opened.assignmentId));
+  await assert.rejects(()=>links.choosePersonalLinkWish('x'.repeat(64),wish.id,true,opened.assignmentId));
+  await assert.rejects(()=>links.choosePersonalLinkWish(token,wish.id,'yes',opened.assignmentId));
+  const renewed=tokenOf((await links.createPersonalLink(s.exchangeId,s.guardian,personal)).path);
+  await assert.rejects(()=>links.choosePersonalLinkWish(token,wish.id,false,opened.assignmentId));
+  assert.equal((await links.openPersonalLink(renewed)).papelito.wishes.find(w=>w.id===wish.id).chosen,true);
+  await links.choosePersonalLinkWish(renewed,wish.id,false,opened.assignmentId);
+  assert.equal((await links.openPersonalLink(renewed)).papelito.wishes.find(w=>w.id===wish.id).chosen,false);
+  await executeAndCommitDraw(s.exchangeId,s.org,1,'Prueba de actualización');
+  await links.openPersonalLink(renewed);
+  await assert.rejects(()=>links.choosePersonalLinkWish(renewed,wish.id,true,opened.assignmentId),/sorteo pudo/);
+  await query("UPDATE exchanges SET status='finalizado' WHERE id=$1",[s.exchangeId]);
+  await assert.rejects(()=>links.choosePersonalLinkWish(renewed,wish.id,true,opened.assignmentId));
+});
+
 test('enlace personal: elección al inscribir, solo para quien abre personalmente y estados antes del sorteo', async () => {
   const s = await setup('pl1');
   await assert.rejects(() => selected.addRepresented(s.exchangeId, s.guardian, 'Sin elección', true, 'adulto'), /Elegí si vos gestionás/);

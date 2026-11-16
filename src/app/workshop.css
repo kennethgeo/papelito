@@ -1120,3 +1120,6 @@ html:has(.install-welcome[open]) { overflow:hidden; }
 .represented-access legend { font-weight: 700; margin-bottom: 4px; }
 .personal-link-box { display: grid; gap: 8px; margin: 10px 0; }
 .personal-link-box input { width: 100%; font-size: 0.95rem; }
+.personal-wish-choice { display:flex;align-items:center;gap:12px;min-height:56px;margin-top:12px;padding:10px;border-top:1px dashed #cebed9;cursor:pointer;font-weight:700; }
+.personal-wish-choice input { width:24px;height:24px;flex-shrink:0;accent-color:#7043a2; }
+.personal-wishes li:has(.personal-wish-choice input:checked) { border:2px solid #7043a2;background:#f3edf8; }

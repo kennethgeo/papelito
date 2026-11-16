@@ -25,6 +25,8 @@ Todas las suites de esta tabla corren en `verify` (`.github/workflows/verify.yml
 
 Fuera de CI, con credenciales del titular: `npm run test:neon` (SQL real en Neon con `ROLLBACK`) y `npm run test:neon:e2e -- --sanitized-clone` (rama temporal saneada con cuentas ficticias).
 
+La selección de regalos desde el enlace personal se verifica en `test:hardening`: persiste al reabrir, repetir la misma operación no duplica filas, se puede quitar la marca y la cuenta y exportación de quien representa no la muestran. Se rechazan deseos ajenos, enlaces reemplazados, intercambios cerrados y selecciones enviadas desde un sorteo anterior.
+
 ## Lo que estas pruebas no demuestran
 
 - **Servicios reales:** Neon Auth (Google, correo, OTP, revocación con `revokeSession`), Neon en producción y Cloudflare Images solo se ejercitan con simulaciones o direcciones inalcanzables. La revocación en el proveedor se probó contra un servidor simulado con la forma de la API del SDK.

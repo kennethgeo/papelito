@@ -175,6 +175,7 @@ export async function previewPersonalLink(token: unknown): Promise<PersonalLinkP
 }
 
 export type PersonalPapelito = {
+  assignmentId: string;
   alias: string;
   exchangeName: string;
   eventDate: string;
@@ -183,7 +184,7 @@ export type PersonalPapelito = {
   preferences: GiftPreferences;
   budgetAmount: number;
   currency: Currency;
-  wishes: Array<{ id: string; title: string; description: string; url: string; hasPhoto: boolean }>;
+  wishes: Array<{ id: string; title: string; description: string; url: string; hasPhoto: boolean; chosen: boolean }>;
   firstOpenedAt: string | null;
   firstTimeNow: boolean;
   drawNotice: string | null;
@@ -232,6 +233,7 @@ export async function openPersonalLink(token: unknown): Promise<{ preview: Perso
     return {
       preview,
       papelito: {
+        assignmentId: assignment.id,
         alias: target.alias,
         exchangeName: target.exchange_name,
         eventDate: target.event_date,
@@ -240,12 +242,36 @@ export async function openPersonalLink(token: unknown): Promise<{ preview: Perso
         preferences: { ...EMPTY_GIFT_PREFERENCES, ...(assignment.receiverPreferences ?? {}) },
         budgetAmount: assignment.budgetAmount,
         currency: assignment.currency,
-        wishes: assignment.wishes.map((w) => ({ id: w.id, title: w.title, description: w.description ?? '', url: w.url ?? '', hasPhoto: Boolean(w.hasPhoto) })),
+        wishes: assignment.wishes.map((w) => ({ id: w.id, title: w.title, description: w.description ?? '', url: w.url ?? '', hasPhoto: Boolean(w.hasPhoto), chosen: Boolean(w.isPurchasedByGiver) })),
         firstOpenedAt,
         firstTimeNow: !assignment.revealed,
         drawNotice: target.draw_notice,
       },
     };
+  });
+}
+
+/** A private, explicit choice, scoped to the opened papelito and its current receiver. */
+export async function choosePersonalLinkWish(token: unknown, wishId: unknown, chosen: unknown, assignmentId: unknown) {
+  if (!isPersonalLinkToken(token) || typeof wishId !== 'string' || !/^[0-9a-f-]{36}$/i.test(wishId) || typeof chosen !== 'boolean' || typeof assignmentId !== 'string')
+    throw new PublicError('Revisá el enlace y la idea que querés elegir.');
+  const tokenHash = hashToken(token);
+  const located = await findTarget({ query: dbQuery }, tokenHash);
+  if (!located) throw new PublicError('Este enlace ya no está disponible.');
+  return dbTransaction(async client => {
+    await client.query('SELECT id FROM exchanges WHERE id=$1 FOR SHARE', [located.exchange_id]);
+    const target = await findTarget(client, tokenHash, true);
+    if (!target || describe(target).state !== 'ready') throw new PublicError('Este papelito ya no está disponible.');
+    const assignment = await getMyAssignment(target.exchange_id, target.represented_id, client);
+    if (!assignment?.revealed || assignment.id !== assignmentId) throw new PublicError('Volvé a abrir tu papelito antes de elegir una idea; el sorteo pudo haber cambiado.');
+    const selected = await client.query(`SELECT ws.id FROM wish_selections ws
+      JOIN wishes w ON w.id=ws.wish_id AND w.user_id=ws.user_id
+      JOIN memberships m ON m.exchange_id=ws.exchange_id AND m.user_id=ws.user_id AND m.status='approved'
+      WHERE ws.exchange_id=$1 AND ws.user_id=$2 AND ws.wish_id=$3`,[target.exchange_id,assignment.receiverId,wishId]);
+    if (!selected.rowCount) throw new PublicError('Esta idea ya no está compartida en tu papelito.');
+    if (chosen) await client.query('INSERT INTO gift_purchases(exchange_id,wish_id,buyer_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[target.exchange_id,wishId,target.represented_id]);
+    else await client.query('DELETE FROM gift_purchases WHERE exchange_id=$1 AND wish_id=$2 AND buyer_id=$3',[target.exchange_id,wishId,target.represented_id]);
+    return { wishId, chosen };
   });
 }
 

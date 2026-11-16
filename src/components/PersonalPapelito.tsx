@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { callServerAction, callServerRead } from "@/lib/client-actions";
-import { openPersonalPapelitoAction, previewPersonalPapelitoAction } from "@/lib/data/personal-link-actions";
+import { choosePersonalPapelitoWishAction, openPersonalPapelitoAction, previewPersonalPapelitoAction } from "@/lib/data/personal-link-actions";
 import { formatTimestamp } from "@/lib/date/timestamps";
 import { formatEventDate, formatMoney } from "@/lib/event-dates";
 import type { PersonalLinkPreview, PersonalPapelito as Papelito } from "@/lib/repositories/personal-links";
@@ -75,12 +75,14 @@ export function PersonalPapelito() {
   const [papelito, setPapelito] = useState<Papelito | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [choiceMessage, setChoiceMessage] = useState("");
   const inFlight = useRef(false);
 
   const check = useCallback(async () => {
     const token = readToken();
     setPapelito(null);
     setError("");
+    setChoiceMessage("");
     if (!token) { setView({ phase: "missing" }); return; }
     setView({ phase: "loading" });
     const result = await callServerRead(() => previewPersonalPapelitoAction(token), "tu enlace");
@@ -99,12 +101,38 @@ export function PersonalPapelito() {
     inFlight.current = true;
     setBusy(true);
     setError("");
+    setChoiceMessage("");
     try {
       const result = await callServerAction(() => openPersonalPapelitoAction(token));
       if (!result.success || !result.data) { setError("No pudimos abrir tu papelito. Revisá la conexión y probá de nuevo."); return; }
       // The state may have changed since the page loaded (new link, new draw).
       setView({ phase: "ready", token, preview: result.data.preview });
       setPapelito(result.data.papelito);
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function choose(token: string, wishId: string, chosen: boolean) {
+    if (inFlight.current || !papelito) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError("");
+    setChoiceMessage("");
+    try {
+      const result = await callServerAction(() => choosePersonalPapelitoWishAction(token, wishId, chosen, papelito.assignmentId));
+      if (!result.success || !result.data) {
+        setError(result.error || "No pudimos confirmar la selección. Volvé a abrir tu papelito para revisar.");
+        return;
+      }
+      const selected = result.data;
+      if (readToken() !== token) return;
+      setPapelito(current => current ? {
+        ...current,
+        wishes: current.wishes.map(wish => wish.id === wishId ? { ...wish, chosen: selected.chosen } : wish),
+      } : null);
+      setChoiceMessage(chosen ? "Regalo elegido. Tu selección quedó guardada." : "Quitamos la selección de este regalo.");
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -201,6 +229,7 @@ export function PersonalPapelito() {
 
           <section className="personal-section">
             <h3>Sus ideas de regalo</h3>
+            {papelito.wishes.length > 0 && <p className="field-help">Marcá las ideas que pensás regalar. Se guardan en este papelito; no avisamos a la persona que recibe el regalo ni mostramos tu elección en la cuenta de quien te inscribió. Quien tenga este enlace puede verla.</p>}
             {papelito.wishes.length === 0 ? (
               <p>Todavía no compartió ideas. Podés guiarte por sus gustos o preguntarle a quien organiza.</p>
             ) : (
@@ -211,11 +240,17 @@ export function PersonalPapelito() {
                     {wish.description && <p>{wish.description}</p>}
                     {wish.hasPhoto && <WishPhotoByLink token={token} wishId={wish.id} title={wish.title} />}
                     {wish.url && <a href={wish.url} target="_blank" rel="noopener noreferrer">Ver referencia en la tienda</a>}
+                    <label className="personal-wish-choice">
+                      <input type="checkbox" checked={wish.chosen} disabled={busy} onChange={event => void choose(token, wish.id, event.target.checked)} />
+                      <span>{wish.chosen ? "Regalo elegido" : "Elegir este regalo"}</span>
+                    </label>
                   </li>
                 ))}
               </ul>
             )}
           </section>
+          {choiceMessage && <p role="status" className="workshop-success">{choiceMessage}</p>}
+          {error && <p role="alert" className="workshop-error">{error}</p>}
 
           <p className="personal-trace" role="note">
             {papelito.firstTimeNow

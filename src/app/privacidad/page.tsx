@@ -111,6 +111,8 @@ export default function PrivacidadPage() {
             las fechas en que se abrió el papelito; la fecha de la primera apertura se muestra en el papelito
             y quien representa solo ve si ya se abrió. El secreto del enlace no viaja en la dirección que
             recibe el servidor, por lo que no queda en los registros técnicos.
+            Si elegís una idea desde el enlace, guardamos esa marca para ese papelito; no se avisa al
+            destinatario ni se muestra la elección en la cuenta de quien te inscribió. Quien conserve el enlace puede verla.
             Si respondés sobre asistencia, guardamos tu opción y fecha; quien organiza ve las respuestas
             individuales y los demás participantes solo los totales. Los cupos conservan una lista de espera
             con el orden de las solicitudes. Si marcás las reglas del grupo como leídas, guardamos la versión

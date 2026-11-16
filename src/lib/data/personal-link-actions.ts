@@ -1,6 +1,6 @@
 'use server';
 import { isDatabaseConfigured } from '@/lib/db/client';
-import { openPersonalLink, previewPersonalLink, type PersonalLinkPreview } from '@/lib/repositories/personal-links';
+import { choosePersonalLinkWish, openPersonalLink, previewPersonalLink, type PersonalLinkPreview } from '@/lib/repositories/personal-links';
 import { safeAction } from './access';
 
 /**
@@ -17,4 +17,8 @@ export async function previewPersonalPapelitoAction(token: string) {
 /** «Abrir mi papelito»: an explicit action that records the opening. */
 export async function openPersonalPapelitoAction(token: string) {
   return safeAction(async () => (isDatabaseConfigured() ? openPersonalLink(token) : { preview: { state: 'invalid' } as PersonalLinkPreview, papelito: null }));
+}
+
+export async function choosePersonalPapelitoWishAction(token: string, wishId: string, chosen: boolean, assignmentId: string) {
+  return safeAction(async () => choosePersonalLinkWish(token, wishId, chosen, assignmentId));
 }
