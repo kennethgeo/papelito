@@ -39,6 +39,7 @@ Tipos, lint, pruebas de algoritmo, backend, conexión, PWA, recorrido, social, f
 | `/` | 200 HTML en español; `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` y `Content-Security-Policy-Report-Only` |
 | `/?mode=demo` | 200 HTML |
 | `/unirse/<token inválido aleatorio>` | 200 con «Invitación no disponible» y `no-store` |
+| `/papelito` | 200 con `no-store`, `X-Robots-Tag: noindex` y `Referrer-Policy: no-referrer`. La página no lleva datos: el secreto del enlace personal va en el fragmento de la dirección |
 | `/ayuda`, `/privacidad`, `/terminos` | 200 HTML sin la página de error por defecto en inglés |
 | Ruta inexistente | 404 |
 | `/api/auth/get-session` sin sesión | 200 en producción, 503 sin servicios configurados; `no-store` |

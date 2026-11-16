@@ -585,3 +585,32 @@ test("demo: aprobar una solicitud ficticia no simula una falla de conexión", as
   await expect(page.locator(".workshop-error")).toHaveCount(0);
   await expect(page.locator(".workshop-success").filter({ hasText: "de ejemplo" })).toBeVisible();
 });
+
+test('enlace personal: el secreto va en el fragmento y nunca en una URL que llegue al servidor', async ({ page }) => {
+  const secret = 'ab'.repeat(32);
+  const requested: string[] = [];
+  const bodies: string[] = [];
+  page.on('request', (request) => { requested.push(request.url()); if (request.method() === 'POST') bodies.push(request.postData() ?? ''); });
+  const response = await page.goto(`/papelito#${secret}`);
+  expect(response!.status()).toBe(200);
+  expect(response!.headers()['cache-control']).toContain('no-store');
+  expect(response!.headers()['x-robots-tag']).toContain('noindex');
+  expect(response!.headers()['referrer-policy']).toBe('no-referrer');
+  expect(await response!.text()).not.toContain(secret);
+  // Without a database (this suite), an unknown link is simply not available.
+  await expect(page.getByRole('heading', { name: 'Enlace no disponible' })).toBeVisible();
+  await expect(page).toHaveTitle(/Tu papelito/);
+  await expect(page.locator('meta[name="referrer"]')).toHaveAttribute('content', 'no-referrer');
+  await expect(page.getByRole('button', { name: 'Abrir mi papelito' })).toHaveCount(0);
+  // The browser sent the secret only in the body of the POST that checks the link.
+  expect(requested.filter((url) => url.includes(secret))).toEqual([]);
+  expect(bodies.some((body) => body.includes(secret))).toBe(true);
+  await noOverflow(page);
+
+  // A link that arrived cut, or the bare address, asks for the complete link.
+  await page.goto('/papelito#abc');
+  await expect(page.getByRole('heading', { name: 'Abrí el enlace completo' })).toBeVisible();
+  await page.goto('/papelito');
+  await expect(page.getByRole('heading', { name: 'Abrí el enlace completo' })).toBeVisible();
+  await noOverflow(page);
+});

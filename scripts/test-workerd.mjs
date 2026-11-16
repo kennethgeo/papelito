@@ -113,6 +113,13 @@ const scenarios = [
       check(/No pudimos revisar esta invitación/.test(join.body), "/unirse must report the outage, not an invalid invitation");
       assertNoMaskedFailure(join.body, "/unirse");
       check(!/Invitación no disponible/.test(join.body), "/unirse outage must not claim the invitation is invalid");
+      // The personal papelito page holds no data and needs no service to load:
+      // the link's secret stays in the browser (URL fragment) until it is posted.
+      const personal = await page(base, "/papelito");
+      check(personal.response.status === 200 && /Tu papelito/.test(personal.body), `/papelito status ${personal.response.status}`);
+      assertNoMaskedFailure(personal.body, "/papelito");
+      const photo = await fetch(`${base}/api/papelito/fotos`, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ token: "a".repeat(64), wishId: "00000000-0000-4000-8000-000000000000" }) });
+      check(photo.status === 503, `/api/papelito/fotos must report the outage (status ${photo.status})`);
       const guarded = await fetch(`${base}/api/auth/update-user`, { method: "POST", headers: { cookie: NEON_COOKIE, "content-type": "application/json", origin: base }, body: "{}" });
       check(guarded.status === 503 && (await guarded.json()).code === "SESSION_CHECK_UNAVAILABLE", `/api/auth/update-user must fail closed (status ${guarded.status})`);
       const logout = await fetch(`${base}/auth/logout`, { method: "POST", headers: { cookie: `${NEON_COOKIE}; ${PASSKEY_COOKIE}`, origin: base }, redirect: "manual" });

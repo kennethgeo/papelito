@@ -1,17 +1,19 @@
 import 'server-only';
 import { PublicError } from '@/lib/data/errors';
 import { EMPTY_GIFT_PREFERENCES } from '@/lib/gift-preferences';
-import { dbQuery, dbTransaction } from '@/lib/db/client';
+import { dbQuery, dbTransaction, type DbClient } from '@/lib/db/client';
 import { toIsoTimestamp } from '@/lib/date/timestamps';
 import type { Assignment, Wish, Currency } from '@/types';
 
 export async function getMyAssignment(
   exchangeId: string,
-  userId: string
+  userId: string,
+  // Pass a transaction client to read inside that transaction.
+  client: DbClient = { query: dbQuery }
 ): Promise<Assignment | null> {
   // One round trip resolves the same conditions as before: drawn exchange,
   // current draw version, the caller as giver and an approved membership.
-  const assignRes = await dbQuery<{
+  const assignRes = await client.query<{
     id: string;
     receiver_id: string;
     revealed_at: string | null;
@@ -46,7 +48,7 @@ export async function getMyAssignment(
   };
 
   // 5. Fetch receiver's selected wishes for this exchange with buyer purchase marks
-  const wishesRes = await dbQuery<{
+  const wishesRes = await client.query<{
     id: string;
     title: string;
     description: string;

@@ -60,7 +60,10 @@ const nextConfig: NextConfig = {
     ];
     return [
       { source: '/:path*', headers: security },
-      ...['/api/:path*', '/auth/:path*', '/unirse/:path*'].map(source => ({ source, headers: noStore })),
+      ...['/api/:path*', '/auth/:path*', '/unirse/:path*', '/papelito'].map(source => ({ source, headers: noStore })),
+      // Personal papelito: never indexed. The link's secret is in the URL fragment,
+      // which browsers send neither to servers nor in Referer headers.
+      { source: '/papelito', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }, { key: 'Referrer-Policy', value: 'no-referrer' }] },
     ];
   },
 };

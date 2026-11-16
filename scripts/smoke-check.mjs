@@ -33,6 +33,7 @@ const routes = [
   { path: "/", status: 200, ...html({ must: [/<html[^>]+lang="es/, /papelito/i] }), headers: { "x-frame-options": /DENY/i, "x-content-type-options": /nosniff/i, "referrer-policy": /strict-origin-when-cross-origin/i, "permissions-policy": /camera=\(\)/, "content-security-policy-report-only": /default-src 'self'.*report-uri \/api\/csp-report/ } },
   { path: "/?mode=demo", status: 200, ...html({ must: [/<html[^>]+lang="es/] }) },
   { path: `/unirse/${randomToken}`, status: 200, ...html({ must: [/Invitación no disponible/] }), headers: { "cache-control": /no-store/ }, transientMarker: /No pudimos revisar esta invitación/ },
+  { path: "/papelito", status: 200, ...html({ must: [/Tu papelito/] }), headers: { "cache-control": /no-store/, "x-robots-tag": /noindex/, "referrer-policy": /^no-referrer$/ } },
   { path: "/ayuda", status: 200, ...html({ must: [/papelito/i] }) },
   { path: "/privacidad", status: 200, ...html() },
   { path: "/terminos", status: 200, ...html() },
